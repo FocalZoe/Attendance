@@ -41,24 +41,17 @@ const Sidebar = () => {
         <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.05em', marginBottom: '12px', marginLeft: '4px' }}>
           Menu
         </div>
-        
+
         <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <LayoutDashboard size={20} />
           即時儀表板
         </NavLink>
-        
+
         <NavLink to="/history" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <History size={20} />
           歷史紀錄簿
         </NavLink>
       </nav>
-
-      <div style={{ marginTop: 'auto' }}>
-        <NavLink to="/settings" className="nav-item" onClick={(e) => e.preventDefault()} style={{ opacity: 0.5, cursor: 'not-allowed' }}>
-          <Settings size={20} />
-          系統設定 (未開放)
-        </NavLink>
-      </div>
     </aside>
   );
 };
