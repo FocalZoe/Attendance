@@ -65,7 +65,7 @@ const Dashboard = () => {
           onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
         >
           <Camera size={20} />
-          📸 模擬相機打卡 (Webcam)
+          模擬相機打卡 (Webcam)
         </button>
       </header>
 
@@ -82,7 +82,7 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="glass-panel stat-card" style={{ borderTop: '4px solid var(--success)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
@@ -119,7 +119,7 @@ const Dashboard = () => {
               Supabase 數據連線中
             </div>
           </div>
-          
+
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)', borderRadius: '12px', position: 'relative', overflow: 'hidden', minHeight: '340px' }}>
             {latestRecord ? (
               <div key={latestRecord.id} className="animate-fade-in" style={{ textAlign: 'center', padding: '20px' }}>
@@ -148,7 +148,7 @@ const Dashboard = () => {
                 <p>等待最新打卡影像捕捉中...</p>
               </div>
             )}
-            
+
             <div style={{
               position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
               background: 'linear-gradient(to right, transparent, var(--success), transparent)',
@@ -171,7 +171,7 @@ const Dashboard = () => {
             <Activity size={24} color="var(--accent-primary)" />
             <h2 style={{ fontSize: '1.25rem' }}>即時動態</h2>
           </div>
-          
+
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', maxHeight: '420px' }}>
             {records.map((rec) => (
               <div
