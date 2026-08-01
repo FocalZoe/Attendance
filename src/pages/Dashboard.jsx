@@ -108,7 +108,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '24px', height: '440px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '24px', height: '540px' }}>
         {/* 最新捕捉影像畫面 */}
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
