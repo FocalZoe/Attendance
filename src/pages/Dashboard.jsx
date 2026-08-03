@@ -178,7 +178,7 @@ const Dashboard = () => {
                 0% { transform: translateY(0); opacity: 0; }
                 10% { opacity: 1; }
                 90% { opacity: 1; }
-                100% { transform: translateY(340px); opacity: 0; }
+                100% { transform: translateY(440px); opacity: 0; }
               }
             `}</style>
           </div>
