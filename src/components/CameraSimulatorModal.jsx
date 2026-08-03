@@ -1,7 +1,8 @@
 // TEAM_005, TEAM_006 & TEAM_007: Web 實體相機打卡與 AI 視覺辨識測試彈窗 (Frontend-2 CameraSimulatorModal.jsx)
 // TEAM_007 升級重點：
 // 1. 整合 MediaPipe 即時前端人臉偵測，繪製真實動態人臉框與信心度（支援多框繪製）。
-// 2. 解決硬編碼 localhost:3000 問題，透過 getApiUrl 動態對齊後端 API 端點。
+// 2. 加入人臉畫框平滑緩衝 (Smoothed Detections Cache) 消除 60fps 影格同步造成的閃爍問題。
+// 3. 透過 getApiUrl 動態對齊後端 API 端點，解決 Vercel / Local 環境部署異常。
 
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Camera, Send, RefreshCw, VideoOff, CheckCircle2, AlertCircle, ScanFace, Sparkles } from 'lucide-react';
@@ -55,6 +56,10 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
   const animFrameIdRef = useRef(null);
   const lastVideoTimeRef = useRef(-1);
 
+  // TEAM_007: 快取偵測結果與時間戳記，避免影格間隙導致畫框閃爍
+  const lastDetectionsRef = useRef([]);
+  const lastFaceTimeRef = useRef(0);
+
   const getCameraDevices = async () => {
     try {
       const allDevices = await navigator.mediaDevices.enumerateDevices();
@@ -105,9 +110,10 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
     }
     setCameraActive(false);
     setDetectedFacesCount(0);
+    lastDetectionsRef.current = [];
   };
 
-  // TEAM_007: 真實動態 AI 人臉追蹤畫框繪製 (MediaPipe Real-Time Overlay)
+  // TEAM_007: 真實動態 AI 人臉追蹤畫框繪製 (MediaPipe Real-Time Overlay + Anti-Flicker)
   useEffect(() => {
     if (!cameraActive) return;
 
@@ -138,18 +144,29 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
         if (ctx) {
           ctx.clearRect(0, 0, overlay.width, overlay.height);
 
-          let detections = [];
+          const now = performance.now();
+          // 若畫面時間有更新，執行 AI 檢測
           if (faceDetector && video.currentTime !== lastVideoTimeRef.current) {
             lastVideoTimeRef.current = video.currentTime;
             try {
-              const results = faceDetector.detectForVideo(video, performance.now());
-              detections = results.detections || [];
+              const results = faceDetector.detectForVideo(video, now);
+              const newDetections = results.detections || [];
+              if (newDetections.length > 0) {
+                lastDetectionsRef.current = newDetections;
+                lastFaceTimeRef.current = now;
+              } else if (now - lastFaceTimeRef.current > 350) {
+                // 超過 350ms 未偵測到人臉才清空，防止微小影格間隙閃爍
+                lastDetectionsRef.current = [];
+              }
             } catch (e) {
               // 容錯機制
             }
           }
 
-          setDetectedFacesCount(detections.length);
+          const detections = lastDetectionsRef.current;
+
+          // 僅在人數變化時觸發 React state 更新
+          setDetectedFacesCount((prev) => (prev !== detections.length ? detections.length : prev));
 
           if (detections.length > 0) {
             // 計算 object-fit: cover 的顯示映射比例與偏移量
@@ -173,7 +190,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
 
             const scale = renderW / vWidth;
 
-            // TEAM_007: 依據使用者指示，繪製所有偵測到的真實人臉邊框
+            // 繪製所有偵測到的真實人臉邊框
             detections.forEach((detection) => {
               const { originX, originY, width, height } = detection.boundingBox;
               const confidence = detection.categories[0]?.score || 0.95;
@@ -195,13 +212,9 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
               ctx.strokeStyle = '#10b981';
               ctx.lineWidth = 3.5;
 
-              // 左上角
               ctx.beginPath(); ctx.moveTo(boxX, boxY + cornerLen); ctx.lineTo(boxX, boxY); ctx.lineTo(boxX + cornerLen, boxY); ctx.stroke();
-              // 右上角
               ctx.beginPath(); ctx.moveTo(boxX + boxW - cornerLen, boxY); ctx.lineTo(boxX + boxW, boxY); ctx.lineTo(boxX + boxW, boxY + cornerLen); ctx.stroke();
-              // 左下角
               ctx.beginPath(); ctx.moveTo(boxX, boxY + boxH - cornerLen); ctx.lineTo(boxX, boxY + boxH); ctx.lineTo(boxX + cornerLen, boxY + boxH); ctx.stroke();
-              // 右下角
               ctx.beginPath(); ctx.moveTo(boxX + boxW - cornerLen, boxY + boxH); ctx.lineTo(boxX + boxW, boxY + boxH); ctx.lineTo(boxX + boxW, boxY + boxH - cornerLen); ctx.stroke();
 
               // 3. 繪製 AI 識別標籤背景與動態信心度
@@ -230,7 +243,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
             ctx.font = '12px sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText('⚠️ 未偵測到人臉 (請正對鏡頭)', cWidth / 2, 35);
-            ctx.textAlign = 'left'; // 恢復預設
+            ctx.textAlign = 'left';
           }
         }
       }
@@ -297,7 +310,6 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
         return;
       }
 
-      // TEAM_007: 使用 getApiUrl 避免寫死 localhost:3000
       const targetApiUrl = getApiUrl('/api/telemetry');
       console.log('[TEAM_007 Telemetry] POST target:', targetApiUrl);
 
