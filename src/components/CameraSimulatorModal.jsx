@@ -1,8 +1,42 @@
-// TEAM_005 & TEAM_006: Web 實體相機打卡與 AI 視覺辨識測試彈窗 (Frontend-2 CameraSimulatorModal.jsx)
-// 提供實體 Web 鏡頭畫面、AI 人臉動態追蹤畫框 (Overlay Canvas) 與考勤 JSON 上傳功能。
+// TEAM_005, TEAM_006 & TEAM_007: Web 實體相機打卡與 AI 視覺辨識測試彈窗 (Frontend-2 CameraSimulatorModal.jsx)
+// TEAM_007 升級重點：
+// 1. 整合 MediaPipe 即時前端人臉偵測，繪製真實動態人臉框與信心度（支援多框繪製）。
+// 2. 解決硬編碼 localhost:3000 問題，透過 getApiUrl 動態對齊後端 API 端點。
 
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Camera, Send, RefreshCw, VideoOff, CheckCircle2, AlertCircle, ScanFace, Sparkles } from 'lucide-react';
+import { FaceDetector, FilesetResolver } from '@mediapipe/tasks-vision';
+import { getApiUrl } from '../config/api.js';
+
+let detectorInstance = null;
+let detectorLoadingPromise = null;
+
+const getSharedFaceDetector = async () => {
+  if (detectorInstance) return detectorInstance;
+  if (!detectorLoadingPromise) {
+    detectorLoadingPromise = (async () => {
+      try {
+        const vision = await FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
+        );
+        const detector = await FaceDetector.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
+            delegate: 'GPU',
+          },
+          runningMode: 'VIDEO',
+          minDetectionConfidence: 0.5,
+        });
+        detectorInstance = detector;
+        return detector;
+      } catch (err) {
+        console.warn('[TEAM_007 AI Engine] MediaPipe FaceDetector init warning:', err);
+        return null;
+      }
+    })();
+  }
+  return detectorLoadingPromise;
+};
 
 export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
   const [message, setMessage] = useState('網路攝像機考勤打卡: 張小明');
@@ -11,12 +45,15 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
   const [cameraError, setCameraError] = useState(null);
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [detectedFacesCount, setDetectedFacesCount] = useState(0);
+  const [isAiLoaded, setIsAiLoaded] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
   const streamRef = useRef(null);
   const animFrameIdRef = useRef(null);
+  const lastVideoTimeRef = useRef(-1);
 
   const getCameraDevices = async () => {
     try {
@@ -52,7 +89,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
       await getCameraDevices();
     } catch (err) {
       console.error('[TEAM_006 Webcam Error]', err);
-      setCameraError('無法開啟網路攝像機，請確認授權權限。');
+      setCameraError('無法開啟網路攝像機，請確認已授權瀏覽器相機權限。');
       setCameraActive(false);
     }
   };
@@ -67,61 +104,146 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
       streamRef.current = null;
     }
     setCameraActive(false);
+    setDetectedFacesCount(0);
   };
 
-  // TEAM_006: 動態 AI 人臉追蹤畫框繪製
+  // TEAM_007: 真實動態 AI 人臉追蹤畫框繪製 (MediaPipe Real-Time Overlay)
   useEffect(() => {
     if (!cameraActive) return;
 
-    let tick = 0;
+    let active = true;
+    let faceDetector = null;
+
+    getSharedFaceDetector().then((detector) => {
+      if (active) {
+        faceDetector = detector;
+        setIsAiLoaded(true);
+      }
+    });
+
     const renderAiOverlay = () => {
       const overlay = overlayCanvasRef.current;
       const video = videoRef.current;
 
-      if (overlay && video && video.videoWidth > 0) {
-        overlay.width = video.clientWidth || 640;
-        overlay.height = video.clientHeight || 360;
+      if (overlay && video && video.readyState >= 2 && video.videoWidth > 0) {
+        const cWidth = video.clientWidth || 640;
+        const cHeight = video.clientHeight || 360;
+
+        if (overlay.width !== cWidth || overlay.height !== cHeight) {
+          overlay.width = cWidth;
+          overlay.height = cHeight;
+        }
 
         const ctx = overlay.getContext('2d');
         if (ctx) {
           ctx.clearRect(0, 0, overlay.width, overlay.height);
 
-          tick += 0.05;
-          const pulse = Math.sin(tick) * 4;
-          const boxW = 180 + pulse;
-          const boxH = 220 + pulse;
-          const boxX = (overlay.width - boxW) / 2;
-          const boxY = (overlay.height - boxH) / 2;
+          let detections = [];
+          if (faceDetector && video.currentTime !== lastVideoTimeRef.current) {
+            lastVideoTimeRef.current = video.currentTime;
+            try {
+              const results = faceDetector.detectForVideo(video, performance.now());
+              detections = results.detections || [];
+            } catch (e) {
+              // 容錯機制
+            }
+          }
 
-          ctx.strokeStyle = '#38bdf8';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([8, 6]);
-          ctx.strokeRect(boxX, boxY, boxW, boxH);
-          ctx.setLineDash([]);
+          setDetectedFacesCount(detections.length);
 
-          const cornerLen = 20;
-          ctx.strokeStyle = '#10b981';
-          ctx.lineWidth = 3.5;
+          if (detections.length > 0) {
+            // 計算 object-fit: cover 的顯示映射比例與偏移量
+            const vWidth = video.videoWidth;
+            const vHeight = video.videoHeight;
+            const videoAspect = vWidth / vHeight;
+            const containerAspect = cWidth / cHeight;
 
-          ctx.beginPath(); ctx.moveTo(boxX, boxY + cornerLen); ctx.lineTo(boxX, boxY); ctx.lineTo(boxX + cornerLen, boxY); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(boxX + boxW - cornerLen, boxY); ctx.lineTo(boxX + boxW, boxY); ctx.lineTo(boxX + boxW, boxY + cornerLen); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(boxX, boxY + boxH - cornerLen); ctx.lineTo(boxX, boxY + boxH); ctx.lineTo(boxX + cornerLen, boxY + boxH); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(boxX + boxW - cornerLen, boxY + boxH); ctx.lineTo(boxX + boxW, boxY + boxH); ctx.lineTo(boxX + boxW, boxY + boxH - cornerLen); ctx.stroke();
+            let renderW, renderH, offsetX, offsetY;
+            if (containerAspect > videoAspect) {
+              renderW = cWidth;
+              renderH = cWidth / videoAspect;
+              offsetX = 0;
+              offsetY = (cHeight - renderH) / 2;
+            } else {
+              renderH = cHeight;
+              renderW = cHeight * videoAspect;
+              offsetX = (cWidth - renderW) / 2;
+              offsetY = 0;
+            }
 
-          ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-          ctx.fillRect(boxX, boxY - 28, 200, 24);
-          ctx.fillStyle = '#38bdf8';
-          ctx.font = 'bold 12px monospace';
-          ctx.fillText('🤖 AI FACE DETECTED (98.5%)', boxX + 8, boxY - 12);
+            const scale = renderW / vWidth;
+
+            // TEAM_007: 依據使用者指示，繪製所有偵測到的真實人臉邊框
+            detections.forEach((detection) => {
+              const { originX, originY, width, height } = detection.boundingBox;
+              const confidence = detection.categories[0]?.score || 0.95;
+
+              const boxX = offsetX + originX * scale;
+              const boxY = offsetY + originY * scale;
+              const boxW = width * scale;
+              const boxH = height * scale;
+
+              // 1. 繪製科技虛線外框
+              ctx.strokeStyle = '#38bdf8';
+              ctx.lineWidth = 2;
+              ctx.setLineDash([8, 6]);
+              ctx.strokeRect(boxX, boxY, boxW, boxH);
+              ctx.setLineDash([]);
+
+              // 2. 繪製四角瞄準 L 型 brackets
+              const cornerLen = Math.min(20, boxW * 0.25);
+              ctx.strokeStyle = '#10b981';
+              ctx.lineWidth = 3.5;
+
+              // 左上角
+              ctx.beginPath(); ctx.moveTo(boxX, boxY + cornerLen); ctx.lineTo(boxX, boxY); ctx.lineTo(boxX + cornerLen, boxY); ctx.stroke();
+              // 右上角
+              ctx.beginPath(); ctx.moveTo(boxX + boxW - cornerLen, boxY); ctx.lineTo(boxX + boxW, boxY); ctx.lineTo(boxX + boxW, boxY + cornerLen); ctx.stroke();
+              // 左下角
+              ctx.beginPath(); ctx.moveTo(boxX, boxY + boxH - cornerLen); ctx.lineTo(boxX, boxY + boxH); ctx.lineTo(boxX + cornerLen, boxY + boxH); ctx.stroke();
+              // 右下角
+              ctx.beginPath(); ctx.moveTo(boxX + boxW - cornerLen, boxY + boxH); ctx.lineTo(boxX + boxW, boxY + boxH); ctx.lineTo(boxX + boxW, boxY + boxH - cornerLen); ctx.stroke();
+
+              // 3. 繪製 AI 識別標籤背景與動態信心度
+              const labelText = `🤖 AI FACE DETECTED (${(confidence * 100).toFixed(1)}%)`;
+              ctx.font = 'bold 12px monospace';
+              const textWidth = ctx.measureText(labelText).width;
+
+              const tagY = boxY > 30 ? boxY - 28 : boxY + boxH + 8;
+              ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+              ctx.fillRect(boxX, tagY, textWidth + 16, 24);
+              ctx.strokeStyle = '#38bdf8';
+              ctx.lineWidth = 1;
+              ctx.strokeRect(boxX, tagY, textWidth + 16, 24);
+
+              ctx.fillStyle = '#38bdf8';
+              ctx.fillText(labelText, boxX + 8, tagY + 16);
+            });
+          } else {
+            // 未偵測到人臉時，在中上方呈現無人臉提示條
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+            ctx.fillRect(cWidth / 2 - 110, 16, 220, 30);
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(cWidth / 2 - 110, 16, 220, 30);
+            ctx.fillStyle = '#fbbf24';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('⚠️ 未偵測到人臉 (請正對鏡頭)', cWidth / 2, 35);
+            ctx.textAlign = 'left'; // 恢復預設
+          }
         }
       }
 
-      animFrameIdRef.current = requestAnimationFrame(renderAiOverlay);
+      if (active) {
+        animFrameIdRef.current = requestAnimationFrame(renderAiOverlay);
+      }
     };
 
     renderAiOverlay();
 
     return () => {
+      active = false;
       if (animFrameIdRef.current) {
         cancelAnimationFrame(animFrameIdRef.current);
       }
@@ -175,7 +297,11 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
         return;
       }
 
-      const response = await fetch('http://localhost:3000/api/telemetry', {
+      // TEAM_007: 使用 getApiUrl 避免寫死 localhost:3000
+      const targetApiUrl = getApiUrl('/api/telemetry');
+      console.log('[TEAM_007 Telemetry] POST target:', targetApiUrl);
+
+      const response = await fetch(targetApiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -189,12 +315,12 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
         if (onSuccess) onSuccess();
         if (onClose) onClose();
       } else {
-        const errorJson = await response.json();
-        alert(`發送失敗: ${errorJson.error || errorJson.details}`);
+        const errorJson = await response.json().catch(() => ({}));
+        alert(`發送失敗 (${response.status}): ${errorJson.error || errorJson.details || '伺服器回應異常'}`);
       }
     } catch (err) {
-      console.error('Telemetry Exception', err);
-      alert('發送時發生網路異常');
+      console.error('[TEAM_007 Telemetry Exception]', err);
+      alert(`發送時發生網路異常，請確認端點能否連線 (${getApiUrl('/api/telemetry')})`);
     } finally {
       setIsSending(false);
     }
@@ -231,8 +357,13 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <ScanFace size={26} color="#38bdf8" />
             <div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 模擬 Ameba 相機 (AI 人臉辨識)
+                {isAiLoaded && (
+                  <span style={{ fontSize: '0.75rem', background: '#0284c7', color: '#e0f2fe', padding: '2px 8px', borderRadius: '12px' }}>
+                    MediaPipe Vision
+                  </span>
+                )}
               </h3>
               <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>即時 AI 人臉追蹤與數據考勤</span>
             </div>
@@ -321,9 +452,18 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
           <button
             onClick={handleSendTelemetry}
             disabled={isSending || !cameraActive}
-            style={{ padding: '10px 20px', borderRadius: '8px', background: '#38bdf8', color: '#0f172a', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+            style={{
+              padding: '10px 20px',
+              borderRadius: '8px',
+              background: detectedFacesCount > 0 ? '#38bdf8' : '#64748b',
+              color: '#0f172a',
+              fontWeight: 'bold',
+              border: 'none',
+              cursor: isSending || !cameraActive ? 'not-allowed' : 'pointer',
+              transition: 'background 0.3s'
+            }}
           >
-            {isSending ? '分析中...' : '📸 拍照並進行 AI 人臉考勤辨識'}
+            {isSending ? '分析中...' : `📸 拍照並進行 AI 人臉考勤辨識 (${detectedFacesCount} 人臉)`}
           </button>
         </div>
 
