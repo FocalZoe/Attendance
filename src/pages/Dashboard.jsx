@@ -1,4 +1,6 @@
-// TEAM_001: 移除 Mock 模擬邏輯並改為真實 API/WS 訂閱與相機打卡 (Dashboard.jsx)
+// TEAM_001 & TEAM_007: 移除 Mock 模擬邏輯並改為真實 API/WS 訂閱與相機打卡 (Dashboard.jsx)
+// TEAM_007 升級：點擊檢視大圖傳遞完整 selectedRecord 物件，由 ImageModal 進行後端 AI 多人人臉動態標註 Overlay 繪製。
+
 import React, { useState, useEffect } from 'react';
 import { Camera, Users, CheckCircle, Activity, Sparkles } from 'lucide-react';
 import { fetchHistoryRecords, connectWebSocket } from '../services/api';
@@ -9,7 +11,7 @@ const Dashboard = () => {
   const [records, setRecords] = useState([]);
   const [latestRecord, setLatestRecord] = useState(null);
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
-  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedRecord, setSelectedRecord] = useState(null);
 
   // 1. 載入 Supabase store_data 歷史打卡紀錄
   const loadRecords = async () => {
@@ -98,11 +100,11 @@ const Dashboard = () => {
         <div className="glass-panel stat-card" style={{ borderTop: '4px solid #8b5cf6' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div className="stat-title">即時對講連線</div>
-              <div className="stat-value" style={{ fontSize: '1.2rem', color: 'var(--success)' }}>運作中</div>
+              <div className="stat-title">AI Vision 引擎狀態</div>
+              <div className="stat-value" style={{ fontSize: '1.2rem', color: '#38bdf8' }}>MediaPipe Active</div>
             </div>
-            <div style={{ padding: '12px', background: 'rgba(139, 92, 246, 0.1)', borderRadius: '12px', color: '#8b5cf6' }}>
-              <Activity size={24} />
+            <div style={{ padding: '12px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '12px', color: '#38bdf8' }}>
+              <Sparkles size={24} />
             </div>
           </div>
         </div>
@@ -123,7 +125,7 @@ const Dashboard = () => {
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)', borderRadius: '12px', position: 'relative', overflow: 'hidden', minHeight: '340px' }}>
             {latestRecord ? (
               <div key={latestRecord.id} className="animate-fade-in" style={{ textAlign: 'center', padding: '20px' }}>
-                <div style={{ position: 'relative', display: 'inline-block', cursor: 'pointer' }} onClick={() => setSelectedImage(latestRecord.file_url)}>
+                <div style={{ position: 'relative', display: 'inline-block', cursor: 'pointer' }} onClick={() => setSelectedRecord(latestRecord)}>
                   <img
                     src={latestRecord.file_url}
                     alt={latestRecord.message}
@@ -183,7 +185,7 @@ const Dashboard = () => {
                   borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)',
                   cursor: 'pointer'
                 }}
-                onClick={() => setSelectedImage(rec.file_url)}
+                onClick={() => setSelectedRecord(rec)}
               >
                 <img
                   src={rec.file_url}
@@ -222,10 +224,11 @@ const Dashboard = () => {
         }}
       />
 
-      {/* TEAM_001: 圖片檢視 Modal */}
+      {/* TEAM_001 & TEAM_007: 圖片檢視 Modal (支援後端 AI 座標繪製) */}
       <ImageModal
-        imageUrl={selectedImage}
-        onClose={() => setSelectedImage(null)}
+        record={selectedRecord}
+        imageUrl={typeof selectedRecord === 'string' ? selectedRecord : selectedRecord?.file_url}
+        onClose={() => setSelectedRecord(null)}
       />
     </div>
   );

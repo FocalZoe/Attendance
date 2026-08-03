@@ -1,4 +1,6 @@
-// TEAM_001: 參考 Frontend-web 重構歷史紀錄卡片與大圖燈箱 (History.jsx)
+// TEAM_001 & TEAM_007: 參考 Frontend-web 重構歷史紀錄卡片與大圖燈箱 (History.jsx)
+// TEAM_007 升級：點擊檢視大圖傳遞完整 selectedRecord 物件，由 ImageModal 進行後端 AI 多人人臉動態標註 Overlay 繪製。
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { fetchHistoryRecords } from '../services/api';
 import ImageModal from '../components/ImageModal';
@@ -8,7 +10,7 @@ const History = () => {
   const [records, setRecords] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
-  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedRecord, setSelectedRecord] = useState(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -122,7 +124,7 @@ const History = () => {
         </div>
       </div>
 
-      {/* 照片卡片網格 Layout (參考 Frontend-web HistoryList) */}
+      {/* 照片卡片網格 Layout */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
         {filteredRecords.map((rec) => (
           <div
@@ -139,7 +141,7 @@ const History = () => {
           >
             {/* 照片容器：點擊開啟 ImageModal 大圖 */}
             <div
-              onClick={() => setSelectedImage(rec.file_url)}
+              onClick={() => setSelectedRecord(rec)}
               style={{
                 position: 'relative',
                 width: '100%',
@@ -192,10 +194,11 @@ const History = () => {
         </div>
       )}
 
-      {/* TEAM_001: 大圖檢視 Modal */}
+      {/* TEAM_001 & TEAM_007: 大圖檢視 Modal (傳遞 selectedRecord 繪製後端 AI 人臉標註框) */}
       <ImageModal
-        imageUrl={selectedImage}
-        onClose={() => setSelectedImage(null)}
+        record={selectedRecord}
+        imageUrl={typeof selectedRecord === 'string' ? selectedRecord : selectedRecord?.file_url}
+        onClose={() => setSelectedRecord(null)}
       />
     </div>
   );
