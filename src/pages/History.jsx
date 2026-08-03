@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { fetchHistoryRecords } from '../services/api';
 import ImageModal from '../components/ImageModal';
-import { Search, RefreshCw, Eye, Calendar, User, Download, History as HistoryIcon } from 'lucide-react';
+import { Search, RefreshCw, Eye, Calendar, User, Download, History as HistoryIcon, Sparkles } from 'lucide-react';
 
 const History = () => {
   const [records, setRecords] = useState([]);
@@ -140,34 +140,73 @@ const History = () => {
             onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
           >
             {/* 照片容器：點擊開啟 ImageModal 大圖 */}
-            <div
-              onClick={() => setSelectedRecord(rec)}
-              style={{
-                position: 'relative',
-                width: '100%',
-                height: '200px',
-                background: '#090d16',
-                cursor: 'pointer',
-                overflow: 'hidden',
-              }}
-            >
-              <img
-                src={rec.file_url}
-                alt={rec.message}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-              <div style={{
-                position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', opacity: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'opacity 0.2s',
-              }}
-              onMouseOver={e => e.currentTarget.style.opacity = '1'}
-              onMouseOut={e => e.currentTarget.style.opacity = '0'}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fff', background: 'rgba(0,0,0,0.6)', padding: '6px 14px', borderRadius: '20px', fontSize: '0.85rem' }}>
-                  <Eye size={16} /> 觀看大圖
+            {(() => {
+              let aiAnalysis = rec.ai_analysis;
+              if (typeof aiAnalysis === 'string') {
+                try {
+                  aiAnalysis = JSON.parse(aiAnalysis);
+                } catch (e) {}
+              }
+              const hasFace = Boolean(
+                aiAnalysis &&
+                (aiAnalysis.detected === true ||
+                 (aiAnalysis.faces && aiAnalysis.faces.length > 0) ||
+                 (aiAnalysis.face_count && aiAnalysis.face_count > 0))
+              );
+
+              return (
+                <div
+                  onClick={() => setSelectedRecord(rec)}
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    height: '200px',
+                    background: '#090d16',
+                    cursor: 'pointer',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <img
+                    src={rec.file_url}
+                    alt={rec.message}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                  <div style={{
+                    position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', opacity: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'opacity 0.2s',
+                  }}
+                  onMouseOver={e => e.currentTarget.style.opacity = '1'}
+                  onMouseOut={e => e.currentTarget.style.opacity = '0'}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fff', background: 'rgba(0,0,0,0.6)', padding: '6px 14px', borderRadius: '20px', fontSize: '0.85rem' }}>
+                      <Eye size={16} /> 觀看大圖
+                    </div>
+                  </div>
+
+                  {/* TEAM_007: 僅在有人臉狀態時，預覽圖片右上角顯示 AI 人臉比對 標籤 */}
+                  {hasFace && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '10px',
+                      right: '10px',
+                      background: 'rgba(15, 23, 42, 0.8)',
+                      backdropFilter: 'blur(4px)',
+                      padding: '4px 10px',
+                      borderRadius: '12px',
+                      fontSize: '0.75rem',
+                      color: '#38bdf8',
+                      border: '1px solid rgba(56, 189, 248, 0.45)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      zIndex: 2,
+                    }}>
+                      <Sparkles size={12} /> AI 人臉比對
+                    </div>
+                  )}
                 </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* 卡片資訊 */}
             <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, justifyContent: 'space-between' }}>
