@@ -42,10 +42,21 @@ const Dashboard = () => {
     };
   }, []);
 
-  // 格式化最後通報時間
-  const lastReportTime = latestRecord?.create_at
-    ? new Date(latestRecord.create_at).toLocaleTimeString('zh-TW', { hour12: false })
-    : '暫無通報';
+  // 格式化最後通報時間為 YYYY/MM/DD HH:mm:ss 格式 (例如 2026/08/04 00:01:09)
+  const formatFullDateTime = (dateStr) => {
+    if (!dateStr) return '暫無通報';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '暫無通報';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+    return `${year}/${month}/${day} ${hours}:${minutes}:${seconds}`;
+  };
+
+  const lastReportTime = formatFullDateTime(latestRecord?.create_at);
 
   return (
     <div className="animate-fade-in">
@@ -107,7 +118,7 @@ const Dashboard = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div className="stat-title">最後通報時間</div>
-              <div className="stat-value" style={{ fontSize: '1.4rem', color: '#8b5cf6' }}>{lastReportTime}</div>
+              <div className="stat-value" style={{ fontSize: '1.05rem', color: '#8b5cf6', fontWeight: 700, whiteSpace: 'nowrap', marginTop: '6px' }}>{lastReportTime}</div>
             </div>
             <div style={{ padding: '12px', background: 'rgba(139, 92, 246, 0.1)', borderRadius: '12px', color: '#8b5cf6' }}>
               <Clock size={24} />
