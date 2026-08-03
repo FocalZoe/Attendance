@@ -1,7 +1,9 @@
 // TEAM_001 & TEAM_007: 點名照片大圖檢視 Modal (ImageModal.jsx)
-// TEAM_007 升級：支援方案 B 動態 AI 人臉標註框 Overlay (百分比自適應與多框繪製)，自動解開 JSON 字串並適應照片長寬比例。
+// TEAM_007 升級：使用 ReactDOM.createPortal 進行【全域頂層覆蓋 (Global Portal Overlay)】，
+// 完全蓋過 Sidebar 側邊欄與頁面區塊，配合自適應動態長寬比 (aspectRatio) 呈現最高品質大圖與 AI 標註框。
 
 import React, { useState } from 'react';
+import ReactDOM from 'react-dom';
 import { X } from 'lucide-react';
 
 const ImageModal = ({ record, imageUrl, title, onClose }) => {
@@ -35,32 +37,35 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
 
   const aspect = imgSize.width / imgSize.height;
 
-  return (
+  const modalContent = (
     <div
       onClick={onClose}
       style={{
         position: 'fixed',
         top: 0, left: 0, right: 0, bottom: 0,
-        background: 'rgba(0,0,0,0.85)',
-        backdropFilter: 'blur(10px)',
+        width: '100vw',
+        height: '100vh',
+        background: 'rgba(0, 0, 0, 0.88)',
+        backdropFilter: 'blur(12px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 2000,
+        zIndex: 999999, // 全域最高 z-index，完全覆蓋 Sidebar 與頂部導覽列
         padding: '24px',
+        boxSizing: 'border-box',
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
           position: 'relative',
-          maxWidth: '90vw',
-          maxHeight: '85vh',
+          maxWidth: '92vw',
+          maxHeight: '88vh',
           aspectRatio: `${aspect}`,
           borderRadius: '16px',
           overflow: 'hidden',
-          boxShadow: '0 20px 50px rgba(0,0,0,0.8)',
-          border: '1px solid rgba(56, 189, 248, 0.3)',
+          boxShadow: '0 25px 60px rgba(0,0,0,0.9)',
+          border: '1px solid rgba(56, 189, 248, 0.4)',
           background: '#090d16',
         }}
       >
@@ -68,22 +73,23 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           onClick={onClose}
           style={{
             position: 'absolute',
-            top: '12px',
-            right: '12px',
-            background: 'rgba(0,0,0,0.65)',
-            border: '1px solid rgba(255,255,255,0.2)',
+            top: '14px',
+            right: '14px',
+            background: 'rgba(0,0,0,0.7)',
+            border: '1px solid rgba(255,255,255,0.25)',
             color: '#ffffff',
             borderRadius: '50%',
-            width: '36px',
-            height: '36px',
+            width: '40px',
+            height: '40px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
-            zIndex: 10,
+            zIndex: 20,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
           }}
         >
-          <X size={20} />
+          <X size={22} />
         </button>
 
         {/* 原始純淨相片 */}
@@ -102,7 +108,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
         />
 
-        {/* TEAM_007: 後端 AI 多人人臉動態標註框 Overlay (無留白自適應) */}
+        {/* TEAM_007: 後端 AI 多人人臉動態標註框 Overlay (零留白自適應) */}
         {facesToDraw.map((face, index) => {
           const { x, y, width, height } = face.bounding_box;
           const leftPct = (x / imgSize.width) * 100;
@@ -156,6 +162,8 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
       </div>
     </div>
   );
+
+  return ReactDOM.createPortal(modalContent, document.body);
 };
 
 export default ImageModal;
