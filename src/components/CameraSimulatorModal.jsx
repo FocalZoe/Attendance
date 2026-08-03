@@ -41,7 +41,7 @@ const getSharedFaceDetector = async () => {
 };
 
 export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
-  const [message, setMessage] = useState('網路攝像機考勤打卡: 張小明');
+  const [message, setMessage] = useState('打卡成功！');
   const [isSending, setIsSending] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState(null);
