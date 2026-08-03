@@ -2,7 +2,7 @@
 // TEAM_007 升級：點擊檢視大圖傳遞完整 selectedRecord 物件，由 ImageModal 進行後端 AI 多人人臉動態標註 Overlay 繪製。
 
 import React, { useState, useEffect } from 'react';
-import { Camera, Users, CheckCircle, Activity, Sparkles } from 'lucide-react';
+import { Camera, Users, CheckCircle, Activity, Sparkles, Clock } from 'lucide-react';
 import { fetchHistoryRecords, connectWebSocket } from '../services/api';
 import CameraSimulatorModal from '../components/CameraSimulatorModal';
 import ImageModal from '../components/ImageModal';
@@ -41,6 +41,11 @@ const Dashboard = () => {
       cleanupWs();
     };
   }, []);
+
+  // 格式化最後通報時間
+  const lastReportTime = latestRecord?.create_at
+    ? new Date(latestRecord.create_at).toLocaleTimeString('zh-TW', { hour12: false })
+    : '暫無通報';
 
   return (
     <div className="animate-fade-in">
@@ -97,14 +102,15 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* TEAM_007: 最後通報時間卡片 */}
         <div className="glass-panel stat-card" style={{ borderTop: '4px solid #8b5cf6' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div className="stat-title">AI Vision 引擎狀態</div>
-              <div className="stat-value" style={{ fontSize: '1.2rem', color: '#38bdf8' }}>MediaPipe Active</div>
+              <div className="stat-title">最後通報時間</div>
+              <div className="stat-value" style={{ fontSize: '1.4rem', color: '#8b5cf6' }}>{lastReportTime}</div>
             </div>
-            <div style={{ padding: '12px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '12px', color: '#38bdf8' }}>
-              <Sparkles size={24} />
+            <div style={{ padding: '12px', background: 'rgba(139, 92, 246, 0.1)', borderRadius: '12px', color: '#8b5cf6' }}>
+              <Clock size={24} />
             </div>
           </div>
         </div>
