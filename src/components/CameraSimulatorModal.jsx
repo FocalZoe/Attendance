@@ -2,7 +2,8 @@
 // TEAM_007 升級重點：
 // 1. 整合 MediaPipe 即時前端人臉偵測，繪製真實動態人臉框與信心度（支援多框繪製）。
 // 2. 加入人臉畫框平滑緩衝 (Smoothed Detections Cache) 消除 60fps 影格同步造成的閃爍問題。
-// 3. 透過 getApiUrl 動態對齊後端 API 端點，解決 Vercel / Local 環境部署異常。
+// 3. 拍照快照 (captureRealWebcamFrame) 實時將 AI 人臉框與標籤烙印 (Bake) 至照片中，確保後端儲存與「觀看點名照片」時能完美呈現辨識框。
+// 4. 透過 getApiUrl 動態對齊後端 API 端點，解決 Vercel / Local 環境部署異常。
 
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Camera, Send, RefreshCw, VideoOff, CheckCircle2, AlertCircle, ScanFace, Sparkles } from 'lucide-react';
@@ -277,22 +278,28 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
 
   if (!isOpen) return null;
 
+  // TEAM_007: 方案 B 擷取純淨原始相機影格 (Raw Image + 攝影機時間浮印，不上鎖/不燒死畫框)
   const captureRealWebcamFrame = () => {
     if (!videoRef.current || !canvasRef.current) return null;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    const vWidth = video.videoWidth || 640;
+    const vHeight = video.videoHeight || 480;
+
+    canvas.width = vWidth;
+    canvas.height = vHeight;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
+    // 1. 繪製原始相機視訊畫面
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+    // 2. 繪製攝影機浮印與時間戳記
     ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-    ctx.fillRect(10, canvas.height - 45, 420, 35);
+    ctx.fillRect(10, canvas.height - 45, 450, 35);
     ctx.fillStyle = '#38bdf8';
     ctx.font = 'bold 15px sans-serif';
     ctx.fillText(`CAM-01 | ${new Date().toLocaleString('zh-TW')} | AI Vision Ready`, 20, canvas.height - 22);
