@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { fetchHistoryRecords } from '../services/api';
 import ImageModal from '../components/ImageModal';
-import { Search, RefreshCw, Eye, Calendar, User, Download, History as HistoryIcon, Sparkles } from 'lucide-react';
+import { Search, RefreshCw, Eye, Calendar, User, Download, History as HistoryIcon, Sparkles, CheckCircle } from 'lucide-react';
 
 const History = () => {
   const [records, setRecords] = useState([]);
@@ -214,6 +214,38 @@ const History = () => {
                 <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
                   <User size={16} /> {rec.message}
                 </h4>
+
+                {/* TEAM_007: AI 信心度標籤 (同 Frontend-web 呈現) */}
+                {(() => {
+                  let aiAnalysis = rec.ai_analysis;
+                  if (typeof aiAnalysis === 'string') {
+                    try {
+                      aiAnalysis = JSON.parse(aiAnalysis);
+                    } catch (e) {}
+                  }
+                  if (!aiAnalysis || !aiAnalysis.detected) return null;
+                  const confidencePct = ((aiAnalysis.confidence || 0.98) * 100).toFixed(1);
+                  const statusText = aiAnalysis.status || 'SUCCESS';
+
+                  return (
+                    <div style={{
+                      marginTop: '8px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      background: 'rgba(16, 185, 129, 0.12)',
+                      color: '#10b981',
+                      border: '1px solid rgba(16, 185, 129, 0.25)',
+                      fontSize: '0.78rem',
+                      fontWeight: 500,
+                    }}>
+                      <CheckCircle size={13} />
+                      AI 信心度: {confidencePct}% ({statusText})
+                    </div>
+                  );
+                })()}
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '10px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
