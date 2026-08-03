@@ -317,8 +317,17 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
         return;
       }
 
+      // TEAM_007: 打包 MediaPipe 現場偵測到之真人人臉真實座標
+      const detectedFacesPayload = (lastDetectionsRef.current || []).map((det) => ({
+        x: Math.round(det.boundingBox.originX),
+        y: Math.round(det.boundingBox.originY),
+        width: Math.round(det.boundingBox.width),
+        height: Math.round(det.boundingBox.height),
+        confidence: det.categories[0]?.score || 0.95,
+      }));
+
       const targetApiUrl = getApiUrl('/api/telemetry');
-      console.log('[TEAM_007 Telemetry] POST target:', targetApiUrl);
+      console.log('[TEAM_007 Telemetry] POST target:', targetApiUrl, 'Faces:', detectedFacesPayload);
 
       const response = await fetch(targetApiUrl, {
         method: 'POST',
@@ -327,6 +336,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
           message: message,
           file: base64Data,
           timestamp: new Date().toISOString(),
+          detected_faces: detectedFacesPayload,
         }),
       });
 
