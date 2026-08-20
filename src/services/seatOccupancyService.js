@@ -1,15 +1,27 @@
-// TEAM_008: 座位配置管理與空間重疊比對服務 (seatOccupancyService.js)
+// TEAM_008: 座位配置管理、空間重疊比對與課堂節次服務 (seatOccupancyService.js)
 // 嚴禁假資料原則：預設座位為空清單 ([])，完全依據使用者對現場相機畫面的實際劃位。
 
 const STORAGE_KEY = 'classvision_seat_map_config_v1';
 
-// 預設為乾淨的空配置 (0 席座位)
+// 預設為乾淨的空配置 (0 席座位，預設節次為第 1 節)
 export const DEFAULT_SEATS_CONFIG = {
   room_name: '創新研討教室',
   camera_id: 'CAM-01',
+  current_period: '第 1 節',
   base_width: 640,
   base_height: 360,
   seats: [],
+};
+
+/**
+ * 格式化為「幾月幾號第幾節」字串 (例如：8月21日 第 1 節)
+ */
+export const formatFullPeriodMessage = (periodStr = '第 1 節', date = new Date()) => {
+  const d = date instanceof Date ? date : new Date(date);
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  const cleanPeriod = (periodStr || '第 1 節').trim();
+  return `${month}月${day}日 ${cleanPeriod}`;
 };
 
 /**
@@ -21,7 +33,11 @@ export const getSavedSeatsConfig = () => {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.seats)) {
-        return parsed;
+        return {
+          ...DEFAULT_SEATS_CONFIG,
+          ...parsed,
+          current_period: parsed.current_period || '第 1 節',
+        };
       }
     }
   } catch (err) {
@@ -89,13 +105,7 @@ export const generateGridSeats = (rows = 2, cols = 2, width = 640, height = 360)
     }
   }
 
-  return {
-    room_name: '自訂網格教室',
-    camera_id: 'CAM-01',
-    base_width: width,
-    base_height: height,
-    seats,
-  };
+  return seats;
 };
 
 /**

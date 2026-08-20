@@ -1,14 +1,14 @@
 // TEAM_008: 實體相機多座位在座檢測與考勤通報彈窗 (CameraSimulatorModal.jsx)
-// 核心升級：
-// 1. 徹底去除人臉辨識，採用 MediaPipe ObjectDetector (Person 人體類別) 或在座人員追蹤，保護個資隱私。
-// 2. 實時疊加視覺化座位區域 (Seat ROIs) 與在位狀態 (🟢 OCCUPIED / ⚪ VACANT)。
-// 3. 拍照時將原始影像、真實人員座標與座位配置打包發送至後端 /api/telemetry。
+// 升級重點：
+// 1. 刪除手動通報說明輸入框，自動帶入當前課堂「幾月幾號第幾節」訊息發送至後端。
+// 2. 拍照快照移除時間戳記浮水印，保留原始高畫質相片。
+// 3. 圖示全面採用 Lucide-react。
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Camera, Send, VideoOff, CheckCircle2, AlertCircle, LayoutGrid, Users, Sparkles, Settings } from 'lucide-react';
+import { X, Camera, LayoutGrid, Settings, Calendar, Clock, GraduationCap, UserCheck, UserX } from 'lucide-react';
 import { ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision';
 import { getApiUrl } from '../config/api.js';
-import { getSavedSeatsConfig, matchPersonsToSeats } from '../services/seatOccupancyService.js';
+import { getSavedSeatsConfig, matchPersonsToSeats, formatFullPeriodMessage } from '../services/seatOccupancyService.js';
 
 let detectorInstance = null;
 let detectorLoadingPromise = null;
@@ -42,7 +42,6 @@ const getSharedPersonDetector = async () => {
 };
 
 export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEditor }) => {
-  const [message, setMessage] = useState('教室 301 座位點名通報');
   const [isSending, setIsSending] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState(null);
@@ -59,7 +58,6 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
   const animFrameIdRef = useRef(null);
   const lastVideoTimeRef = useRef(-1);
 
-  // 快取人員偵測結果避免影格微小間隙閃爍
   const lastDetectionsRef = useRef([]);
   const lastDetectionTimeRef = useRef(0);
 
@@ -168,7 +166,6 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
 
           const detections = lastDetectionsRef.current;
 
-          // 計算映射比例 (object-fit: cover)
           const vWidth = video.videoWidth;
           const vHeight = video.videoHeight;
           const videoAspect = vWidth / vHeight;
@@ -189,7 +186,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
 
           const scale = renderW / vWidth;
 
-          // 1. 取得偵測到的人體邊框 (以容器實際 pixel 為基準)
+          // 1. 取得偵測到的人員邊框 (以實際視窗 pixel 為基準)
           const detectedPersonsInView = detections.map((det) => {
             const { originX, originY, width, height } = det.boundingBox;
             const score = det.categories[0]?.score || 0.95;
@@ -202,7 +199,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
             };
           });
 
-          // 2. 將配置的座位 ROI (基準 640x360) 縮放至當前容器大小
+          // 2. 縮放座位 ROI
           const scaleBaseX = cWidth / (currentSeats.base_width || 640);
           const scaleBaseY = cHeight / (currentSeats.base_height || 360);
 
@@ -216,38 +213,37 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
             },
           }));
 
-          // 3. 計算各座號在座狀態
+          // 3. 計算各座號狀態
           const statuses = matchPersonsToSeats(scaledSeats, detectedPersonsInView, 0.2);
           setLiveSeatStatuses(statuses);
 
-          // 4. 繪製座位區域框 (Seat ROIs)
+          // 4. 繪製座位框 (在座綠色 / 未到紅色虛線)
           statuses.forEach((st) => {
             const isOcc = st.status === 'OCCUPIED';
             const { x, y, width, height } = st.roi;
 
-            // 座位框背景與邊線
-            ctx.fillStyle = isOcc ? 'rgba(16, 185, 129, 0.18)' : 'rgba(148, 163, 184, 0.08)';
+            ctx.fillStyle = isOcc ? 'rgba(16, 185, 129, 0.18)' : 'rgba(239, 68, 68, 0.1)';
             ctx.fillRect(x, y, width, height);
 
-            ctx.strokeStyle = isOcc ? '#10b981' : 'rgba(148, 163, 184, 0.5)';
-            ctx.lineWidth = isOcc ? 2.5 : 1.5;
+            ctx.strokeStyle = isOcc ? '#10b981' : '#ef4444';
+            ctx.lineWidth = isOcc ? 2.5 : 1.8;
             ctx.setLineDash(isOcc ? [] : [6, 4]);
             ctx.strokeRect(x, y, width, height);
             ctx.setLineDash([]);
 
-            // 座位標籤 (座號 + 狀態)
-            const label = isOcc ? `🟢 [${st.seat_id}] 在座` : `⚪ [${st.seat_id}] 空位`;
+            // 座位標籤
+            const label = isOcc ? `🟢 [${st.seat_id}] 在座` : `❌ [${st.seat_id}] 未到`;
             ctx.font = 'bold 12px monospace';
             const textW = ctx.measureText(label).width;
 
-            ctx.fillStyle = isOcc ? 'rgba(16, 185, 129, 0.95)' : 'rgba(30, 41, 59, 0.85)';
+            ctx.fillStyle = isOcc ? 'rgba(16, 185, 129, 0.95)' : 'rgba(239, 68, 68, 0.95)';
             ctx.fillRect(x, y - 22 > 0 ? y - 22 : y + 4, textW + 12, 20);
 
-            ctx.fillStyle = isOcc ? '#0f172a' : '#94a3b8';
+            ctx.fillStyle = isOcc ? '#0f172a' : '#ffffff';
             ctx.fillText(label, x + 6, y - 22 > 0 ? y - 8 : y + 18);
           });
 
-          // 5. 繪製偵測到的人員邊框 (科技感淡藍色框)
+          // 5. 繪製人員邊框
           detectedPersonsInView.forEach((p) => {
             ctx.strokeStyle = '#38bdf8';
             ctx.lineWidth = 2;
@@ -288,8 +284,8 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
 
   if (!isOpen) return null;
 
-  // 擷取相機影格
-  const captureWebcamFrame = () => {
+  // 純淨相機影格擷取 (不再嵌入黑色時間浮水印)
+  const capturePureWebcamFrame = () => {
     if (!videoRef.current || !canvasRef.current) return null;
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -300,31 +296,27 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
+    // 僅繪製純淨原始相機視訊畫面，不燒死任何黑底文字浮水印
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // 加上隱私考勤浮水印
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.fillRect(10, canvas.height - 42, 480, 32);
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = 'bold 14px sans-serif';
-    ctx.fillText(`CAM-01 | ${new Date().toLocaleString('zh-TW')} | Privacy-Safe Seat Occupancy`, 20, canvas.height - 20);
-
-    return canvas.toDataURL('image/jpeg', 0.88);
+    return canvas.toDataURL('image/jpeg', 0.92);
   };
 
   // 發送打卡資料至後端
   const handleSendTelemetry = async () => {
     setIsSending(true);
     try {
-      const base64Data = captureWebcamFrame();
+      const base64Data = capturePureWebcamFrame();
       if (!base64Data) {
         alert('擷取相機畫面失敗。');
         setIsSending(false);
         return;
       }
 
-      // 整理人員邊框與座位配置
       const currentConfig = getSavedSeatsConfig();
+      const currentPeriodName = currentConfig.current_period || '第 1 節';
+      const formattedMessage = formatFullPeriodMessage(currentPeriodName);
+
       const detectedPersonsPayload = (lastDetectionsRef.current || []).map((det) => ({
         x: Math.round(det.boundingBox.originX),
         y: Math.round(det.boundingBox.originY),
@@ -339,7 +331,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: message,
+          message: formattedMessage, // 儲存為「幾月幾號第幾節」(例如：8月21日 第 1 節)
           file: base64Data,
           timestamp: new Date().toISOString(),
           detected_persons: detectedPersonsPayload,
@@ -363,7 +355,9 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
   };
 
   const occupiedSeatsCount = liveSeatStatuses.filter((s) => s.status === 'OCCUPIED').length;
+  const vacantSeatsCount = liveSeatStatuses.filter((s) => s.status === 'VACANT').length;
   const totalConfiguredSeats = seatConfig.seats.length;
+  const periodTitle = formatFullPeriodMessage(seatConfig.current_period);
 
   return (
     <div style={{
@@ -388,7 +382,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
         color: '#fff',
         display: 'flex',
         flexDirection: 'column',
-        gap: '20px',
+        gap: '18px',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
         border: '1px solid var(--glass-border)',
       }}>
@@ -399,15 +393,13 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
             <LayoutGrid size={26} color="var(--accent-primary)" />
             <div>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                模擬廣角相機 (多座位在座檢測)
-                {isAiLoaded && (
-                  <span style={{ fontSize: '0.75rem', background: '#0284c7', color: '#e0f2fe', padding: '2px 8px', borderRadius: '12px' }}>
-                    隱私安全模式
-                  </span>
-                )}
+                模擬相機考勤點名
+                <span style={{ fontSize: '0.8rem', background: 'rgba(59, 130, 246, 0.2)', color: '#38bdf8', padding: '2px 10px', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.4)' }}>
+                  {periodTitle}
+                </span>
               </h3>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                即時比對座位區域與人員佔用狀態 (已設置 {totalConfiguredSeats} 個座位)
+                即時比對座位區域與人員在座/未到狀態 (已設置 {totalConfiguredSeats} 個座位)
               </span>
             </div>
           </div>
@@ -418,7 +410,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
                 onClick={onOpenSeatEditor}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-primary)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer' }}
               >
-                <Settings size={14} /> 編輯座位地圖
+                <Settings size={14} /> 編輯座位/節次
               </button>
             )}
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
@@ -427,12 +419,15 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
           </div>
         </div>
 
-        {/* 即時即位摘要條 */}
+        {/* 即時在座與未到摘要條 */}
         <div style={{ display: 'flex', gap: '12px', background: 'rgba(15, 23, 42, 0.6)', padding: '10px 16px', borderRadius: '10px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>即時在座統計：</span>
-            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: occupiedSeatsCount > 0 ? '#10b981' : '#94a3b8' }}>
-              {occupiedSeatsCount} / {totalConfiguredSeats} 席在座 ({totalConfiguredSeats > 0 ? ((occupiedSeatsCount / totalConfiguredSeats) * 100).toFixed(0) : 0}%)
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>點名概況：</span>
+            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <UserCheck size={16} /> 在座: {occupiedSeatsCount}
+            </span>
+            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: vacantSeatsCount > 0 ? '#ef4444' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <UserX size={16} /> 未到: {vacantSeatsCount}
             </span>
           </div>
 
@@ -444,13 +439,13 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
                   fontSize: '0.75rem',
                   padding: '2px 8px',
                   borderRadius: '6px',
-                  background: s.status === 'OCCUPIED' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(148, 163, 184, 0.15)',
-                  color: s.status === 'OCCUPIED' ? '#10b981' : '#94a3b8',
-                  border: `1px solid ${s.status === 'OCCUPIED' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(148, 163, 184, 0.2)'}`,
+                  background: s.status === 'OCCUPIED' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.15)',
+                  color: s.status === 'OCCUPIED' ? '#10b981' : '#ef4444',
+                  border: `1px solid ${s.status === 'OCCUPIED' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.3)'}`,
                   fontWeight: 600,
                 }}
               >
-                {s.seat_id}: {s.status === 'OCCUPIED' ? '🟢 有人' : '⚪ 空位'}
+                {s.seat_id}: {s.status === 'OCCUPIED' ? '🟢 在座' : '❌ 未到'}
               </span>
             ))}
           </div>
@@ -496,20 +491,20 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
               {cameraError ? (
                 <p style={{ color: '#ef4444' }}>{cameraError}</p>
               ) : (
-                <p>正在啟動網路相機與隱私安全在座分析模組...</p>
+                <p>正在啟動網路相機與在座分析模組...</p>
               )}
             </div>
           )}
         </div>
 
-        {/* 裝置與訊息輸入 */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div>
-            <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>選擇相機鏡頭</label>
+        {/* 裝置選擇與通報按鈕列 (已刪除通報說明輸入框) */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Camera size={16} color="var(--accent-primary)" />
             <select
               value={selectedDeviceId}
               onChange={(e) => setSelectedDeviceId(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', background: '#0f172a', color: '#fff', border: '1px solid #334155' }}
+              style={{ padding: '8px 12px', borderRadius: '8px', background: '#0f172a', color: '#fff', border: '1px solid #334155', fontSize: '0.85rem' }}
             >
               {devices.map((d, index) => (
                 <option key={d.deviceId} value={d.deviceId}>
@@ -519,39 +514,28 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
             </select>
           </div>
 
-          <div>
-            <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>通報說明 (Message)</label>
-            <input
-              type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', background: '#0f172a', color: '#fff', border: '1px solid #334155' }}
-            />
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button onClick={onClose} style={{ padding: '10px 16px', borderRadius: '8px', background: '#334155', color: '#fff', border: 'none', cursor: 'pointer' }}>
+              取消
+            </button>
+            <button
+              onClick={handleSendTelemetry}
+              disabled={isSending || !cameraActive}
+              style={{
+                padding: '10px 22px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
+                color: '#fff',
+                fontWeight: 'bold',
+                border: 'none',
+                cursor: isSending || !cameraActive ? 'not-allowed' : 'pointer',
+                boxShadow: '0 4px 14px rgba(59, 130, 246, 0.4)',
+                transition: 'transform 0.2s',
+              }}
+            >
+              {isSending ? '通報中...' : `📸 記錄點名 (${periodTitle})`}
+            </button>
           </div>
-        </div>
-
-        {/* 送出與操作按鈕 */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-          <button onClick={onClose} style={{ padding: '10px 16px', borderRadius: '8px', background: '#334155', color: '#fff', border: 'none', cursor: 'pointer' }}>
-            取消
-          </button>
-          <button
-            onClick={handleSendTelemetry}
-            disabled={isSending || !cameraActive}
-            style={{
-              padding: '10px 22px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
-              color: '#fff',
-              fontWeight: 'bold',
-              border: 'none',
-              cursor: isSending || !cameraActive ? 'not-allowed' : 'pointer',
-              boxShadow: '0 4px 14px rgba(59, 130, 246, 0.4)',
-              transition: 'transform 0.2s',
-            }}
-          >
-            {isSending ? '通報分析中...' : `📸 拍照並記錄在座點名 (${occupiedSeatsCount}/${totalConfiguredSeats} 席在座)`}
-          </button>
         </div>
 
       </div>

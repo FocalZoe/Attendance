@@ -1,10 +1,13 @@
 // TEAM_008: 歷史考勤與多座位佔用紀錄 (History.jsx)
-// 嚴禁假資料：真實反映歷史在座人數與座號清單，無人時確切記錄 0 席與空清單
+// 升級重點：
+// 1. 卡片與報表全面對齊「幾月幾號第幾節」訊息。
+// 2. 醒目標註「未到/缺席座號」，CSV 報表包含缺席座號清單。
+// 3. 圖示全面採用 Lucide-react。
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { fetchHistoryRecords } from '../services/api';
 import ImageModal from '../components/ImageModal';
-import { Search, RefreshCw, Eye, Calendar, User, Download, History as HistoryIcon, LayoutGrid, CheckCircle } from 'lucide-react';
+import { Search, RefreshCw, Eye, Calendar, Download, History as HistoryIcon, LayoutGrid, CheckCircle, GraduationCap, UserCheck, UserX, AlertCircle } from 'lucide-react';
 
 const History = () => {
   const [records, setRecords] = useState([]);
@@ -28,7 +31,7 @@ const History = () => {
     loadData();
   }, []);
 
-  // 根據搜尋關鍵字過濾紀錄 (支援訊息、UUID、座號搜尋)
+  // 根據搜尋關鍵字過濾紀錄 (支援節次訊息、UUID、座號搜尋)
   const filteredRecords = useMemo(() => {
     if (!searchTerm.trim()) return records;
     const term = searchTerm.toLowerCase();
@@ -45,24 +48,26 @@ const History = () => {
     });
   }, [records, searchTerm]);
 
-  // 匯出 CSV 報表 (包含座位出席率與真實在座座號)
+  // 匯出 CSV 報表 (包含幾月幾號第幾節與未到座號清單)
   const handleExportCSV = () => {
     if (filteredRecords.length === 0) {
       alert('目前無紀錄可匯出');
       return;
     }
-    const headers = ['UUID', '通報訊息 (Message)', '打卡時間 (create_at)', '總座位數', '在座席數', '在座率', '在座座號清單', '圖片網址 (file_url)'];
+    const headers = ['UUID', '課堂節次 (幾月幾號第幾節)', '點名時間 (create_at)', '總座位數', '在座席數', '未到席數', '在座率', '在座座號清單', '未到座號清單', '圖片網址 (file_url)'];
     const rows = filteredRecords.map((r) => {
       let ai = r.ai_analysis;
       if (typeof ai === 'string') {
         try { ai = JSON.parse(ai); } catch (e) {}
       }
       const totalSeats = ai?.total_seats || 0;
-      const occupiedCount = typeof ai?.occupied_count === 'number' ? ai.occupied_count : (ai?.face_count || 0);
+      const occupiedCount = typeof ai?.occupied_count === 'number' ? ai.occupied_count : 0;
+      const vacantCount = typeof ai?.vacant_count === 'number' ? ai.vacant_count : Math.max(0, totalSeats - occupiedCount);
       const rate = ai?.attendance_rate || (totalSeats > 0 ? `${((occupiedCount / totalSeats) * 100).toFixed(1)}%` : '0.0%');
-      const occupiedSeatsList = Array.isArray(ai?.seat_statuses)
-        ? ai.seat_statuses.filter((s) => s.status === 'OCCUPIED').map((s) => s.seat_id).join(';')
-        : '';
+
+      const statuses = Array.isArray(ai?.seat_statuses) ? ai.seat_statuses : [];
+      const occupiedSeatsList = statuses.filter((s) => s.status === 'OCCUPIED').map((s) => s.seat_id).join(';');
+      const vacantSeatsList = statuses.filter((s) => s.status === 'VACANT').map((s) => s.seat_id).join(';');
 
       return [
         `"${r.id}"`,
@@ -70,8 +75,10 @@ const History = () => {
         `"${new Date(r.create_at).toLocaleString('zh-TW')}"`,
         `"${totalSeats}"`,
         `"${occupiedCount}"`,
+        `"${vacantCount}"`,
         `"${rate}"`,
         `"${occupiedSeatsList}"`,
+        `"${vacantSeatsList}"`,
         `"${r.file_url}"`,
       ];
     });
@@ -80,7 +87,7 @@ const History = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `seat_attendance_history_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `attendance_period_report_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -91,9 +98,9 @@ const History = () => {
       <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            歷史紀錄簿 <HistoryIcon color="var(--accent-primary)" size={24} />
+            課堂歷史紀錄簿 <HistoryIcon color="var(--accent-primary)" size={24} />
           </h1>
-          <p style={{ color: 'var(--text-secondary)' }}>調閱與查詢 Supabase 歷史座位在座點名紀錄 (隱私安全模式)</p>
+          <p style={{ color: 'var(--text-secondary)' }}>調閱歷次課堂點名照片、缺席名單與出席統計報表</p>
         </div>
 
         <div style={{ display: 'flex', gap: '12px' }}>
@@ -122,7 +129,7 @@ const History = () => {
             }}
           >
             <Download size={18} />
-            匯出座位出席報表
+            匯出課堂出席報表
           </button>
         </div>
       </header>
@@ -133,7 +140,7 @@ const History = () => {
           <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
           <input
             type="text"
-            placeholder="搜尋通報訊息、座號 (如 A-01) 或關鍵字..."
+            placeholder="搜尋幾月幾號第幾節 (如 8月21日 第 1 節)、座號或關鍵字..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
@@ -145,7 +152,7 @@ const History = () => {
         </div>
 
         <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-          共符合 <strong style={{ color: 'var(--accent-primary)', fontSize: '1.1rem' }}>{filteredRecords.length}</strong> 筆歷史紀錄
+          共符合 <strong style={{ color: 'var(--accent-primary)', fontSize: '1.1rem' }}>{filteredRecords.length}</strong> 筆課堂點名紀錄
         </div>
       </div>
 
@@ -158,10 +165,12 @@ const History = () => {
           }
           const totalSeats = ai?.total_seats || 0;
           const occupiedCount = typeof ai?.occupied_count === 'number' ? ai.occupied_count : 0;
+          const vacantCount = typeof ai?.vacant_count === 'number' ? ai.vacant_count : Math.max(0, totalSeats - occupiedCount);
           const rate = ai?.attendance_rate || (totalSeats > 0 ? `${((occupiedCount / totalSeats) * 100).toFixed(1)}%` : '0.0%');
-          const occupiedSeats = Array.isArray(ai?.seat_statuses)
-            ? ai.seat_statuses.filter((s) => s.status === 'OCCUPIED').map((s) => s.seat_id)
-            : [];
+
+          const statuses = Array.isArray(ai?.seat_statuses) ? ai.seat_statuses : [];
+          const occupiedSeats = statuses.filter((s) => s.status === 'OCCUPIED').map((s) => s.seat_id);
+          const vacantSeats = statuses.filter((s) => s.status === 'VACANT').map((s) => s.seat_id);
 
           return (
             <div
@@ -206,7 +215,7 @@ const History = () => {
                   </div>
                 </div>
 
-                {/* 在座率標籤 */}
+                {/* 在座率與未到標籤 */}
                 <div style={{
                   position: 'absolute',
                   top: '10px',
@@ -216,47 +225,51 @@ const History = () => {
                   padding: '4px 10px',
                   borderRadius: '12px',
                   fontSize: '0.75rem',
-                  color: occupiedCount > 0 ? '#10b981' : '#94a3b8',
-                  border: `1px solid ${occupiedCount > 0 ? 'rgba(16, 185, 129, 0.45)' : 'rgba(148, 163, 184, 0.3)'}`,
+                  color: vacantSeats.length > 0 ? '#ef4444' : '#10b981',
+                  border: `1px solid ${vacantSeats.length > 0 ? 'rgba(239, 68, 68, 0.45)' : 'rgba(16, 185, 129, 0.45)'}`,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
                   zIndex: 2,
                   fontWeight: 600,
                 }}>
-                  <LayoutGrid size={12} /> 在座率: {rate}
+                  {vacantSeats.length > 0 ? <UserX size={13} /> : <UserCheck size={13} />}
+                  在座率: {rate}
                 </div>
               </div>
 
               {/* 卡片內容 */}
               <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, justifyContent: 'space-between' }}>
                 <div>
-                  <h4 style={{ fontSize: '0.98rem', fontWeight: 600, color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                    <LayoutGrid size={16} /> {rec.message}
+                  <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                    <GraduationCap size={18} /> {rec.message}
                   </h4>
 
-                  {/* 在座座號標籤列 */}
+                  {/* 未到座號醒目標籤 */}
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
-                    {occupiedSeats.length > 0 ? (
-                      occupiedSeats.map((sid) => (
-                        <span
-                          key={sid}
-                          style={{
-                            fontSize: '0.74rem',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            background: 'rgba(16, 185, 129, 0.15)',
-                            color: '#10b981',
-                            border: '1px solid rgba(16, 185, 129, 0.3)',
-                            fontWeight: 600,
-                          }}
-                        >
-                          🟢 {sid}
-                        </span>
-                      ))
+                    {vacantSeats.length > 0 ? (
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 600 }}>未到：</span>
+                        {vacantSeats.map((sid) => (
+                          <span
+                            key={sid}
+                            style={{
+                              fontSize: '0.74rem',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              background: 'rgba(239, 68, 68, 0.15)',
+                              color: '#ef4444',
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              fontWeight: 600,
+                            }}
+                          >
+                            ❌ {sid}
+                          </span>
+                        ))}
+                      </div>
                     ) : (
-                      <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
-                        在座: {occupiedCount}/{totalSeats} 席
+                      <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <CheckCircle size={13} /> 全員在座 ({occupiedCount}/{totalSeats} 席)
                       </span>
                     )}
                   </div>
@@ -276,7 +289,7 @@ const History = () => {
       {/* 無資料提示 */}
       {filteredRecords.length === 0 && !loading && (
         <div className="glass-panel" style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-secondary)' }}>
-          <p>沒有找到符合條件的考勤歷史紀錄。</p>
+          <p>沒有找到符合條件的課堂點名紀錄。</p>
         </div>
       )}
 

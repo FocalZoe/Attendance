@@ -1,19 +1,20 @@
 // TEAM_008: 視覺化座位劃位與座號設置編輯器 (SeatMapEditorModal.jsx)
 // 升級重點：
-// 1. 支援相機即時畫面預覽 (Live Webcam Preview)，使用者可對齊真實相機畫面直接框選座位！
-// 2. 徹底移除預設假配置，預設為 0 席，由使用者自訂或手動產生。
-// 3. 支援切換鏡頭裝置、自訂座號、快速網格佈局與清空全部。
+// 1. 新增「課堂節次 (第幾節)」編輯與快速切換，通報時將組合成「幾月幾號第幾節」。
+// 2. 支援相機即時視訊預覽畫布 (Live Camera Background)，對齊現場真實桌椅劃位。
+// 3. 全面使用 Lucide-react 精緻圖示。
 
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { X, Plus, Trash2, Grid, RotateCcw, Save, LayoutGrid, Check, Info, Camera, VideoOff } from 'lucide-react';
-import { getSavedSeatsConfig, saveSeatsConfig, generateGridSeats, DEFAULT_SEATS_CONFIG } from '../services/seatOccupancyService';
+import { X, Plus, Trash2, Grid, RotateCcw, Save, LayoutGrid, Check, Info, Camera, GraduationCap, Calendar, Clock } from 'lucide-react';
+import { getSavedSeatsConfig, saveSeatsConfig, generateGridSeats, formatFullPeriodMessage } from '../services/seatOccupancyService';
 
 const CANVAS_WIDTH = 640;
 const CANVAS_HEIGHT = 360;
 
 export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
   const [config, setConfig] = useState(getSavedSeatsConfig());
+  const [period, setPeriod] = useState(config.current_period || '第 1 節');
   const [selectedSeatIndex, setSelectedSeatIndex] = useState(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawStart, setDrawStart] = useState({ x: 0, y: 0 });
@@ -83,6 +84,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
     if (isOpen) {
       const saved = getSavedSeatsConfig();
       setConfig(saved);
+      setPeriod(saved.current_period || '第 1 節');
       setSelectedSeatIndex(null);
       setSavedNotice(false);
       startCamera(selectedDeviceId);
@@ -105,7 +107,6 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
     const x = Math.max(0, Math.min(CANVAS_WIDTH, (e.clientX - rect.left) * scaleX));
     const y = Math.max(0, Math.min(CANVAS_HEIGHT, (e.clientY - rect.top) * scaleY));
 
-    // 檢查是否點擊到了現有座位
     const clickedIndex = config.seats.findIndex((seat) => {
       const { roi } = seat;
       return x >= roi.x && x <= roi.x + roi.width && y >= roi.y && y <= roi.y + roi.height;
@@ -183,18 +184,24 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
   // 一鍵產生網格佈局
   const handleGenerateGrid = (rows, cols) => {
-    const grid = generateGridSeats(rows, cols, CANVAS_WIDTH, CANVAS_HEIGHT);
-    setConfig(grid);
+    const newSeats = generateGridSeats(rows, cols, CANVAS_WIDTH, CANVAS_HEIGHT);
+    setConfig({ ...config, seats: newSeats });
     setSelectedSeatIndex(null);
   };
 
   // 儲存配置
   const handleSave = () => {
-    saveSeatsConfig(config);
+    const toSave = {
+      ...config,
+      current_period: period || '第 1 節',
+    };
+    saveSeatsConfig(toSave);
     setSavedNotice(true);
     setTimeout(() => setSavedNotice(false), 2000);
-    if (onSaveSuccess) onSaveSuccess(config);
+    if (onSaveSuccess) onSaveSuccess(toSave);
   };
+
+  const currentFormattedPeriod = formatFullPeriodMessage(period);
 
   const modalContent = (
     <div
@@ -235,7 +242,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
             <LayoutGrid size={24} color="var(--accent-primary)" />
             <div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                視覺化座位劃位與座號設置
+                視覺化座位劃位與課堂設置
                 {cameraActive && (
                   <span style={{ fontSize: '0.75rem', background: '#0284c7', color: '#e0f2fe', padding: '2px 8px', borderRadius: '12px' }}>
                     即時相機對齊
@@ -243,13 +250,56 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
                 )}
               </h2>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                對準即時相機畫面直接用滑鼠拖曳框選座位，點擊座位可自訂座號 (目前已配置 {config.seats.length} 席)
+                設定課堂節次並在相機畫面上拖曳劃位 (目前已配置 {config.seats.length} 席)
               </span>
             </div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
             <X size={22} />
           </button>
+        </div>
+
+        {/* 課堂節次設定區 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', padding: '12px 16px', borderRadius: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-primary)', fontWeight: 600, fontSize: '0.9rem' }}>
+            <GraduationCap size={18} />
+            課堂節次設定：
+          </div>
+
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {['第 1 節', '第 2 節', '第 3 節', '第 4 節', '第 5 節', '第 6 節', '第 7 節', '第 8 節'].map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  background: period === p ? 'var(--accent-primary)' : 'rgba(255,255,255,0.06)',
+                  color: period === p ? '#fff' : 'var(--text-secondary)',
+                  border: period === p ? '1px solid var(--accent-primary)' : '1px solid rgba(255,255,255,0.08)',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
+            <input
+              type="text"
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              placeholder="自訂節次名稱"
+              style={{ padding: '6px 10px', borderRadius: '6px', background: '#0f172a', border: '1px solid #334155', color: '#fff', fontSize: '0.82rem', width: '130px' }}
+            />
+            <span style={{ fontSize: '0.78rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>
+              (通報標題：<strong style={{ color: '#38bdf8' }}>{currentFormattedPeriod}</strong>)
+            </span>
+          </div>
         </div>
 
         {/* 快捷排版與相機設定列 */}
@@ -447,7 +497,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
           <div>
             {savedNotice && (
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontSize: '0.85rem' }}>
-                <Check size={16} /> 座位劃位配置已成功儲存！
+                <Check size={16} /> 課堂節次與座位設置已儲存！
               </span>
             )}
           </div>
@@ -465,7 +515,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
                 cursor: 'pointer',
               }}
             >
-              <Save size={18} /> 儲存劃位配置 ({config.seats.length} 席)
+              <Save size={18} /> 儲存劃位配置 ({config.seats.length} 席 · {period})
             </button>
           </div>
         </div>
