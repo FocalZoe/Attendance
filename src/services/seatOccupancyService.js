@@ -9,7 +9,7 @@ export const DEFAULT_SEATS_CONFIG = {
   camera_id: 'CAM-01',
   current_period: '第 1 節',
   base_width: 640,
-  base_height: 360,
+  base_height: 480,
   seats: [],
 };
 
@@ -75,11 +75,11 @@ export const clearSeatsConfig = () => {
 /**
  * 自動產生 M 行 x N 列 網格座位 (依據相機畫面尺寸計算)
  */
-export const generateGridSeats = (rows = 2, cols = 2, width = 640, height = 360) => {
-  const paddingX = 30;
-  const paddingY = 35;
-  const gapX = 20;
-  const gapY = 20;
+export const generateGridSeats = (rows = 2, cols = 2, width = 640, height = 480) => {
+  const paddingX = Math.round(width * 0.05);
+  const paddingY = Math.round(height * 0.08);
+  const gapX = Math.round(width * 0.03);
+  const gapY = Math.round(height * 0.04);
 
   const totalGapX = (cols - 1) * gapX;
   const totalGapY = (rows - 1) * gapY;
@@ -100,7 +100,16 @@ export const generateGridSeats = (rows = 2, cols = 2, width = 640, height = 360)
       seats.push({
         seat_id: seatId,
         name: `第 ${r + 1} 排 ${c + 1} 號座`,
-        roi: { x, y, width: seatW, height: seatH },
+        roi: {
+          x,
+          y,
+          width: seatW,
+          height: seatH,
+          x_pct: parseFloat(((x / width) * 100).toFixed(2)),
+          y_pct: parseFloat(((y / height) * 100).toFixed(2)),
+          width_pct: parseFloat(((seatW / width) * 100).toFixed(2)),
+          height_pct: parseFloat(((seatH / height) * 100).toFixed(2)),
+        },
       });
     }
   }

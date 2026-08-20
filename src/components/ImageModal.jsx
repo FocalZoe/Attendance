@@ -1,6 +1,6 @@
 // TEAM_008: 考勤照片大圖檢視 Modal (ImageModal.jsx)
 // 升級重點：
-// 1. 強固座位座標解析 (支援 st.roi、st.person_box 與 seatConfig.seats 多重 Fallback)，保證 100% 精準繪製各座號框線！
+// 1. 座標全面支援百分比對齊 (x_pct, y_pct, width_pct, height_pct)，徹底解決解析度與裁切造成的位移變形！
 // 2. 提供視覺化標註切換工具列 (全部 / 僅未到 / 僅在座 / 純淨照片)。
 // 3. 頂部資訊列以 Lucide Icons 顯示幾月幾號第幾節與通報時間。
 
@@ -48,7 +48,6 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
 
   // 為每一個座位狀態補齊真實的 roi 座標
   const completeSeatStatuses = rawStatuses.map((st) => {
-    // 優先順序：st.roi -> st.person_box -> savedConfig 中同 seat_id 的 roi
     let resolvedRoi = st.roi || st.person_box;
     if (!resolvedRoi || typeof resolvedRoi.x !== 'number') {
       const matchSeat = configuredSeats.find((cs) => cs.seat_id === st.seat_id);
@@ -89,7 +88,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
   });
 
   const baseW = savedConfig.base_width || 640;
-  const baseH = savedConfig.base_height || 360;
+  const baseH = savedConfig.base_height || 480;
 
   const modalContent = (
     <div
@@ -257,7 +256,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
         </button>
       </div>
 
-      {/* 照片與座位覆蓋層 */}
+      {/* 照片與座位覆蓋層 (完全自適應照片長寬比，零變形零位移) */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -322,21 +321,20 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           );
         })}
 
-        {/* 繪製各座號區域框 (依據切換模式動態呈現 🟢 在座 / ❌ 未到) */}
+        {/* 繪製各座號區域框 (優先採用百分比座標，100% 精準吻合使用者劃位) */}
         {filteredSeatsToDraw.map((st, index) => {
           const roi = st.resolvedRoi;
-          if (!roi || typeof roi.x !== 'number') return null;
+          if (!roi) return null;
 
-          const roiW = roi.width || roi.w || 0;
-          const roiH = roi.height || roi.h || 0;
-          if (roiW <= 0 || roiH <= 0) return null;
+          // 優先讀取百分比座標，無百分比則以 baseW / baseH 換算
+          const leftPct = typeof roi.x_pct === 'number' ? roi.x_pct : (roi.x / baseW) * 100;
+          const topPct = typeof roi.y_pct === 'number' ? roi.y_pct : (roi.y / baseH) * 100;
+          const widthPct = typeof roi.width_pct === 'number' ? roi.width_pct : ((roi.width || roi.w || 0) / baseW) * 100;
+          const heightPct = typeof roi.height_pct === 'number' ? roi.height_pct : ((roi.height || roi.h || 0) / baseH) * 100;
+
+          if (widthPct <= 0 || heightPct <= 0) return null;
 
           const isOcc = st.status === 'OCCUPIED';
-          const leftPct = (roi.x / baseW) * 100;
-          const topPct = (roi.y / baseH) * 100;
-          const widthPct = (roiW / baseW) * 100;
-          const heightPct = (roiH / baseH) * 100;
-
           const labelText = isOcc
             ? `🟢 [${st.seat_id}] 在座`
             : `❌ [${st.seat_id}] 未到`;
@@ -350,7 +348,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
                 top: `${topPct}%`,
                 width: `${widthPct}%`,
                 height: `${heightPct}%`,
-                border: isOcc ? '2.5px solid #10b981' : '2.5px dashed #ef4444',
+                border: isOcc ? '2.5px solid #10b981' : '2px dashed #ef4444',
                 background: isOcc ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.18)',
                 borderRadius: '8px',
                 boxSizing: 'border-box',
