@@ -1,6 +1,6 @@
 // TEAM_008: 考勤照片大圖檢視 Modal (ImageModal.jsx)
 // 升級重點：
-// 1. 座標全面支援百分比對齊 (x_pct, y_pct, width_pct, height_pct)，徹底解決解析度與裁切造成的位移變形！
+// 1. 座標全面支援百分比對齊 (x_pct, y_pct, width_pct, height_pct)，徹底消除任何相機裁切導致的位移變形！
 // 2. 提供視覺化標註切換工具列 (全部 / 僅未到 / 僅在座 / 純淨照片)。
 // 3. 頂部資訊列以 Lucide Icons 顯示幾月幾號第幾節與通報時間。
 
@@ -87,8 +87,25 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
     return true; // 'all'
   });
 
-  const baseW = savedConfig.base_width || 640;
-  const baseH = savedConfig.base_height || 480;
+  const getSeatPct = (roi) => {
+    if (!roi) return { x: 0, y: 0, width: 0, height: 0 };
+    if (typeof roi.x_pct === 'number' && typeof roi.width_pct === 'number') {
+      return {
+        x: roi.x_pct,
+        y: roi.y_pct,
+        width: roi.width_pct,
+        height: roi.height_pct,
+      };
+    }
+    const bw = savedConfig.base_width || 640;
+    const bh = savedConfig.base_height || 480;
+    return {
+      x: (roi.x / bw) * 100,
+      y: (roi.y / bh) * 100,
+      width: ((roi.width || roi.w || 0) / bw) * 100,
+      height: ((roi.height || roi.h || 0) / bh) * 100,
+    };
+  };
 
   const modalContent = (
     <div
@@ -256,7 +273,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
         </button>
       </div>
 
-      {/* 照片與座位覆蓋層 (完全自適應照片長寬比，零變形零位移) */}
+      {/* 照片與座位覆蓋層 */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -287,7 +304,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
         />
 
-        {/* 繪製人員邊框 (藍色虛線框，當 viewMode !== 'raw' 時顯示) */}
+        {/* 繪製人員邊框 (藍色虛線框) */}
         {viewMode !== 'raw' && showPersonBoxes && persons.map((person, idx) => {
           const box = person.bounding_box || person;
           if (!box || typeof box.x !== 'number') return null;
@@ -295,8 +312,8 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           const bH = box.height || box.h || 0;
           if (bW <= 0 || bH <= 0) return null;
 
-          const pBaseW = box.base_width || baseW;
-          const pBaseH = box.base_height || baseH;
+          const pBaseW = box.base_width || 640;
+          const pBaseH = box.base_height || 480;
 
           const leftPct = (box.x / pBaseW) * 100;
           const topPct = (box.y / pBaseH) * 100;
@@ -321,18 +338,10 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           );
         })}
 
-        {/* 繪製各座號區域框 (優先採用百分比座標，100% 精準吻合使用者劃位) */}
+        {/* 繪製各座號區域框 (百分比精準對齊) */}
         {filteredSeatsToDraw.map((st, index) => {
-          const roi = st.resolvedRoi;
-          if (!roi) return null;
-
-          // 優先讀取百分比座標，無百分比則以 baseW / baseH 換算
-          const leftPct = typeof roi.x_pct === 'number' ? roi.x_pct : (roi.x / baseW) * 100;
-          const topPct = typeof roi.y_pct === 'number' ? roi.y_pct : (roi.y / baseH) * 100;
-          const widthPct = typeof roi.width_pct === 'number' ? roi.width_pct : ((roi.width || roi.w || 0) / baseW) * 100;
-          const heightPct = typeof roi.height_pct === 'number' ? roi.height_pct : ((roi.height || roi.h || 0) / baseH) * 100;
-
-          if (widthPct <= 0 || heightPct <= 0) return null;
+          const sp = getSeatPct(st.resolvedRoi);
+          if (sp.width <= 0 || sp.height <= 0) return null;
 
           const isOcc = st.status === 'OCCUPIED';
           const labelText = isOcc
@@ -344,10 +353,10 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
               key={`seat-${index}-${st.seat_id}`}
               style={{
                 position: 'absolute',
-                left: `${leftPct}%`,
-                top: `${topPct}%`,
-                width: `${widthPct}%`,
-                height: `${heightPct}%`,
+                left: `${sp.x}%`,
+                top: `${sp.y}%`,
+                width: `${sp.width}%`,
+                height: `${sp.height}%`,
                 border: isOcc ? '2.5px solid #10b981' : '2px dashed #ef4444',
                 background: isOcc ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.18)',
                 borderRadius: '8px',
@@ -377,7 +386,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
               {/* 座號狀態標籤 */}
               <div style={{
                 position: 'absolute',
-                top: topPct > 8 ? '-26px' : '4px',
+                top: sp.y > 8 ? '-26px' : '4px',
                 left: '4px',
                 background: isOcc ? 'rgba(16, 185, 129, 0.95)' : 'rgba(239, 68, 68, 0.95)',
                 color: '#ffffff',

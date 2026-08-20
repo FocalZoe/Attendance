@@ -1,8 +1,8 @@
 // TEAM_008: 視覺化座位劃位與座號設置編輯器 (SeatMapEditorModal.jsx)
-// 升級重點：
-// 1. 動態自適應真實相機長寬比 (Zero Cropping / 零裁切)，劃位視野與拍照視野 100% 一致！
-// 2. 座標同時儲存真實像素與百分比 (x_pct, y_pct, width_pct, height_pct)，徹底杜絕任何座標偏移變形。
-// 3. 支援課堂節次編輯與 Lucide-react 精緻圖示。
+// 全新百分比絕對座標系統：
+// 1. 完全以畫面百分比 (0% ~ 100%) 作為唯一基準，拖拉哪裡就畫在哪裡，徹底消除不同解析度與長寬比的座標錯位！
+// 2. 視訊畫面零裁切，畫布自動適應鏡頭真實長寬比。
+// 3. 支援課堂節次編輯與 Lucide-react 圖示。
 
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
@@ -14,17 +14,12 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
   const [period, setPeriod] = useState(config.current_period || '第 1 節');
   const [selectedSeatIndex, setSelectedSeatIndex] = useState(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [drawStart, setDrawStart] = useState({ x: 0, y: 0 });
-  const [currentDrawRect, setCurrentDrawRect] = useState(null);
+  const [drawStartPct, setDrawStartPct] = useState({ x: 0, y: 0 });
+  const [currentDrawRectPct, setCurrentDrawRectPct] = useState(null);
   const [savedNotice, setSavedNotice] = useState(false);
 
-  // 相機真實解析度與長寬比 (避免裁切變形)
-  const [camResolution, setCamResolution] = useState({
-    width: config.base_width || 640,
-    height: config.base_height || 480,
-  });
-
-  // 相機相關 state
+  // 相機真實比例與狀態
+  const [camAspect, setCamAspect] = useState(4 / 3);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState(null);
   const [devices, setDevices] = useState([]);
@@ -32,7 +27,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
-  const canvasRef = useRef(null);
+  const containerRef = useRef(null);
 
   // 取得可用相機裝置清單
   const getCameraDevices = async () => {
@@ -102,26 +97,45 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
   if (!isOpen) return null;
 
-  const canvasWidth = camResolution.width || 640;
-  const canvasHeight = camResolution.height || 480;
+  // 計算座標百分比工具
+  const getPointPct = (e) => {
+    if (!containerRef.current) return { x: 0, y: 0 };
+    const rect = containerRef.current.getBoundingClientRect();
+    const xPct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+    const yPct = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+    return { x: xPct, y: yPct };
+  };
 
-  // 滑鼠在畫布上拖曳框選新座位
+  // 取得座位的百分比座標 (相容舊資料)
+  const getSeatPct = (seat) => {
+    const roi = seat.roi;
+    if (typeof roi.x_pct === 'number' && typeof roi.width_pct === 'number') {
+      return {
+        x: roi.x_pct,
+        y: roi.y_pct,
+        width: roi.width_pct,
+        height: roi.height_pct,
+      };
+    }
+    // 舊資料像素 fallback
+    const bw = config.base_width || 640;
+    const bh = config.base_height || 480;
+    return {
+      x: (roi.x / bw) * 100,
+      y: (roi.y / bh) * 100,
+      width: (roi.width / bw) * 100,
+      height: (roi.height / bh) * 100,
+    };
+  };
+
+  // 滑鼠按下：開始拖拉或選取座位
   const handleMouseDown = (e) => {
-    if (!canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const scaleX = canvasWidth / rect.width;
-    const scaleY = canvasHeight / rect.height;
-    const x = Math.max(0, Math.min(canvasWidth, (e.clientX - rect.left) * scaleX));
-    const y = Math.max(0, Math.min(canvasHeight, (e.clientY - rect.top) * scaleY));
+    const { x: clickX, y: clickY } = getPointPct(e);
 
-    // 檢查是否點擊現有座位
+    // 檢查是否點擊到現有座位
     const clickedIndex = config.seats.findIndex((seat) => {
-      const { roi } = seat;
-      const rx = typeof roi.x_pct === 'number' ? (roi.x_pct / 100) * canvasWidth : roi.x;
-      const ry = typeof roi.y_pct === 'number' ? (roi.y_pct / 100) * canvasHeight : roi.y;
-      const rw = typeof roi.width_pct === 'number' ? (roi.width_pct / 100) * canvasWidth : roi.width;
-      const rh = typeof roi.height_pct === 'number' ? (roi.height_pct / 100) * canvasHeight : roi.height;
-      return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
+      const sp = getSeatPct(seat);
+      return clickX >= sp.x && clickX <= sp.x + sp.width && clickY >= sp.y && clickY <= sp.y + sp.height;
     });
 
     if (clickedIndex !== -1) {
@@ -130,62 +144,58 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
       return;
     }
 
+    // 開始繪製新座位框
     setIsDrawing(true);
-    setDrawStart({ x, y });
-    setCurrentDrawRect({ x, y, width: 0, height: 0 });
+    setDrawStartPct({ x: clickX, y: clickY });
+    setCurrentDrawRectPct({ x: clickX, y: clickY, width: 0, height: 0 });
     setSelectedSeatIndex(null);
   };
 
   const handleMouseMove = (e) => {
-    if (!isDrawing || !canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const scaleX = canvasWidth / rect.width;
-    const scaleY = canvasHeight / rect.height;
-    const currentX = Math.max(0, Math.min(canvasWidth, (e.clientX - rect.left) * scaleX));
-    const currentY = Math.max(0, Math.min(canvasHeight, (e.clientY - rect.top) * scaleY));
+    if (!isDrawing) return;
+    const { x: currX, y: currY } = getPointPct(e);
 
-    const x = Math.min(drawStart.x, currentX);
-    const y = Math.min(drawStart.y, currentY);
-    const width = Math.abs(currentX - drawStart.x);
-    const height = Math.abs(currentY - drawStart.y);
+    const x = Math.min(drawStartPct.x, currX);
+    const y = Math.min(drawStartPct.y, currY);
+    const width = Math.abs(currX - drawStartPct.x);
+    const height = Math.abs(currY - drawStartPct.y);
 
-    setCurrentDrawRect({ x, y, width, height });
+    setCurrentDrawRectPct({ x, y, width, height });
   };
 
   const handleMouseUp = () => {
-    if (isDrawing && currentDrawRect && currentDrawRect.width > 20 && currentDrawRect.height > 20) {
+    if (isDrawing && currentDrawRectPct && currentDrawRectPct.width > 3 && currentDrawRectPct.height > 3) {
       const nextNum = config.seats.length + 1;
-      const xPct = parseFloat(((currentDrawRect.x / canvasWidth) * 100).toFixed(2));
-      const yPct = parseFloat(((currentDrawRect.y / canvasHeight) * 100).toFixed(2));
-      const wPct = parseFloat(((currentDrawRect.width / canvasWidth) * 100).toFixed(2));
-      const hPct = parseFloat(((currentDrawRect.height / canvasHeight) * 100).toFixed(2));
+      const xPct = parseFloat(currentDrawRectPct.x.toFixed(2));
+      const yPct = parseFloat(currentDrawRectPct.y.toFixed(2));
+      const wPct = parseFloat(currentDrawRectPct.width.toFixed(2));
+      const hPct = parseFloat(currentDrawRectPct.height.toFixed(2));
 
       const newSeat = {
         seat_id: `A-${String(nextNum).padStart(2, '0')}`,
         name: `座位 #${nextNum}`,
         roi: {
-          x: Math.round(currentDrawRect.x),
-          y: Math.round(currentDrawRect.y),
-          width: Math.round(currentDrawRect.width),
-          height: Math.round(currentDrawRect.height),
           x_pct: xPct,
           y_pct: yPct,
           width_pct: wPct,
           height_pct: hPct,
+          // 相容舊後端像素結構
+          x: Math.round((xPct / 100) * 640),
+          y: Math.round((yPct / 100) * 480),
+          width: Math.round((wPct / 100) * 640),
+          height: Math.round((hPct / 100) * 480),
         },
       };
 
       const updated = {
         ...config,
-        base_width: canvasWidth,
-        base_height: canvasHeight,
         seats: [...config.seats, newSeat],
       };
       setConfig(updated);
       setSelectedSeatIndex(updated.seats.length - 1);
     }
     setIsDrawing(false);
-    setCurrentDrawRect(null);
+    setCurrentDrawRectPct(null);
   };
 
   // 刪除選取座位
@@ -210,11 +220,9 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
   // 一鍵產生網格佈局
   const handleGenerateGrid = (rows, cols) => {
-    const newSeats = generateGridSeats(rows, cols, canvasWidth, canvasHeight);
+    const newSeats = generateGridSeats(rows, cols, 640, 480);
     setConfig({
       ...config,
-      base_width: canvasWidth,
-      base_height: canvasHeight,
       seats: newSeats,
     });
     setSelectedSeatIndex(null);
@@ -224,8 +232,6 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
   const handleSave = () => {
     const toSave = {
       ...config,
-      base_width: canvasWidth,
-      base_height: canvasHeight,
       current_period: period || '第 1 節',
     };
     saveSeatsConfig(toSave);
@@ -278,12 +284,12 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
                 視覺化座位劃位與課堂設置
                 {cameraActive && (
                   <span style={{ fontSize: '0.75rem', background: '#0284c7', color: '#e0f2fe', padding: '2px 8px', borderRadius: '12px' }}>
-                    相機原始視野 ({camResolution.width}×{camResolution.height})
+                    相機原始視野
                   </span>
                 )}
               </h2>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                零裁切對齊真實鏡頭視野，請在相機畫面上拖曳劃位 (目前已配置 {config.seats.length} 席)
+                請直接在即時畫面上拖曳拉框劃位 (已配置 {config.seats.length} 席)
               </span>
             </div>
           </div>
@@ -372,19 +378,26 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
           </div>
         </div>
 
-        {/* 主畫布區 (動態對齊相機真實解析度與長寬比，零裁切) */}
+        {/* 主畫布區 (百分比精確疊加) */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '20px' }}>
           {/* 畫布容器 */}
-          <div style={{
-            position: 'relative',
-            width: '100%',
-            aspectRatio: `${camResolution.width} / ${camResolution.height}`,
-            background: '#090d16',
-            borderRadius: '12px',
-            overflow: 'hidden',
-            border: '2px solid rgba(59, 130, 246, 0.4)',
-            userSelect: 'none',
-          }}>
+          <div
+            ref={containerRef}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            style={{
+              position: 'relative',
+              width: '100%',
+              aspectRatio: `${camAspect}`,
+              background: '#090d16',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              border: '2px solid rgba(59, 130, 246, 0.4)',
+              userSelect: 'none',
+              cursor: 'crosshair',
+            }}
+          >
             {/* 底層相機即時視訊預覽 */}
             <video
               ref={videoRef}
@@ -394,10 +407,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
               onLoadedMetadata={(e) => {
                 const target = e.currentTarget;
                 if (target.videoWidth > 0 && target.videoHeight > 0) {
-                  setCamResolution({
-                    width: target.videoWidth,
-                    height: target.videoHeight,
-                  });
+                  setCamAspect(target.videoWidth / target.videoHeight);
                 }
               }}
               style={{
@@ -405,45 +415,33 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
                 inset: 0,
                 width: '100%',
                 height: '100%',
-                objectFit: 'fill',
+                objectFit: 'cover',
+                pointerEvents: 'none',
                 display: cameraActive ? 'block' : 'none',
               }}
             />
 
             {!cameraActive && (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', gap: '8px' }}>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', gap: '8px', pointerEvents: 'none' }}>
                 <Camera size={32} style={{ opacity: 0.4 }} />
                 <span style={{ fontSize: '0.85rem' }}>{cameraError || '正在連線相機預覽畫面...'}</span>
               </div>
             )}
 
-            {/* 互動劃位互動層 */}
-            <div
-              ref={canvasRef}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              style={{ position: 'absolute', inset: 0, cursor: 'crosshair', zIndex: 10 }}
-            />
-
-            {/* 繪製現有座位 */}
+            {/* 繪製現有座位 (百分比定位) */}
             {config.seats.map((seat, idx) => {
               const isSelected = selectedSeatIndex === idx;
-              const roi = seat.roi;
-              const leftPct = typeof roi.x_pct === 'number' ? roi.x_pct : (roi.x / canvasWidth) * 100;
-              const topPct = typeof roi.y_pct === 'number' ? roi.y_pct : (roi.y / canvasHeight) * 100;
-              const widthPct = typeof roi.width_pct === 'number' ? roi.width_pct : (roi.width / canvasWidth) * 100;
-              const heightPct = typeof roi.height_pct === 'number' ? roi.height_pct : (roi.height / canvasHeight) * 100;
+              const sp = getSeatPct(seat);
 
               return (
                 <div
                   key={idx}
                   style={{
                     position: 'absolute',
-                    left: `${leftPct}%`,
-                    top: `${topPct}%`,
-                    width: `${widthPct}%`,
-                    height: `${heightPct}%`,
+                    left: `${sp.x}%`,
+                    top: `${sp.y}%`,
+                    width: `${sp.width}%`,
+                    height: `${sp.height}%`,
                     border: isSelected ? '2.5px solid #38bdf8' : '2px dashed rgba(59, 130, 246, 0.85)',
                     background: isSelected ? 'rgba(56, 189, 248, 0.25)' : 'rgba(59, 130, 246, 0.12)',
                     borderRadius: '8px',
@@ -469,15 +467,15 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
               );
             })}
 
-            {/* 繪製正在拖拉中的框 */}
-            {currentDrawRect && (
+            {/* 繪製正在拖拉中的框 (百分比) */}
+            {currentDrawRectPct && (
               <div
                 style={{
                   position: 'absolute',
-                  left: `${(currentDrawRect.x / canvasWidth) * 100}%`,
-                  top: `${(currentDrawRect.y / canvasHeight) * 100}%`,
-                  width: `${(currentDrawRect.width / canvasWidth) * 100}%`,
-                  height: `${(currentDrawRect.height / canvasHeight) * 100}%`,
+                  left: `${currentDrawRectPct.x}%`,
+                  top: `${currentDrawRectPct.y}%`,
+                  width: `${currentDrawRectPct.width}%`,
+                  height: `${currentDrawRectPct.height}%`,
                   border: '2px solid #10b981',
                   background: 'rgba(16, 185, 129, 0.25)',
                   borderRadius: '8px',
@@ -518,11 +516,6 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
                     onChange={(e) => handleUpdateSeatInfo(selectedSeatIndex, 'name', e.target.value)}
                     style={{ width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '0.85rem' }}
                   />
-                </div>
-
-                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                  位置比例: {config.seats[selectedSeatIndex].roi.x_pct || 0}% , {config.seats[selectedSeatIndex].roi.y_pct || 0}%
-                  ({config.seats[selectedSeatIndex].roi.width_pct || 0}% × {config.seats[selectedSeatIndex].roi.height_pct || 0}%)
                 </div>
 
                 <button
