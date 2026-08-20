@@ -1,8 +1,5 @@
 // TEAM_008: 考勤照片大圖檢視 Modal (ImageModal.jsx)
-// 關鍵修正：
-// 1. 座位框永遠鎖定使用者劃位的「真實座位區域 (Seat ROI)」，絕對不再誤用人體全身邊框 (Person Box) 取代座位框！
-// 2. 移除 objectFit: 'cover'，確保相片長寬比 100% 自然吻合，零裁切、零變形、零位移！
-// 3. 綠框/紅框代表座位在座/未到，藍色虛線代表偵測到的人體，層次清晰分明。
+// 關鍵：百分比精準定位，保證與劃位編輯器 100% 絕對一致！
 
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -46,13 +43,15 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
     }));
   }
 
-  // 為每一個座位鎖定其「真正的座位 ROI」 (絕不使用 person_box 覆蓋座位形狀)
+  // 為每一個座位鎖定其真實的 ROI (優先使用本地或紀錄中的百分比座標)
   const completeSeatStatuses = rawStatuses.map((st) => {
-    let seatRoi = st.roi;
+    // 優先從本地 configuredSeats 尋找最新百分比 ROI
+    const matchConfigSeat = configuredSeats.find((cs) => cs.seat_id === st.seat_id);
+    let seatRoi = matchConfigSeat?.roi || st.roi;
+
     if (!seatRoi || (typeof seatRoi.x_pct !== 'number' && typeof seatRoi.x !== 'number')) {
-      const matchSeat = configuredSeats.find((cs) => cs.seat_id === st.seat_id);
-      if (matchSeat && matchSeat.roi) {
-        seatRoi = matchSeat.roi;
+      if (matchConfigSeat && matchConfigSeat.roi) {
+        seatRoi = matchConfigSeat.roi;
       }
     }
 
@@ -88,6 +87,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
   // 計算百分比座標
   const getSeatPct = (roi) => {
     if (!roi) return { x: 0, y: 0, width: 0, height: 0 };
+    // 1. 優先使用 x_pct
     if (typeof roi.x_pct === 'number' && typeof roi.width_pct === 'number') {
       return {
         x: roi.x_pct,
@@ -96,17 +96,27 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
         height: roi.height_pct,
       };
     }
-    const bw = savedConfig.base_width || 640;
-    const bh = savedConfig.base_height || 480;
+    // 2. 如果 roi.x <= 100 且 roi.width <= 100 (代表本身就是百分比)
+    if (roi.x <= 100 && roi.width <= 100 && roi.x > 0) {
+      return {
+        x: roi.x,
+        y: roi.y,
+        width: roi.width,
+        height: roi.height,
+      };
+    }
+    // 3. 像素值 fallback：以照片真實解析度為分母
+    const naturalW = imgNaturalSize.width || savedConfig.base_width || 1920;
+    const naturalH = imgNaturalSize.height || savedConfig.base_height || 1080;
     return {
-      x: (roi.x / bw) * 100,
-      y: (roi.y / bh) * 100,
-      width: ((roi.width || roi.w || 0) / bw) * 100,
-      height: ((roi.height || roi.h || 0) / bh) * 100,
+      x: (roi.x / naturalW) * 100,
+      y: (roi.y / naturalH) * 100,
+      width: ((roi.width || roi.w || 0) / naturalW) * 100,
+      height: ((roi.height || roi.h || 0) / naturalH) * 100,
     };
   };
 
-  const modalContent = (
+  return ReactDOM.createPortal(
     <div
       onClick={onClose}
       style={{
@@ -272,7 +282,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
         </button>
       </div>
 
-      {/* 照片與座位覆蓋容器 (完全依據相片真實長寬比呈現，零裁切零變形) */}
+      {/* 照片與座位覆蓋容器 (精確吻合相片真實尺寸) */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -287,7 +297,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           background: '#090d16',
         }}
       >
-        {/* 原始純淨相片 (完全保持相片自然比例) */}
+        {/* 原始純淨相片 */}
         <img
           src={targetUrl}
           alt={periodMessage}
@@ -318,13 +328,13 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           const bH = box.height || box.h || 0;
           if (bW <= 0 || bH <= 0) return null;
 
-          const pBaseW = box.base_width || (imgNaturalSize.width > 0 ? imgNaturalSize.width : 640);
-          const pBaseH = box.base_height || (imgNaturalSize.height > 0 ? imgNaturalSize.height : 480);
+          const pBaseW = box.base_width || (imgNaturalSize.width > 0 ? imgNaturalSize.width : 1920);
+          const pBaseH = box.base_height || (imgNaturalSize.height > 0 ? imgNaturalSize.height : 1080);
 
-          const leftPct = (box.x / pBaseW) * 100;
-          const topPct = (box.y / pBaseH) * 100;
-          const widthPct = (bW / pBaseW) * 100;
-          const heightPct = (bH / pBaseH) * 100;
+          const leftPct = typeof box.x_pct === 'number' ? box.x_pct : (box.x / pBaseW) * 100;
+          const topPct = typeof box.y_pct === 'number' ? box.y_pct : (box.y / pBaseH) * 100;
+          const widthPct = typeof box.width_pct === 'number' ? box.width_pct : (bW / pBaseW) * 100;
+          const heightPct = typeof box.height_pct === 'number' ? box.height_pct : (bH / pBaseH) * 100;
 
           return (
             <div
@@ -344,7 +354,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           );
         })}
 
-        {/* 繪製各座號真實座位區域框 (Seat ROI - 絕非全身人體框) */}
+        {/* 繪製各座號真實座位區域框 (百分比精確疊加) */}
         {filteredSeatsToDraw.map((st, index) => {
           const sp = getSeatPct(st.seatRoi);
           if (sp.width <= 0 || sp.height <= 0) return null;
@@ -412,10 +422,9 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           );
         })}
       </div>
-    </div>
+    </div>,
+    document.body
   );
-
-  return ReactDOM.createPortal(modalContent, document.body);
 };
 
 export default ImageModal;

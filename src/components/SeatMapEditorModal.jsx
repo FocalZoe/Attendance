@@ -1,5 +1,5 @@
 // TEAM_008: 視覺化座位劃位與座號設置編輯器 (SeatMapEditorModal.jsx)
-// 關鍵：保證畫布視野與相機真實視訊影格 1:1 零裁切絕對對齊！
+// 百分比絕對座標系統：100% 鎖定鏡頭真實視訊畫面！
 
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
@@ -16,7 +16,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
   const [savedNotice, setSavedNotice] = useState(false);
 
   // 相機真實視訊解析度與長寬比
-  const [videoDims, setVideoDims] = useState({ width: 640, height: 480 });
+  const [videoDims, setVideoDims] = useState({ width: 0, height: 0 });
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState(null);
   const [devices, setDevices] = useState([]);
@@ -47,7 +47,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
     try {
       const constraints = {
-        video: deviceId ? { deviceId: { exact: deviceId } } : { width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: deviceId ? { deviceId: { exact: deviceId } } : { width: { ideal: 1920 }, height: { ideal: 1080 } },
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -170,6 +170,9 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
       const wPct = parseFloat(currentDrawRectPct.width.toFixed(2));
       const hPct = parseFloat(currentDrawRectPct.height.toFixed(2));
 
+      const vW = videoDims.width || 640;
+      const vH = videoDims.height || 480;
+
       const newSeat = {
         seat_id: `A-${String(nextNum).padStart(2, '0')}`,
         name: `座位 #${nextNum}`,
@@ -178,17 +181,17 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
           y_pct: yPct,
           width_pct: wPct,
           height_pct: hPct,
-          x: Math.round((xPct / 100) * (videoDims.width || 640)),
-          y: Math.round((yPct / 100) * (videoDims.height || 480)),
-          width: Math.round((wPct / 100) * (videoDims.width || 640)),
-          height: Math.round((hPct / 100) * (videoDims.height || 480)),
+          x: Math.round((xPct / 100) * vW),
+          y: Math.round((yPct / 100) * vH),
+          width: Math.round((wPct / 100) * vW),
+          height: Math.round((hPct / 100) * vH),
         },
       };
 
       const updated = {
         ...config,
-        base_width: videoDims.width || 640,
-        base_height: videoDims.height || 480,
+        base_width: vW,
+        base_height: vH,
         seats: [...config.seats, newSeat],
       };
       setConfig(updated);
@@ -220,11 +223,13 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
   // 一鍵產生網格佈局
   const handleGenerateGrid = (rows, cols) => {
-    const newSeats = generateGridSeats(rows, cols, videoDims.width || 640, videoDims.height || 480);
+    const vW = videoDims.width || 640;
+    const vH = videoDims.height || 480;
+    const newSeats = generateGridSeats(rows, cols, vW, vH);
     setConfig({
       ...config,
-      base_width: videoDims.width || 640,
-      base_height: videoDims.height || 480,
+      base_width: vW,
+      base_height: vH,
       seats: newSeats,
     });
     setSelectedSeatIndex(null);
@@ -245,9 +250,8 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
   };
 
   const currentFormattedPeriod = formatFullPeriodMessage(period);
-  const aspectVal = (videoDims.width && videoDims.height) ? (videoDims.width / videoDims.height) : (4 / 3);
 
-  const modalContent = (
+  return (
     <div
       onClick={onClose}
       style={{
@@ -287,9 +291,9 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
             <div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 視覺化座位劃位與課堂設置
-                {cameraActive && (
+                {cameraActive && videoDims.width > 0 && (
                   <span style={{ fontSize: '0.75rem', background: '#0284c7', color: '#e0f2fe', padding: '2px 8px', borderRadius: '12px' }}>
-                    鏡頭原始解析度 ({videoDims.width} × {videoDims.height})
+                    鏡頭解析度 ({videoDims.width} × {videoDims.height})
                   </span>
                 )}
               </h2>
@@ -383,7 +387,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
           </div>
         </div>
 
-        {/* 主畫布區 (與相機視訊真實比例完全一致，零裁切) */}
+        {/* 主畫布區 (依據 video 的自然長寬比自動適應，零裁切) */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '20px' }}>
           {/* 畫布容器 */}
           <div
@@ -394,16 +398,18 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
             style={{
               position: 'relative',
               width: '100%',
-              aspectRatio: `${aspectVal}`,
-              background: '#090d16',
               borderRadius: '12px',
               overflow: 'hidden',
               border: '2px solid rgba(59, 130, 246, 0.4)',
               userSelect: 'none',
               cursor: 'crosshair',
+              background: '#090d16',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            {/* 底層相機即時視訊預覽 (零裁切 fill) */}
+            {/* 底層相機即時視訊預覽 */}
             <video
               ref={videoRef}
               autoPlay
@@ -419,20 +425,17 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
                 }
               }}
               style={{
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                objectFit: 'fill',
-                pointerEvents: 'none',
                 display: cameraActive ? 'block' : 'none',
+                width: '100%',
+                height: 'auto',
+                pointerEvents: 'none',
               }}
             />
 
             {!cameraActive && (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', gap: '8px', pointerEvents: 'none' }}>
-                <Camera size={32} style={{ opacity: 0.4 }} />
-                <span style={{ fontSize: '0.85rem' }}>{cameraError || '正在連線相機預覽畫面...'}</span>
+              <div style={{ padding: '60px 20px', textAlign: 'center', color: '#94a3b8', pointerEvents: 'none' }}>
+                <Camera size={40} style={{ opacity: 0.4, marginBottom: '8px' }} />
+                <p style={{ margin: 0 }}>{cameraError || '正在連線相機預覽畫面...'}</p>
               </div>
             )}
 
