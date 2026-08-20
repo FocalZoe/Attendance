@@ -1,5 +1,7 @@
 // TEAM_008: 考勤照片大圖檢視 Modal (ImageModal.jsx)
-// 關鍵：百分比精準定位，保證與劃位編輯器 100% 絕對一致！
+// 核心原則：
+// 1. 100% 讀取 Database (ai_analysis) 與本機儲存之真實座位 ROI 座標進行繪製。
+// 2. 嚴禁任何 Mock 或假邊框，百分比釘位與劃位編輯器完全 1:1 絕對相符。
 
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -16,7 +18,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
 
   if (!targetUrl) return null;
 
-  // 1. 解析 ai_analysis
+  // 1. 解析 ai_analysis (從 Database 讀取真實分析資料)
   let aiAnalysis = targetRecord?.ai_analysis;
   if (typeof aiAnalysis === 'string') {
     try {
@@ -43,17 +45,10 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
     }));
   }
 
-  // 為每一個座位鎖定其真實的 ROI (優先使用本地或紀錄中的百分比座標)
+  // 為每一個座位鎖定其真實的 ROI 座標 (100% 來自 Database 或配置)
   const completeSeatStatuses = rawStatuses.map((st) => {
-    // 優先從本地 configuredSeats 尋找最新百分比 ROI
     const matchConfigSeat = configuredSeats.find((cs) => cs.seat_id === st.seat_id);
-    let seatRoi = matchConfigSeat?.roi || st.roi;
-
-    if (!seatRoi || (typeof seatRoi.x_pct !== 'number' && typeof seatRoi.x !== 'number')) {
-      if (matchConfigSeat && matchConfigSeat.roi) {
-        seatRoi = matchConfigSeat.roi;
-      }
-    }
+    let seatRoi = st.roi || matchConfigSeat?.roi;
 
     return {
       ...st,
@@ -84,10 +79,11 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
     return true; // 'all'
   });
 
-  // 計算百分比座標
+  // 百分比解析函式：精準釘位
   const getSeatPct = (roi) => {
     if (!roi) return { x: 0, y: 0, width: 0, height: 0 };
-    // 1. 優先使用 x_pct
+
+    // 1. 如果有明確的 x_pct
     if (typeof roi.x_pct === 'number' && typeof roi.width_pct === 'number') {
       return {
         x: roi.x_pct,
@@ -96,8 +92,9 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
         height: roi.height_pct,
       };
     }
-    // 2. 如果 roi.x <= 100 且 roi.width <= 100 (代表本身就是百分比)
-    if (roi.x <= 100 && roi.width <= 100 && roi.x > 0) {
+
+    // 2. 如果 roi.x 與 roi.width 落在 0 ~ 100 之間（本身就是百分比）
+    if (roi.x <= 100 && (roi.width || 0) <= 100 && (roi.width || 0) > 0) {
       return {
         x: roi.x,
         y: roi.y,
@@ -105,7 +102,8 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
         height: roi.height,
       };
     }
-    // 3. 像素值 fallback：以照片真實解析度為分母
+
+    // 3. 如果是像素值，以相片真實尺寸計算百分比
     const naturalW = imgNaturalSize.width || savedConfig.base_width || 1920;
     const naturalH = imgNaturalSize.height || savedConfig.base_height || 1080;
     return {
@@ -282,7 +280,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
         </button>
       </div>
 
-      {/* 照片與座位覆蓋容器 (精確吻合相片真實尺寸) */}
+      {/* 照片與座位覆蓋容器 (完全貼合相片真實尺寸) */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -354,7 +352,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           );
         })}
 
-        {/* 繪製各座號真實座位區域框 (百分比精確疊加) */}
+        {/* 繪製各座號真實座位區域框 (100% 依據 Database / 設置之 ROI 繪製) */}
         {filteredSeatsToDraw.map((st, index) => {
           const sp = getSeatPct(st.seatRoi);
           if (sp.width <= 0 || sp.height <= 0) return null;
