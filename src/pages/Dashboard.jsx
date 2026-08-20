@@ -181,41 +181,54 @@ const Dashboard = () => {
           </span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '14px' }}>
-          {seatConfig.seats.map((seat) => {
-            const matchedStatus = seatStatuses.find((s) => s.seat_id === seat.seat_id);
-            const isOcc = matchedStatus ? matchedStatus.status === 'OCCUPIED' : false;
+        {seatConfig.seats.length > 0 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '14px' }}>
+            {seatConfig.seats.map((seat) => {
+              const matchedStatus = seatStatuses.find((s) => s.seat_id === seat.seat_id);
+              const isOcc = matchedStatus ? matchedStatus.status === 'OCCUPIED' : false;
 
-            return (
-              <div
-                key={seat.seat_id}
-                style={{
-                  padding: '14px',
-                  borderRadius: '12px',
-                  background: isOcc ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-                  border: `1.5px solid ${isOcc ? '#10b981' : 'rgba(255, 255, 255, 0.08)'}`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                  transition: 'all 0.3s ease',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 700, fontSize: '0.95rem', color: isOcc ? '#10b981' : '#fff' }}>
-                    {seat.seat_id}
-                  </span>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isOcc ? '#10b981' : '#64748b', boxShadow: isOcc ? '0 0 8px #10b981' : 'none' }} />
+              return (
+                <div
+                  key={seat.seat_id}
+                  style={{
+                    padding: '14px',
+                    borderRadius: '12px',
+                    background: isOcc ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                    border: `1.5px solid ${isOcc ? '#10b981' : 'rgba(255, 255, 255, 0.08)'}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    transition: 'all 0.3s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.95rem', color: isOcc ? '#10b981' : '#fff' }}>
+                      {seat.seat_id}
+                    </span>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isOcc ? '#10b981' : '#64748b', boxShadow: isOcc ? '0 0 8px #10b981' : 'none' }} />
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {seat.name}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: isOcc ? '#10b981' : '#64748b', marginTop: '4px' }}>
+                    {isOcc ? '🟢 有人在座' : '⚪ 空置'}
+                  </div>
                 </div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {seat.name}
-                </div>
-                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: isOcc ? '#10b981' : '#64748b', marginTop: '4px' }}>
-                  {isOcc ? '🟢 有人在座' : '⚪ 空置'}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-secondary)', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
+            <LayoutGrid size={36} style={{ opacity: 0.35, marginBottom: '8px' }} />
+            <p style={{ fontSize: '0.92rem', marginBottom: '8px' }}>目前尚未配置任何座位</p>
+            <button
+              onClick={() => setIsSeatEditorOpen(true)}
+              style={{ padding: '6px 16px', background: 'var(--accent-primary)', color: '#fff', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer' }}
+            >
+              開啟相機進行座位劃位
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 下方：最新捕捉畫面與即時通報清單 */}

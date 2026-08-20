@@ -1,31 +1,26 @@
 // TEAM_008: 座位配置管理與空間重疊比對服務 (seatOccupancyService.js)
-// 提供多座位 ROI 定義、LocalStorage 持久化與前端 IoU 重疊比對
+// 嚴禁假資料原則：預設座位為空清單 ([])，完全依據使用者對現場相機畫面的實際劃位。
 
 const STORAGE_KEY = 'classvision_seat_map_config_v1';
 
-// 預設 4 座位標準佈局 (以 640x360 基準比例設定)
+// 預設為乾淨的空配置 (0 席座位)
 export const DEFAULT_SEATS_CONFIG = {
-  room_name: '第 3 研討教室',
+  room_name: '創新研討教室',
   camera_id: 'CAM-01',
   base_width: 640,
   base_height: 360,
-  seats: [
-    { seat_id: 'A-01', name: '第1排左座', roi: { x: 40, y: 50, width: 250, height: 130 } },
-    { seat_id: 'A-02', name: '第1排右座', roi: { x: 350, y: 50, width: 250, height: 130 } },
-    { seat_id: 'B-01', name: '第2排左座', roi: { x: 40, y: 200, width: 250, height: 130 } },
-    { seat_id: 'B-02', name: '第2排右座', roi: { x: 350, y: 200, width: 250, height: 130 } },
-  ],
+  seats: [],
 };
 
 /**
- * 取得儲存的座位配置
+ * 取得儲存的座位配置 (若無則預設為空清單)
  */
 export const getSavedSeatsConfig = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.seats) && parsed.seats.length > 0) {
+      if (parsed && Array.isArray(parsed.seats)) {
         return parsed;
       }
     }
@@ -49,7 +44,20 @@ export const saveSeatsConfig = (config) => {
 };
 
 /**
- * 自動產生 M 行 x N 列 網格座位
+ * 清空所有座位配置
+ */
+export const clearSeatsConfig = () => {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    return true;
+  } catch (err) {
+    console.error('[SeatOccupancyService] Clear storage error:', err);
+    return false;
+  }
+};
+
+/**
+ * 自動產生 M 行 x N 列 網格座位 (依據相機畫面尺寸計算)
  */
 export const generateGridSeats = (rows = 2, cols = 2, width = 640, height = 360) => {
   const paddingX = 30;
@@ -94,6 +102,7 @@ export const generateGridSeats = (rows = 2, cols = 2, width = 640, height = 360)
  * 計算兩矩形重疊比例 (Intersection over Min Area)
  */
 export const calculateOverlap = (rectA, rectB) => {
+  if (!rectA || !rectB) return 0;
   const x1 = Math.max(rectA.x, rectB.x);
   const y1 = Math.max(rectA.y, rectB.y);
   const x2 = Math.min(rectA.x + rectA.width, rectB.x + rectB.width);
@@ -139,7 +148,7 @@ export const matchPersonsToSeats = (seats, detectedPersons, threshold = 0.2) => 
       seat_id: seat.seat_id,
       name: seat.name || seat.seat_id,
       status: isOccupied ? 'OCCUPIED' : 'VACANT',
-      confidence: isOccupied ? (bestPerson?.confidence || bestPerson?.categories?.[0]?.score || 0.95) : 0,
+      confidence: isOccupied && bestPerson ? (bestPerson.confidence || bestPerson.categories?.[0]?.score || 0) : 0,
       overlap_ratio: bestOverlap,
       matched_person: isOccupied ? bestPerson : null,
       roi: seat.roi,
