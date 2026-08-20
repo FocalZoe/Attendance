@@ -1,7 +1,8 @@
 // TEAM_008: 視覺化座位劃位與座號設置編輯器 (SeatMapEditorModal.jsx)
 // 升級重點：
-// 1. 無相機時嚴格禁止劃位，並顯示提示。
-// 2. 有相機時，畫面與畫布鎖定鏡頭真實長寬比等比例縮放，確保劃位百分之百精確。
+// 1. 使用 ReactDOM.createPortal 達成 100% 全域全螢幕覆蓋 (zIndex: 999999)。
+// 2. 無相機時嚴格禁止劃位，並顯示提示。
+// 3. 有相機時，畫面與畫布鎖定鏡頭真實長寬比等比例縮放，確保劃位百分之百精確。
 
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
@@ -131,7 +132,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
   // 滑鼠按下 (無相機時禁止劃位)
   const handleMouseDown = (e) => {
-    if (!cameraActive) return; // 無相機時禁止劃位
+    if (!cameraActive) return;
 
     const { x: clickX, y: clickY } = getPointPct(e);
 
@@ -266,19 +267,22 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
   const currentFormattedPeriod = formatFullPeriodMessage(period);
   const aspectVal = (videoDims.width && videoDims.height) ? (videoDims.width / videoDims.height) : (4 / 3);
 
-  return (
+  const modalContent = (
     <div
       onClick={onClose}
       style={{
         position: 'fixed',
         inset: 0,
+        width: '100vw',
+        height: '100vh',
         background: 'rgba(0, 0, 0, 0.88)',
-        backdropFilter: 'blur(12px)',
+        backdropFilter: 'blur(14px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 99999,
+        zIndex: 999999,
         padding: '20px',
+        boxSizing: 'border-box',
       }}
     >
       <div
@@ -295,8 +299,8 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
           display: 'flex',
           flexDirection: 'column',
           gap: '18px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
-          border: '1px solid var(--glass-border)',
+          boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.9)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
         }}
       >
         {/* Header */}
