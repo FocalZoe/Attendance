@@ -1,9 +1,11 @@
 // TEAM_008: 視覺化座位劃位與座號設置編輯器 (SeatMapEditorModal.jsx)
-// 百分比絕對座標系統：100% 鎖定鏡頭真實視訊畫面！
+// 升級重點：
+// 1. 無相機時嚴格禁止劃位，並顯示提示。
+// 2. 有相機時，畫面與畫布鎖定鏡頭真實長寬比等比例縮放，確保劃位百分之百精確。
 
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { X, Trash2, Grid, Save, LayoutGrid, Check, Info, Camera, GraduationCap, Calendar, Clock } from 'lucide-react';
+import { X, Trash2, Grid, Save, LayoutGrid, Check, Info, Camera, GraduationCap, Calendar, Clock, AlertTriangle } from 'lucide-react';
 import { getSavedSeatsConfig, saveSeatsConfig, generateGridSeats, formatFullPeriodMessage } from '../services/seatOccupancyService';
 
 export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
@@ -62,7 +64,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
       await getCameraDevices();
     } catch (err) {
       console.warn('[SeatMapEditor] Camera error:', err);
-      setCameraError('無法開啟相機預覽（仍可手動劃位）。');
+      setCameraError('無法開啟相機鏡頭，請確認鏡頭權限與連線。');
       setCameraActive(false);
     }
   };
@@ -127,8 +129,10 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
     };
   };
 
-  // 滑鼠按下
+  // 滑鼠按下 (無相機時禁止劃位)
   const handleMouseDown = (e) => {
+    if (!cameraActive) return; // 無相機時禁止劃位
+
     const { x: clickX, y: clickY } = getPointPct(e);
 
     // 檢查是否點擊到現有座位
@@ -151,7 +155,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
   };
 
   const handleMouseMove = (e) => {
-    if (!isDrawing) return;
+    if (!isDrawing || !cameraActive) return;
     const { x: currX, y: currY } = getPointPct(e);
 
     const x = Math.min(drawStartPct.x, currX);
@@ -163,6 +167,12 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
   };
 
   const handleMouseUp = () => {
+    if (!cameraActive) {
+      setIsDrawing(false);
+      setCurrentDrawRectPct(null);
+      return;
+    }
+
     if (isDrawing && currentDrawRectPct && currentDrawRectPct.width > 2 && currentDrawRectPct.height > 2) {
       const nextNum = config.seats.length + 1;
       const xPct = parseFloat(currentDrawRectPct.x.toFixed(2));
@@ -223,6 +233,10 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
   // 一鍵產生網格佈局
   const handleGenerateGrid = (rows, cols) => {
+    if (!cameraActive) {
+      alert('請先啟動相機鏡頭以進行劃位。');
+      return;
+    }
     const vW = videoDims.width || 640;
     const vH = videoDims.height || 480;
     const newSeats = generateGridSeats(rows, cols, vW, vH);
@@ -250,6 +264,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
   };
 
   const currentFormattedPeriod = formatFullPeriodMessage(period);
+  const aspectVal = (videoDims.width && videoDims.height) ? (videoDims.width / videoDims.height) : (4 / 3);
 
   return (
     <div
@@ -291,14 +306,18 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
             <div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 視覺化座位劃位與課堂設置
-                {cameraActive && videoDims.width > 0 && (
+                {cameraActive && videoDims.width > 0 ? (
                   <span style={{ fontSize: '0.75rem', background: '#0284c7', color: '#e0f2fe', padding: '2px 8px', borderRadius: '12px' }}>
-                    鏡頭解析度 ({videoDims.width} × {videoDims.height})
+                    鏡頭等比畫面 ({videoDims.width} × {videoDims.height})
+                  </span>
+                ) : (
+                  <span style={{ fontSize: '0.75rem', background: '#ef4444', color: '#fee2e2', padding: '2px 8px', borderRadius: '12px' }}>
+                    無相機 (禁止劃位)
                   </span>
                 )}
               </h2>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                零裁切原圖視野，滑鼠在畫面上拖曳拉框即可標定座位 (已配置 {config.seats.length} 席)
+                {cameraActive ? `鏡頭視野等比例呈現，滑鼠拖曳拉框標定座位 (已配置 ${config.seats.length} 席)` : '需啟動相機鏡頭方可進行精確劃位'}
               </span>
             </div>
           </div>
@@ -356,13 +375,25 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Grid size={16} /> 快速生成網格：
             </span>
-            <button onClick={() => handleGenerateGrid(2, 2)} style={{ padding: '5px 12px', background: '#334155', color: '#fff', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>
+            <button
+              onClick={() => handleGenerateGrid(2, 2)}
+              disabled={!cameraActive}
+              style={{ padding: '5px 12px', background: cameraActive ? '#334155' : 'rgba(255,255,255,0.05)', color: cameraActive ? '#fff' : '#64748b', borderRadius: '6px', fontSize: '0.8rem', cursor: cameraActive ? 'pointer' : 'not-allowed' }}
+            >
               2 × 2 (4 席)
             </button>
-            <button onClick={() => handleGenerateGrid(2, 3)} style={{ padding: '5px 12px', background: '#334155', color: '#fff', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>
+            <button
+              onClick={() => handleGenerateGrid(2, 3)}
+              disabled={!cameraActive}
+              style={{ padding: '5px 12px', background: cameraActive ? '#334155' : 'rgba(255,255,255,0.05)', color: cameraActive ? '#fff' : '#64748b', borderRadius: '6px', fontSize: '0.8rem', cursor: cameraActive ? 'pointer' : 'not-allowed' }}
+            >
               2 × 3 (6 席)
             </button>
-            <button onClick={() => handleGenerateGrid(3, 3)} style={{ padding: '5px 12px', background: '#334155', color: '#fff', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>
+            <button
+              onClick={() => handleGenerateGrid(3, 3)}
+              disabled={!cameraActive}
+              style={{ padding: '5px 12px', background: cameraActive ? '#334155' : 'rgba(255,255,255,0.05)', color: cameraActive ? '#fff' : '#64748b', borderRadius: '6px', fontSize: '0.8rem', cursor: cameraActive ? 'pointer' : 'not-allowed' }}
+            >
               3 × 3 (9 席)
             </button>
             <button onClick={handleClearAllSeats} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 12px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>
@@ -387,7 +418,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
           </div>
         </div>
 
-        {/* 主畫布區 (依據 video 的自然長寬比自動適應，零裁切) */}
+        {/* 主畫布區 (等比例縮放鏡頭畫面) */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '20px' }}>
           {/* 畫布容器 */}
           <div
@@ -398,18 +429,19 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
             style={{
               position: 'relative',
               width: '100%',
+              aspectRatio: `${aspectVal}`,
               borderRadius: '12px',
               overflow: 'hidden',
-              border: '2px solid rgba(59, 130, 246, 0.4)',
+              border: cameraActive ? '2px solid rgba(59, 130, 246, 0.4)' : '2px dashed #ef4444',
               userSelect: 'none',
-              cursor: 'crosshair',
+              cursor: cameraActive ? 'crosshair' : 'not-allowed',
               background: '#090d16',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            {/* 底層相機即時視訊預覽 */}
+            {/* 底層相機即時視訊預覽 (等比例縮放呈現) */}
             <video
               ref={videoRef}
               autoPlay
@@ -427,15 +459,40 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
               style={{
                 display: cameraActive ? 'block' : 'none',
                 width: '100%',
-                height: 'auto',
+                height: '100%',
+                objectFit: 'contain',
                 pointerEvents: 'none',
               }}
             />
 
+            {/* 無相機時的遮罩與提示 (禁止劃位) */}
             {!cameraActive && (
-              <div style={{ padding: '60px 20px', textAlign: 'center', color: '#94a3b8', pointerEvents: 'none' }}>
-                <Camera size={40} style={{ opacity: 0.4, marginBottom: '8px' }} />
-                <p style={{ margin: 0 }}>{cameraError || '正在連線相機預覽畫面...'}</p>
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(15, 23, 42, 0.95)',
+                  color: '#94a3b8',
+                  padding: '30px',
+                  textAlign: 'center',
+                  gap: '12px',
+                  zIndex: 20,
+                  pointerEvents: 'none',
+                }}
+              >
+                <div style={{ padding: '16px', background: 'rgba(239, 68, 68, 0.15)', borderRadius: '50%', color: '#ef4444' }}>
+                  <AlertTriangle size={36} />
+                </div>
+                <div>
+                  <h4 style={{ color: '#ef4444', margin: '0 0 6px 0', fontSize: '1.1rem' }}>尚未偵測到相機畫面</h4>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: '#cbd5e1' }}>
+                    請先啟動相機鏡頭，系統需依據現場鏡頭等比畫面方可進行劃位。
+                  </p>
+                </div>
               </div>
             )}
 
@@ -540,9 +597,11 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '180px', color: 'var(--text-secondary)', textAlign: 'center', gap: '8px', fontSize: '0.82rem' }}>
                 <Info size={24} style={{ opacity: 0.5 }} />
                 <span>
-                  {config.seats.length === 0
-                    ? '目前尚未配置任何座位，請在左側相機畫面上滑鼠拖曳拉框劃位。'
-                    : '請在左側畫面上點選座位，或拖曳框選新座位。'}
+                  {!cameraActive
+                    ? '請先啟動相機鏡頭以進行劃位。'
+                    : config.seats.length === 0
+                      ? '目前尚未配置任何座位，請在左側相機畫面上滑鼠拖曳拉框劃位。'
+                      : '請在左側畫面上點選座位，或拖曳框選新座位。'}
                 </span>
               </div>
             )}

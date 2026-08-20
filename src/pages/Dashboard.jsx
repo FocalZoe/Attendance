@@ -1,11 +1,11 @@
 // TEAM_008: 智慧多座位在座即時儀表板 (Dashboard.jsx)
 // 升級重點：
-// 1. 每次點名發送時，100% 完整傳送當下的真實座位劃位清單至 Database。
-// 2. 通報成功後立即以 Database 回傳之最新記錄更新畫面與歷史。
-// 3. 即時鏡頭分頁只顯示「📸 立即記錄點名」按鈕；最後通報相片只顯示「👁️ 觀看大圖」按鈕。
+// 1. 最新點名捕捉影像容器高度固定一致 (height: 440px)，切換 Tab 零跳動。
+// 2. 即時鏡頭等比例縮放相機畫面與劃位資訊，無相機時禁用點名按鈕。
+// 3. 最後通報相片中間顯示訊息與未到人數（不顯示時間），左下角清楚呈現「最後紀錄：時間」。
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Users, CheckCircle, Activity, Sparkles, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, Calendar, RefreshCw, Eye } from 'lucide-react';
+import { Camera, Users, CheckCircle, Activity, Sparkles, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, Calendar, RefreshCw, Eye, AlertTriangle } from 'lucide-react';
 import { ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision';
 import { fetchHistoryRecords, sendTelemetry, connectWebSocket } from '../services/api';
 import { getSavedSeatsConfig, formatFullPeriodMessage, matchPersonsToSeats } from '../services/seatOccupancyService';
@@ -107,7 +107,7 @@ const Dashboard = () => {
       await getCameraDevices();
     } catch (err) {
       console.error('[Dashboard] Start camera error:', err);
-      setCameraError('無法啟動相機，請確認已授權鏡頭存取。');
+      setCameraError('尚未啟動相機鏡頭');
       setCameraActive(false);
     }
   };
@@ -191,7 +191,7 @@ const Dashboard = () => {
             };
           });
 
-          // 2. 座位百分比轉為 client 像素座標
+          // 2. 座位百分比轉為 client 像素座標 (等比例精準映射)
           const freshConfig = getSavedSeatsConfig();
           const scaledSeats = freshConfig.seats.map((seat) => {
             const roi = seat.roi;
@@ -215,7 +215,7 @@ const Dashboard = () => {
           const statuses = matchPersonsToSeats(scaledSeats, detectedPersonsInView, 0.2);
           setLiveSeatStatuses(statuses);
 
-          // 4. 繪製座位標註框
+          // 4. 繪製座位標註框 (在座綠色 / 未到紅色虛線)
           statuses.forEach((st) => {
             const isOcc = st.status === 'OCCUPIED';
             const { x, y, width, height } = st.roi;
@@ -299,9 +299,9 @@ const Dashboard = () => {
     };
   }, [selectedDeviceId]);
 
-  // 拍照並發送點名 (100% 傳送當下真實劃位)
+  // 拍照並發送點名
   const handleTriggerAttendance = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !canvasRef.current || !cameraActive) return;
     setIsSending(true);
 
     try {
@@ -385,6 +385,10 @@ const Dashboard = () => {
   const currentOccupiedCount = typeof latestAiAnalysis?.occupied_count === 'number' ? latestAiAnalysis.occupied_count : 0;
   const currentVacantCount = typeof latestAiAnalysis?.vacant_count === 'number' ? latestAiAnalysis.vacant_count : Math.max(0, currentTotalSeats - currentOccupiedCount);
   const currentAttendanceRate = latestAiAnalysis?.attendance_rate || (currentTotalSeats > 0 ? `${((currentOccupiedCount / currentTotalSeats) * 100).toFixed(1)}%` : '0.0%');
+
+  // 解析最新通報記錄的未到座號
+  const latestStatuses = Array.isArray(latestAiAnalysis?.seat_statuses) ? latestAiAnalysis.seat_statuses : [];
+  const latestVacantSeatIds = latestStatuses.filter((s) => s.status === 'VACANT').map((s) => s.seat_id);
 
   const currentPeriodTitle = formatFullPeriodMessage(seatConfig.current_period);
 
@@ -484,7 +488,7 @@ const Dashboard = () => {
       </div>
 
       {/* 主體區塊：最新點名捕捉影像 (左側) 與 即時通報紀錄簿 (右側) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '24px', minHeight: '540px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '24px', minHeight: '560px' }}>
         {/* 最新點名捕捉影像卡片 */}
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
           {/* 卡片標題與分頁切換 */}
@@ -534,10 +538,12 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* 視訊畫面 / 照片顯示區 */}
+          {/* 視訊畫面 / 照片顯示區 (固定高度 440px，等比例縮放呈現) */}
           <div
             style={{
-              flex: 1,
+              height: '440px',
+              minHeight: '440px',
+              maxHeight: '440px',
               position: 'relative',
               borderRadius: '12px',
               overflow: 'hidden',
@@ -545,11 +551,10 @@ const Dashboard = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              minHeight: '340px',
             }}
           >
             {previewTab === 'live' ? (
-              <div style={{ position: 'relative', width: '100%', aspectRatio: `${camAspect}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <video
                   ref={videoRef}
                   autoPlay
@@ -561,7 +566,14 @@ const Dashboard = () => {
                       setCamAspect(target.videoWidth / target.videoHeight);
                     }
                   }}
-                  style={{ width: '100%', height: '100%', objectFit: 'fill', display: cameraActive ? 'block' : 'none' }}
+                  style={{
+                    display: cameraActive ? 'block' : 'none',
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    width: 'auto',
+                    height: 'auto',
+                    objectFit: 'contain',
+                  }}
                 />
 
                 {cameraActive && (
@@ -569,10 +581,9 @@ const Dashboard = () => {
                     ref={overlayCanvasRef}
                     style={{
                       position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
                       pointerEvents: 'none',
                       zIndex: 2,
                     }}
@@ -580,33 +591,58 @@ const Dashboard = () => {
                 )}
 
                 {!cameraActive && (
-                  <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
-                    <Camera size={44} style={{ opacity: 0.35, marginBottom: '8px' }} />
-                    <p>{cameraError || '正在連線網路相機與在座分析模組...'}</p>
+                  <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ padding: '16px', background: 'rgba(239, 68, 68, 0.15)', borderRadius: '50%', color: '#ef4444' }}>
+                      <AlertTriangle size={36} />
+                    </div>
+                    <h4 style={{ color: '#ef4444', margin: '4px 0 0 0' }}>尚未啟動相機鏡頭</h4>
+                    <p style={{ margin: 0, fontSize: '0.85rem' }}>{cameraError || '請選擇鏡頭或授權攝影機存取以開啟即時預覽。'}</p>
                   </div>
                 )}
               </div>
             ) : (
-              // 檢視最後通報相片
+              // 檢視最後通報相片 (中間顯示訊息與未到人數，不顯示時間)
               latestRecord ? (
-                <div key={latestRecord.id} className="animate-fade-in" style={{ textAlign: 'center', padding: '16px' }}>
+                <div key={latestRecord.id} className="animate-fade-in" style={{ textAlign: 'center', padding: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', boxSizing: 'border-box' }}>
                   <div style={{ position: 'relative', display: 'inline-block', cursor: 'pointer' }} onClick={() => setSelectedRecord(latestRecord)}>
                     <img
                       src={latestRecord.file_url}
                       alt={latestRecord.message}
-                      style={{ maxWidth: '340px', maxHeight: '240px', borderRadius: '14px', border: '2.5px solid var(--success)', objectFit: 'contain', background: 'rgba(255,255,255,0.05)' }}
+                      style={{ maxWidth: '380px', maxHeight: '280px', borderRadius: '12px', border: '2.5px solid var(--success)', objectFit: 'contain', background: 'rgba(255,255,255,0.05)' }}
                     />
-                    <div style={{ position: 'absolute', top: '-8px', left: '-8px', width: '24px', height: '24px', borderTop: '3.5px solid var(--success)', borderLeft: '3.5px solid var(--success)', borderRadius: '6px 0 0 0' }} />
-                    <div style={{ position: 'absolute', bottom: '-8px', right: '-8px', width: '24px', height: '24px', borderBottom: '3.5px solid var(--success)', borderRight: '3.5px solid var(--success)', borderRadius: '0 0 6px 0' }} />
+                    <div style={{ position: 'absolute', top: '-6px', left: '-6px', width: '20px', height: '20px', borderTop: '3.5px solid var(--success)', borderLeft: '3.5px solid var(--success)', borderRadius: '6px 0 0 0' }} />
+                    <div style={{ position: 'absolute', bottom: '-6px', right: '-6px', width: '20px', height: '20px', borderBottom: '3.5px solid var(--success)', borderRight: '3.5px solid var(--success)', borderRadius: '0 0 6px 0' }} />
                   </div>
-                  <div style={{ marginTop: '12px' }}>
-                    <h4 style={{ fontSize: '1.1rem', color: 'var(--accent-primary)', margin: '0 0 4px 0' }}>{latestRecord.message}</h4>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{formatFullDateTime(latestRecord.create_at)}</span>
+
+                  {/* 中間文字區域：只顯示訊息與未到幾員 */}
+                  <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                    <h4 style={{ fontSize: '1.2rem', color: 'var(--accent-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
+                      <GraduationCap size={20} />
+                      {latestRecord.message}
+                    </h4>
+
+                    {/* 未到/缺席與實到人數標籤 */}
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '2px' }}>
+                      {latestVacantSeatIds.length > 0 ? (
+                        <span style={{ fontSize: '0.85rem', padding: '3px 12px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <UserX size={14} /> 未到: {latestVacantSeatIds.join(', ')} (共 {latestVacantSeatIds.length} 席)
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '0.85rem', padding: '3px 12px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.4)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <UserCheck size={14} /> 全員在座 (共 {currentTotalSeats} 席)
+                        </span>
+                      )}
+
+                      <span style={{ fontSize: '0.85rem', padding: '3px 12px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.15)', color: '#38bdf8', border: '1px solid rgba(59, 130, 246, 0.3)', fontWeight: 600 }}>
+                        在座率: {currentAttendanceRate} ({currentOccupiedCount}/{currentTotalSeats} 席)
+                      </span>
+                    </div>
                   </div>
                 </div>
               ) : (
                 <div style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>
-                  <p>尚未有任何通報紀錄</p>
+                  <Camera size={44} style={{ opacity: 0.3, marginBottom: '10px' }} />
+                  <p style={{ margin: 0 }}>尚未有任何通報紀錄</p>
                 </div>
               )
             )}
@@ -615,7 +651,7 @@ const Dashboard = () => {
           {/* 底部控制器 */}
           <div style={{ marginTop: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
             {previewTab === 'live' ? (
-              // 即時鏡頭模式：只顯示相機裝置切換與「立即記錄點名」按鈕
+              // 即時鏡頭模式：顯示相機裝置切換與「立即記錄點名」按鈕 (無相機時禁用)
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Camera size={16} color="var(--accent-primary)" />
@@ -638,26 +674,40 @@ const Dashboard = () => {
                   style={{
                     display: 'flex', alignItems: 'center', gap: '8px',
                     padding: '9px 22px', borderRadius: '8px',
-                    background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
-                    color: '#fff', fontWeight: 600, fontSize: '0.88rem',
+                    background: cameraActive && !isSending ? 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)' : '#334155',
+                    color: cameraActive && !isSending ? '#fff' : '#94a3b8',
+                    fontWeight: 600, fontSize: '0.88rem',
                     border: 'none', cursor: isSending || !cameraActive ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 4px 14px rgba(59, 130, 246, 0.35)',
-                    transition: 'transform 0.2s',
+                    boxShadow: cameraActive && !isSending ? '0 4px 14px rgba(59, 130, 246, 0.35)' : 'none',
+                    transition: 'all 0.2s',
                     marginLeft: 'auto',
+                    opacity: cameraActive && !isSending ? 1 : 0.6,
                   }}
-                  onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-                  onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+                  onMouseOver={(e) => {
+                    if (cameraActive && !isSending) e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseOut={(e) => {
+                    if (cameraActive && !isSending) e.currentTarget.style.transform = 'translateY(0)';
+                  }}
                 >
                   <Camera size={16} />
-                  {isSending ? '通報點名中...' : `📸 立即記錄點名 (${currentPeriodTitle})`}
+                  {!cameraActive
+                    ? '請先開啟相機'
+                    : isSending
+                      ? '通報點名中...'
+                      : `📸 立即記錄點名 (${currentPeriodTitle})`}
                 </button>
               </>
             ) : (
-              // 最後通報相片模式：只顯示「觀看大圖」按鈕
+              // 最後通報相片模式：左下角寫「最後紀錄：時間」，右下角為「觀看大圖」按鈕
               <>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Calendar size={14} />
-                  <span>{latestRecord ? `最後紀錄：${latestRecord.message}` : '尚無點名照片'}</span>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Clock size={15} color="var(--accent-primary)" />
+                  <span>
+                    {latestRecord
+                      ? `最後紀錄：${formatFullDateTime(latestRecord.create_at)}`
+                      : '尚無點名照片'}
+                  </span>
                 </div>
 
                 {latestRecord && (
@@ -669,7 +719,10 @@ const Dashboard = () => {
                       color: 'white', borderRadius: '8px', fontSize: '0.88rem', fontWeight: 600,
                       border: 'none', cursor: 'pointer', marginLeft: 'auto',
                       boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+                      transition: 'transform 0.2s',
                     }}
+                    onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
+                    onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
                   >
                     <Eye size={16} /> 觀看大圖
                   </button>
@@ -686,7 +739,7 @@ const Dashboard = () => {
             <h2 style={{ fontSize: '1.2rem' }}>即時通報紀錄簿</h2>
           </div>
 
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '440px' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '460px' }}>
             {records.map((rec) => {
               let recAi = rec.ai_analysis;
               if (typeof recAi === 'string') {
