@@ -1,19 +1,19 @@
-// TEAM_005, TEAM_006 & TEAM_007: Web 實體相機打卡與 AI 視覺辨識測試彈窗 (Frontend-2 CameraSimulatorModal.jsx)
-// TEAM_007 升級重點：
-// 1. 整合 MediaPipe 即時前端人臉偵測，繪製真實動態人臉框與信心度（支援多框繪製）。
-// 2. 加入人臉畫框平滑緩衝 (Smoothed Detections Cache) 消除 60fps 影格同步造成的閃爍問題。
-// 3. 拍照快照 (captureRealWebcamFrame) 實時將 AI 人臉框與標籤烙印 (Bake) 至照片中，確保後端儲存與「觀看點名照片」時能完美呈現辨識框。
-// 4. 透過 getApiUrl 動態對齊後端 API 端點，解決 Vercel / Local 環境部署異常。
+// TEAM_008: 實體相機多座位在座檢測與考勤通報彈窗 (CameraSimulatorModal.jsx)
+// 核心升級：
+// 1. 徹底去除人臉辨識，採用 MediaPipe ObjectDetector (Person 人體類別) 或在座人員追蹤，保護個資隱私。
+// 2. 實時疊加視覺化座位區域 (Seat ROIs) 與在位狀態 (🟢 OCCUPIED / ⚪ VACANT)。
+// 3. 拍照時將原始影像、真實人員座標與座位配置打包發送至後端 /api/telemetry。
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Camera, Send, RefreshCw, VideoOff, CheckCircle2, AlertCircle, ScanFace, Sparkles } from 'lucide-react';
-import { FaceDetector, FilesetResolver } from '@mediapipe/tasks-vision';
+import { X, Camera, Send, VideoOff, CheckCircle2, AlertCircle, LayoutGrid, Users, Sparkles, Settings } from 'lucide-react';
+import { ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision';
 import { getApiUrl } from '../config/api.js';
+import { getSavedSeatsConfig, matchPersonsToSeats } from '../services/seatOccupancyService.js';
 
 let detectorInstance = null;
 let detectorLoadingPromise = null;
 
-const getSharedFaceDetector = async () => {
+const getSharedPersonDetector = async () => {
   if (detectorInstance) return detectorInstance;
   if (!detectorLoadingPromise) {
     detectorLoadingPromise = (async () => {
@@ -21,18 +21,19 @@ const getSharedFaceDetector = async () => {
         const vision = await FilesetResolver.forVisionTasks(
           'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
         );
-        const detector = await FaceDetector.createFromOptions(vision, {
+        const detector = await ObjectDetector.createFromOptions(vision, {
           baseOptions: {
-            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite',
             delegate: 'GPU',
           },
           runningMode: 'VIDEO',
-          minDetectionConfidence: 0.5,
+          scoreThreshold: 0.35,
+          categoryAllowlist: ['person'],
         });
         detectorInstance = detector;
         return detector;
       } catch (err) {
-        console.warn('[TEAM_007 AI Engine] MediaPipe FaceDetector init warning:', err);
+        console.warn('[TEAM_008 AI Engine] MediaPipe ObjectDetector init warning:', err);
         return null;
       }
     })();
@@ -40,15 +41,16 @@ const getSharedFaceDetector = async () => {
   return detectorLoadingPromise;
 };
 
-export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
-  const [message, setMessage] = useState('打卡成功！');
+export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEditor }) => {
+  const [message, setMessage] = useState('教室 301 座位點名通報');
   const [isSending, setIsSending] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState(null);
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
-  const [detectedFacesCount, setDetectedFacesCount] = useState(0);
   const [isAiLoaded, setIsAiLoaded] = useState(false);
+  const [seatConfig, setSeatConfig] = useState(getSavedSeatsConfig());
+  const [liveSeatStatuses, setLiveSeatStatuses] = useState([]);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -57,9 +59,9 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
   const animFrameIdRef = useRef(null);
   const lastVideoTimeRef = useRef(-1);
 
-  // TEAM_007: 快取偵測結果與時間戳記，避免影格間隙導致畫框閃爍
+  // 快取人員偵測結果避免影格微小間隙閃爍
   const lastDetectionsRef = useRef([]);
-  const lastFaceTimeRef = useRef(0);
+  const lastDetectionTimeRef = useRef(0);
 
   const getCameraDevices = async () => {
     try {
@@ -70,7 +72,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
         setSelectedDeviceId(videoInputs[0].deviceId);
       }
     } catch (err) {
-      console.warn('[TEAM_006 Webcam] Enumerate devices error:', err);
+      console.warn('[CameraSimulator] Enumerate devices error:', err);
     }
   };
 
@@ -94,8 +96,8 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
       setCameraActive(true);
       await getCameraDevices();
     } catch (err) {
-      console.error('[TEAM_006 Webcam Error]', err);
-      setCameraError('無法開啟網路攝像機，請確認已授權瀏覽器相機權限。');
+      console.error('[CameraSimulator] Open camera error:', err);
+      setCameraError('無法開啟網路攝像機，請確認已授權相機存取權限。');
       setCameraActive(false);
     }
   };
@@ -110,23 +112,25 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
       streamRef.current = null;
     }
     setCameraActive(false);
-    setDetectedFacesCount(0);
     lastDetectionsRef.current = [];
   };
 
-  // TEAM_007: 真實動態 AI 人臉追蹤畫框繪製 (MediaPipe Real-Time Overlay + Anti-Flicker)
+  // 即時 AI 人體與多座位重疊疊加渲染
   useEffect(() => {
     if (!cameraActive) return;
 
     let active = true;
-    let faceDetector = null;
+    let personDetector = null;
 
-    getSharedFaceDetector().then((detector) => {
+    getSharedPersonDetector().then((detector) => {
       if (active) {
-        faceDetector = detector;
+        personDetector = detector;
         setIsAiLoaded(true);
       }
     });
+
+    const currentSeats = getSavedSeatsConfig();
+    setSeatConfig(currentSeats);
 
     const renderAiOverlay = () => {
       const overlay = overlayCanvasRef.current;
@@ -146,106 +150,111 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
           ctx.clearRect(0, 0, overlay.width, overlay.height);
 
           const now = performance.now();
-          // 若畫面時間有更新，執行 AI 檢測
-          if (faceDetector && video.currentTime !== lastVideoTimeRef.current) {
+          if (personDetector && video.currentTime !== lastVideoTimeRef.current) {
             lastVideoTimeRef.current = video.currentTime;
             try {
-              const results = faceDetector.detectForVideo(video, now);
+              const results = personDetector.detectForVideo(video, now);
               const newDetections = results.detections || [];
               if (newDetections.length > 0) {
                 lastDetectionsRef.current = newDetections;
-                lastFaceTimeRef.current = now;
-              } else if (now - lastFaceTimeRef.current > 350) {
-                // 超過 350ms 未偵測到人臉才清空，防止微小影格間隙閃爍
+                lastDetectionTimeRef.current = now;
+              } else if (now - lastDetectionTimeRef.current > 400) {
                 lastDetectionsRef.current = [];
               }
             } catch (e) {
-              // 容錯機制
+              // 容錯
             }
           }
 
           const detections = lastDetectionsRef.current;
 
-          // 僅在人數變化時觸發 React state 更新
-          setDetectedFacesCount((prev) => (prev !== detections.length ? detections.length : prev));
+          // 計算映射比例 (object-fit: cover)
+          const vWidth = video.videoWidth;
+          const vHeight = video.videoHeight;
+          const videoAspect = vWidth / vHeight;
+          const containerAspect = cWidth / cHeight;
 
-          if (detections.length > 0) {
-            // 計算 object-fit: cover 的顯示映射比例與偏移量
-            const vWidth = video.videoWidth;
-            const vHeight = video.videoHeight;
-            const videoAspect = vWidth / vHeight;
-            const containerAspect = cWidth / cHeight;
-
-            let renderW, renderH, offsetX, offsetY;
-            if (containerAspect > videoAspect) {
-              renderW = cWidth;
-              renderH = cWidth / videoAspect;
-              offsetX = 0;
-              offsetY = (cHeight - renderH) / 2;
-            } else {
-              renderH = cHeight;
-              renderW = cHeight * videoAspect;
-              offsetX = (cWidth - renderW) / 2;
-              offsetY = 0;
-            }
-
-            const scale = renderW / vWidth;
-
-            // 繪製所有偵測到的真實人臉邊框
-            detections.forEach((detection) => {
-              const { originX, originY, width, height } = detection.boundingBox;
-              const confidence = detection.categories[0]?.score || 0.95;
-
-              const boxX = offsetX + originX * scale;
-              const boxY = offsetY + originY * scale;
-              const boxW = width * scale;
-              const boxH = height * scale;
-
-              // 1. 繪製科技虛線外框
-              ctx.strokeStyle = '#38bdf8';
-              ctx.lineWidth = 2;
-              ctx.setLineDash([8, 6]);
-              ctx.strokeRect(boxX, boxY, boxW, boxH);
-              ctx.setLineDash([]);
-
-              // 2. 繪製四角瞄準 L 型 brackets
-              const cornerLen = Math.min(20, boxW * 0.25);
-              ctx.strokeStyle = '#10b981';
-              ctx.lineWidth = 3.5;
-
-              ctx.beginPath(); ctx.moveTo(boxX, boxY + cornerLen); ctx.lineTo(boxX, boxY); ctx.lineTo(boxX + cornerLen, boxY); ctx.stroke();
-              ctx.beginPath(); ctx.moveTo(boxX + boxW - cornerLen, boxY); ctx.lineTo(boxX + boxW, boxY); ctx.lineTo(boxX + boxW, boxY + cornerLen); ctx.stroke();
-              ctx.beginPath(); ctx.moveTo(boxX, boxY + boxH - cornerLen); ctx.lineTo(boxX, boxY + boxH); ctx.lineTo(boxX + cornerLen, boxY + boxH); ctx.stroke();
-              ctx.beginPath(); ctx.moveTo(boxX + boxW - cornerLen, boxY + boxH); ctx.lineTo(boxX + boxW, boxY + boxH); ctx.lineTo(boxX + boxW, boxY + boxH - cornerLen); ctx.stroke();
-
-              // 3. 繪製 AI 識別標籤背景與動態信心度
-              const labelText = `🤖 AI FACE DETECTED (${(confidence * 100).toFixed(1)}%)`;
-              ctx.font = 'bold 12px monospace';
-              const textWidth = ctx.measureText(labelText).width;
-
-              const tagY = boxY > 30 ? boxY - 28 : boxY + boxH + 8;
-              ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
-              ctx.fillRect(boxX, tagY, textWidth + 16, 24);
-              ctx.strokeStyle = '#38bdf8';
-              ctx.lineWidth = 1;
-              ctx.strokeRect(boxX, tagY, textWidth + 16, 24);
-
-              ctx.fillStyle = '#38bdf8';
-              ctx.fillText(labelText, boxX + 8, tagY + 16);
-            });
+          let renderW, renderH, offsetX, offsetY;
+          if (containerAspect > videoAspect) {
+            renderW = cWidth;
+            renderH = cWidth / videoAspect;
+            offsetX = 0;
+            offsetY = (cHeight - renderH) / 2;
           } else {
-            // 未偵測到人臉時，在中上方呈現無人臉提示條
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-            ctx.fillRect(cWidth / 2 - 110, 16, 220, 30);
-            ctx.strokeStyle = '#f59e0b';
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(cWidth / 2 - 110, 16, 220, 30);
-            ctx.fillStyle = '#fbbf24';
-            ctx.font = '12px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('⚠️ 未偵測到人臉 (請正對鏡頭)', cWidth / 2, 35);
-            ctx.textAlign = 'left';
+            renderH = cHeight;
+            renderW = cHeight * videoAspect;
+            offsetX = (cWidth - renderW) / 2;
+            offsetY = 0;
           }
+
+          const scale = renderW / vWidth;
+
+          // 1. 取得偵測到的人體邊框 (以容器實際 pixel 為基準)
+          const detectedPersonsInView = detections.map((det) => {
+            const { originX, originY, width, height } = det.boundingBox;
+            const score = det.categories[0]?.score || 0.95;
+            return {
+              x: offsetX + originX * scale,
+              y: offsetY + originY * scale,
+              width: width * scale,
+              height: height * scale,
+              confidence: score,
+            };
+          });
+
+          // 2. 將配置的座位 ROI (基準 640x360) 縮放至當前容器大小
+          const scaleBaseX = cWidth / (currentSeats.base_width || 640);
+          const scaleBaseY = cHeight / (currentSeats.base_height || 360);
+
+          const scaledSeats = currentSeats.seats.map((seat) => ({
+            ...seat,
+            roi: {
+              x: seat.roi.x * scaleBaseX,
+              y: seat.roi.y * scaleBaseY,
+              width: seat.roi.width * scaleBaseX,
+              height: seat.roi.height * scaleBaseY,
+            },
+          }));
+
+          // 3. 計算各座號在座狀態
+          const statuses = matchPersonsToSeats(scaledSeats, detectedPersonsInView, 0.2);
+          setLiveSeatStatuses(statuses);
+
+          // 4. 繪製座位區域框 (Seat ROIs)
+          statuses.forEach((st) => {
+            const isOcc = st.status === 'OCCUPIED';
+            const { x, y, width, height } = st.roi;
+
+            // 座位框背景與邊線
+            ctx.fillStyle = isOcc ? 'rgba(16, 185, 129, 0.18)' : 'rgba(148, 163, 184, 0.08)';
+            ctx.fillRect(x, y, width, height);
+
+            ctx.strokeStyle = isOcc ? '#10b981' : 'rgba(148, 163, 184, 0.5)';
+            ctx.lineWidth = isOcc ? 2.5 : 1.5;
+            ctx.setLineDash(isOcc ? [] : [6, 4]);
+            ctx.strokeRect(x, y, width, height);
+            ctx.setLineDash([]);
+
+            // 座位標籤 (座號 + 狀態)
+            const label = isOcc ? `🟢 [${st.seat_id}] 在座` : `⚪ [${st.seat_id}] 空位`;
+            ctx.font = 'bold 12px monospace';
+            const textW = ctx.measureText(label).width;
+
+            ctx.fillStyle = isOcc ? 'rgba(16, 185, 129, 0.95)' : 'rgba(30, 41, 59, 0.85)';
+            ctx.fillRect(x, y - 22 > 0 ? y - 22 : y + 4, textW + 12, 20);
+
+            ctx.fillStyle = isOcc ? '#0f172a' : '#94a3b8';
+            ctx.fillText(label, x + 6, y - 22 > 0 ? y - 8 : y + 18);
+          });
+
+          // 5. 繪製偵測到的人員邊框 (科技感淡藍色框)
+          detectedPersonsInView.forEach((p) => {
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+            ctx.strokeRect(p.x, p.y, p.width, p.height);
+            ctx.setLineDash([]);
+          });
         }
       }
 
@@ -266,6 +275,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
 
   useEffect(() => {
     if (isOpen) {
+      setSeatConfig(getSavedSeatsConfig());
       startCamera(selectedDeviceId);
     } else {
       stopCamera();
@@ -278,47 +288,44 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
 
   if (!isOpen) return null;
 
-  // TEAM_007: 方案 B 擷取純淨原始相機影格 (Raw Image + 攝影機時間浮印，不上鎖/不燒死畫框)
-  const captureRealWebcamFrame = () => {
+  // 擷取相機影格
+  const captureWebcamFrame = () => {
     if (!videoRef.current || !canvasRef.current) return null;
-
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
-    const vWidth = video.videoWidth || 640;
-    const vHeight = video.videoHeight || 480;
-
-    canvas.width = vWidth;
-    canvas.height = vHeight;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
-    // 1. 繪製原始相機視訊畫面
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // 2. 繪製攝影機浮印與時間戳記
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-    ctx.fillRect(10, canvas.height - 45, 450, 35);
+    // 加上隱私考勤浮水印
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(10, canvas.height - 42, 480, 32);
     ctx.fillStyle = '#38bdf8';
-    ctx.font = 'bold 15px sans-serif';
-    ctx.fillText(`CAM-01 | ${new Date().toLocaleString('zh-TW')} | AI Vision Ready`, 20, canvas.height - 22);
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillText(`CAM-01 | ${new Date().toLocaleString('zh-TW')} | Privacy-Safe Seat Occupancy`, 20, canvas.height - 20);
 
     return canvas.toDataURL('image/jpeg', 0.88);
   };
 
+  // 發送打卡資料至後端
   const handleSendTelemetry = async () => {
     setIsSending(true);
     try {
-      const base64Data = captureRealWebcamFrame();
+      const base64Data = captureWebcamFrame();
       if (!base64Data) {
-        alert('擷取畫面失敗。');
+        alert('擷取相機畫面失敗。');
         setIsSending(false);
         return;
       }
 
-      // TEAM_007: 打包 MediaPipe 現場偵測到之真人人臉真實座標
-      const detectedFacesPayload = (lastDetectionsRef.current || []).map((det) => ({
+      // 整理人員邊框與座位配置
+      const currentConfig = getSavedSeatsConfig();
+      const detectedPersonsPayload = (lastDetectionsRef.current || []).map((det) => ({
         x: Math.round(det.boundingBox.originX),
         y: Math.round(det.boundingBox.originY),
         width: Math.round(det.boundingBox.width),
@@ -327,7 +334,6 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
       }));
 
       const targetApiUrl = getApiUrl('/api/telemetry');
-      console.log('[TEAM_007 Telemetry] POST target:', targetApiUrl, 'Faces:', detectedFacesPayload);
 
       const response = await fetch(targetApiUrl, {
         method: 'POST',
@@ -336,7 +342,8 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
           message: message,
           file: base64Data,
           timestamp: new Date().toISOString(),
-          detected_faces: detectedFacesPayload,
+          detected_persons: detectedPersonsPayload,
+          seats: currentConfig.seats,
         }),
       });
 
@@ -345,21 +352,24 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
         if (onClose) onClose();
       } else {
         const errorJson = await response.json().catch(() => ({}));
-        alert(`發送失敗 (${response.status}): ${errorJson.error || errorJson.details || '伺服器回應異常'}`);
+        alert(`通報失敗 (${response.status}): ${errorJson.error || errorJson.details || '伺服器回應異常'}`);
       }
     } catch (err) {
-      console.error('[TEAM_007 Telemetry Exception]', err);
-      alert(`發送時發生網路異常，請確認端點能否連線 (${getApiUrl('/api/telemetry')})`);
+      console.error('[Telemetry Exception]', err);
+      alert(`發送時發生異常，請確認端點能否連線 (${getApiUrl('/api/telemetry')})`);
     } finally {
       setIsSending(false);
     }
   };
 
+  const occupiedSeatsCount = liveSeatStatuses.filter((s) => s.status === 'OCCUPIED').length;
+  const totalConfiguredSeats = seatConfig.seats.length;
+
   return (
     <div style={{
       position: 'fixed',
-      top: 0, left: 0, right: 0, bottom: 0,
-      background: 'rgba(0,0,0,0.82)',
+      inset: 0,
+      background: 'rgba(0, 0, 0, 0.85)',
       backdropFilter: 'blur(10px)',
       display: 'flex',
       alignItems: 'center',
@@ -371,7 +381,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
 
       <div style={{
         width: '100%',
-        maxWidth: '660px',
+        maxWidth: '720px',
         padding: '24px',
         background: '#1e293b',
         borderRadius: '16px',
@@ -379,29 +389,74 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
         display: 'flex',
         flexDirection: 'column',
         gap: '20px',
-        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
+        border: '1px solid var(--glass-border)',
       }}>
 
+        {/* 標題與操作 */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <ScanFace size={26} color="#38bdf8" />
+            <LayoutGrid size={26} color="var(--accent-primary)" />
             <div>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                模擬 Ameba 相機 (AI 人臉辨識)
+                模擬廣角相機 (多座位在座檢測)
                 {isAiLoaded && (
                   <span style={{ fontSize: '0.75rem', background: '#0284c7', color: '#e0f2fe', padding: '2px 8px', borderRadius: '12px' }}>
-                    MediaPipe Vision
+                    隱私安全模式
                   </span>
                 )}
               </h3>
-              <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>即時 AI 人臉追蹤與數據考勤</span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                即時比對座位區域與人員佔用狀態 (已設置 {totalConfiguredSeats} 個座位)
+              </span>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-            <X size={22} />
-          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {onOpenSeatEditor && (
+              <button
+                onClick={onOpenSeatEditor}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-primary)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer' }}
+              >
+                <Settings size={14} /> 編輯座位地圖
+              </button>
+            )}
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+              <X size={22} />
+            </button>
+          </div>
         </div>
 
+        {/* 即時即位摘要條 */}
+        <div style={{ display: 'flex', gap: '12px', background: 'rgba(15, 23, 42, 0.6)', padding: '10px 16px', borderRadius: '10px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>即時在座統計：</span>
+            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: occupiedSeatsCount > 0 ? '#10b981' : '#94a3b8' }}>
+              {occupiedSeatsCount} / {totalConfiguredSeats} 席在座 ({totalConfiguredSeats > 0 ? ((occupiedSeatsCount / totalConfiguredSeats) * 100).toFixed(0) : 0}%)
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {liveSeatStatuses.map((s) => (
+              <span
+                key={s.seat_id}
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  background: s.status === 'OCCUPIED' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(148, 163, 184, 0.15)',
+                  color: s.status === 'OCCUPIED' ? '#10b981' : '#94a3b8',
+                  border: `1px solid ${s.status === 'OCCUPIED' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(148, 163, 184, 0.2)'}`,
+                  fontWeight: 600,
+                }}
+              >
+                {s.seat_id}: {s.status === 'OCCUPIED' ? '🟢 有人' : '⚪ 空位'}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* 相機畫面容器 */}
         <div style={{
           position: 'relative',
           width: '100%',
@@ -441,15 +496,16 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
               {cameraError ? (
                 <p style={{ color: '#ef4444' }}>{cameraError}</p>
               ) : (
-                <p>正在啟動網路攝像機與 AI 引擎...</p>
+                <p>正在啟動網路相機與隱私安全在座分析模組...</p>
               )}
             </div>
           )}
         </div>
 
+        {/* 裝置與訊息輸入 */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div>
-            <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>選擇裝置</label>
+            <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>選擇相機鏡頭</label>
             <select
               value={selectedDeviceId}
               onChange={(e) => setSelectedDeviceId(e.target.value)}
@@ -464,7 +520,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
           </div>
 
           <div>
-            <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>訊息 (Message)</label>
+            <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>通報說明 (Message)</label>
             <input
               type="text"
               value={message}
@@ -474,6 +530,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
           </div>
         </div>
 
+        {/* 送出與操作按鈕 */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
           <button onClick={onClose} style={{ padding: '10px 16px', borderRadius: '8px', background: '#334155', color: '#fff', border: 'none', cursor: 'pointer' }}>
             取消
@@ -482,17 +539,18 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess }) => {
             onClick={handleSendTelemetry}
             disabled={isSending || !cameraActive}
             style={{
-              padding: '10px 20px',
+              padding: '10px 22px',
               borderRadius: '8px',
-              background: detectedFacesCount > 0 ? '#38bdf8' : '#64748b',
-              color: '#0f172a',
+              background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
+              color: '#fff',
               fontWeight: 'bold',
               border: 'none',
               cursor: isSending || !cameraActive ? 'not-allowed' : 'pointer',
-              transition: 'background 0.3s'
+              boxShadow: '0 4px 14px rgba(59, 130, 246, 0.4)',
+              transition: 'transform 0.2s',
             }}
           >
-            {isSending ? '分析中...' : `📸 拍照並進行 AI 人臉考勤辨識 (${detectedFacesCount} 人臉)`}
+            {isSending ? '通報分析中...' : `📸 拍照並記錄在座點名 (${occupiedSeatsCount}/${totalConfiguredSeats} 席在座)`}
           </button>
         </div>
 

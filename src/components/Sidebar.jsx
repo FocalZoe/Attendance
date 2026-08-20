@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, History, Users, Settings } from 'lucide-react';
+import { LayoutDashboard, History, LayoutGrid, Users } from 'lucide-react';
 
 const Sidebar = () => {
   return (
@@ -27,13 +27,13 @@ const Sidebar = () => {
           color: 'white',
           boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)'
         }}>
-          <Users size={24} />
+          <LayoutGrid size={22} />
         </div>
         <div>
           <h2 style={{ fontSize: '1.2rem', margin: 0, background: 'linear-gradient(to right, #fff, #94a3b8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             ClassVision
           </h2>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>智慧點名系統</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>智慧座位考勤系統 (隱私安全)</span>
         </div>
       </div>
 

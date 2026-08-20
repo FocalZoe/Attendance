@@ -1,10 +1,9 @@
-// TEAM_001 & TEAM_007: 點名照片大圖檢視 Modal (ImageModal.jsx)
-// TEAM_007 升級：使用 ReactDOM.createPortal 進行【全域頂層覆蓋 (Global Portal Overlay)】，
-// 完全蓋過 Sidebar 側邊欄與頁面區塊，配合自適應動態長寬比 (aspectRatio) 呈現最高品質大圖與 AI 標註框。
+// TEAM_008: 考勤照片大圖檢視 Modal (ImageModal.jsx)
+// 支援全螢幕 Portal 頂層覆蓋，並動態繪製多座位 (Seat ROIs) 與人員在座狀態 (🟢 OCCUPIED / ⚪ VACANT)
 
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
-import { X } from 'lucide-react';
+import { X, LayoutGrid } from 'lucide-react';
 
 const ImageModal = ({ record, imageUrl, title, onClose }) => {
   const [imgSize, setImgSize] = useState({ width: 640, height: 480 });
@@ -14,7 +13,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
 
   if (!targetUrl) return null;
 
-  // 1. 安全解析 ai_analysis (防範 Supabase JSON 字串狀態)
+  // 1. 安全解析 ai_analysis
   let aiAnalysis = targetRecord?.ai_analysis;
   if (typeof aiAnalysis === 'string') {
     try {
@@ -24,15 +23,12 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
     }
   }
 
-  // 2. 整理所有人臉座標資料 (相容多人 faces 陣列與單個 bounding_box)
-  const facesToDraw = aiAnalysis?.faces && aiAnalysis.faces.length > 0
-    ? aiAnalysis.faces
-    : aiAnalysis?.bounding_box && (aiAnalysis.bounding_box.width > 0 || aiAnalysis.bounding_box.x > 0)
-      ? [{
-          bounding_box: aiAnalysis.bounding_box,
-          confidence: aiAnalysis.confidence || 0.985,
-          recognized_person: aiAnalysis.recognized_person || '已比對人員',
-        }]
+  // 2. 提取座位狀態清單與人員邊框
+  const seatStatuses = Array.isArray(aiAnalysis?.seat_statuses) ? aiAnalysis.seat_statuses : [];
+  const persons = Array.isArray(aiAnalysis?.persons)
+    ? aiAnalysis.persons
+    : Array.isArray(aiAnalysis?.faces)
+      ? aiAnalysis.faces
       : [];
 
   const aspect = imgSize.width / imgSize.height;
@@ -42,7 +38,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
       onClick={onClose}
       style={{
         position: 'fixed',
-        top: 0, left: 0, right: 0, bottom: 0,
+        inset: 0,
         width: '100vw',
         height: '100vh',
         background: 'rgba(0, 0, 0, 0.88)',
@@ -50,7 +46,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 999999, // 全域最高 z-index，完全覆蓋 Sidebar 與頂部導覽列
+        zIndex: 999999,
         padding: '24px',
         boxSizing: 'border-box',
       }}
@@ -69,6 +65,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           background: '#090d16',
         }}
       >
+        {/* 關閉按鈕 */}
         <button
           onClick={onClose}
           style={{
@@ -85,14 +82,14 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
-            zIndex: 20,
+            zIndex: 30,
             boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
           }}
         >
           <X size={22} />
         </button>
 
-        {/* 原始純淨相片 */}
+        {/* 原始照片 */}
         <img
           src={targetUrl}
           alt={title || 'Full View'}
@@ -108,20 +105,19 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
         />
 
-        {/* TEAM_007: 後端 AI 多人人臉動態標註框 Overlay (零留白自適應) */}
-        {facesToDraw.map((face, index) => {
-          const { x, y, width, height } = face.bounding_box;
-          const leftPct = (x / imgSize.width) * 100;
-          const topPct = (y / imgSize.height) * 100;
-          const widthPct = (width / imgSize.width) * 100;
-          const heightPct = (height / imgSize.height) * 100;
+        {/* 繪製偵測到的人員邊框 (藍色虛線框) */}
+        {persons.map((person, idx) => {
+          const box = person.bounding_box || person;
+          if (!box || !box.width) return null;
 
-          const confidence = face.confidence || aiAnalysis?.confidence || 0.985;
-          const labelText = `🤖 AI FACE DETECTED (${(confidence * 100).toFixed(1)}%)`;
+          const leftPct = (box.x / (box.base_width || 640)) * 100;
+          const topPct = (box.y / (box.base_height || 360)) * 100;
+          const widthPct = (box.width / (box.base_width || 640)) * 100;
+          const heightPct = (box.height / (box.base_height || 360)) * 100;
 
           return (
             <div
-              key={index}
+              key={`p-${idx}`}
               style={{
                 position: 'absolute',
                 left: `${leftPct}%`,
@@ -129,24 +125,68 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
                 width: `${widthPct}%`,
                 height: `${heightPct}%`,
                 border: '2px dashed #38bdf8',
+                borderRadius: '6px',
+                pointerEvents: 'none',
+                zIndex: 10,
+              }}
+            />
+          );
+        })}
+
+        {/* 繪製各座號區域框 (綠色在座 / 灰色空位) */}
+        {seatStatuses.map((st, index) => {
+          const roi = st.person_box || (persons[index]?.bounding_box) || {
+            x: 50 + (index % 2) * 300,
+            y: 60 + Math.floor(index / 2) * 150,
+            width: 240,
+            height: 120,
+          };
+
+          const isOcc = st.status === 'OCCUPIED';
+          const leftPct = (roi.x / 640) * 100;
+          const topPct = (roi.y / 360) * 100;
+          const widthPct = (roi.width / 640) * 100;
+          const heightPct = (roi.height / 360) * 100;
+
+          const labelText = isOcc
+            ? `🟢 [${st.seat_id}] OCCUPIED`
+            : `⚪ [${st.seat_id}] VACANT`;
+
+          return (
+            <div
+              key={`seat-${index}`}
+              style={{
+                position: 'absolute',
+                left: `${leftPct}%`,
+                top: `${topPct}%`,
+                width: `${widthPct}%`,
+                height: `${heightPct}%`,
+                border: isOcc ? '2px solid #10b981' : '1.5px dashed rgba(148, 163, 184, 0.4)',
+                background: isOcc ? 'rgba(16, 185, 129, 0.12)' : 'rgba(30, 41, 59, 0.2)',
+                borderRadius: '8px',
                 boxSizing: 'border-box',
                 pointerEvents: 'none',
+                zIndex: 15,
               }}
             >
               {/* 四角 L 型邊框 */}
-              <div style={{ position: 'absolute', top: 0, left: 0, width: '12px', height: '12px', borderTop: '3.5px solid #10b981', borderLeft: '3.5px solid #10b981' }} />
-              <div style={{ position: 'absolute', top: 0, right: 0, width: '12px', height: '12px', borderTop: '3.5px solid #10b981', borderRight: '3.5px solid #10b981' }} />
-              <div style={{ position: 'absolute', bottom: 0, left: 0, width: '12px', height: '12px', borderBottom: '3.5px solid #10b981', borderLeft: '3.5px solid #10b981' }} />
-              <div style={{ position: 'absolute', bottom: 0, right: 0, width: '12px', height: '12px', borderBottom: '3.5px solid #10b981', borderRight: '3.5px solid #10b981' }} />
+              {isOcc && (
+                <>
+                  <div style={{ position: 'absolute', top: 0, left: 0, width: '12px', height: '12px', borderTop: '3.5px solid #10b981', borderLeft: '3.5px solid #10b981' }} />
+                  <div style={{ position: 'absolute', top: 0, right: 0, width: '12px', height: '12px', borderTop: '3.5px solid #10b981', borderRight: '3.5px solid #10b981' }} />
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, width: '12px', height: '12px', borderBottom: '3.5px solid #10b981', borderLeft: '3.5px solid #10b981' }} />
+                  <div style={{ position: 'absolute', bottom: 0, right: 0, width: '12px', height: '12px', borderBottom: '3.5px solid #10b981', borderRight: '3.5px solid #10b981' }} />
+                </>
+              )}
 
-              {/* AI 信心度標籤 */}
+              {/* 座號狀態標籤 */}
               <div style={{
                 position: 'absolute',
-                top: topPct > 8 ? '-28px' : 'calc(100% + 6px)',
-                left: 0,
-                background: 'rgba(15, 23, 42, 0.92)',
-                color: '#38bdf8',
-                border: '1px solid #38bdf8',
+                top: topPct > 8 ? '-26px' : '4px',
+                left: '4px',
+                background: isOcc ? 'rgba(16, 185, 129, 0.95)' : 'rgba(15, 23, 42, 0.85)',
+                color: isOcc ? '#0f172a' : '#94a3b8',
+                border: `1px solid ${isOcc ? '#10b981' : '#475569'}`,
                 padding: '2px 8px',
                 borderRadius: '4px',
                 fontSize: '0.78rem',
