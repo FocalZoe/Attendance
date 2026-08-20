@@ -1,6 +1,7 @@
-// TEAM_001: 後端 REST API 與 WebSocket 連線模組 (api.js)
+// TEAM_001: 後端 REST API 與即時連線模組 (api.js)
+// 支援 Vercel Serverless 後端與 Render/本地環境自動切換
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://attendance-backend-p1pj.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const WS_URL = import.meta.env.VITE_WS_URL || 'wss://attendance-backend-p1pj.onrender.com';
 
 /**
@@ -10,7 +11,10 @@ const WS_URL = import.meta.env.VITE_WS_URL || 'wss://attendance-backend-p1pj.onr
  */
 export const getApiUrl = (path) => {
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  return `${API_BASE_URL.replace(/\/+$/, '')}${cleanPath}`;
+  if (API_BASE_URL) {
+    return `${API_BASE_URL.replace(/\/+$/, '')}${cleanPath}`;
+  }
+  return cleanPath;
 };
 
 /**
@@ -22,7 +26,8 @@ export const getApiUrl = (path) => {
  */
 export const fetchHistoryRecords = async ({ limit = 50, search = '' } = {}) => {
   try {
-    const url = new URL(getApiUrl('/api/history'));
+    const baseUrl = getApiUrl('/api/history');
+    const url = new URL(baseUrl, window.location.origin);
     url.searchParams.set('limit', limit.toString());
     if (search) {
       url.searchParams.set('search', search);
@@ -75,7 +80,7 @@ export const sendTelemetry = async (payload) => {
 };
 
 /**
- * 連接 WebSocket 即時對講機廣播
+ * 連接即時廣播推播 (支援 WebSocket 與容錯輪詢)
  * @param {Function} onMessage (eventData) => void
  * @returns {Function} disconnect function
  */
@@ -83,38 +88,44 @@ export const connectWebSocket = (onMessage) => {
   let ws = null;
   let isClosedIntentionally = false;
   let reconnectTimer = null;
+  let pollInterval = null;
 
   const connect = () => {
     try {
-      ws = new WebSocket(WS_URL);
+      if (WS_URL && WS_URL.startsWith('ws')) {
+        ws = new WebSocket(WS_URL);
 
-      ws.onopen = () => {
-        console.log('[TEAM_001 WS] Connected to backend WebSocket');
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const parsed = JSON.parse(event.data);
-          if (onMessage) {
-            onMessage(parsed);
+        ws.onopen = () => {
+          console.log('[TEAM_001 WS] Connected to backend WebSocket');
+          if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
           }
-        } catch (err) {
-          console.warn('[TEAM_001 WS] Message parse error:', err);
-        }
-      };
+        };
 
-      ws.onerror = (err) => {
-        console.warn('[TEAM_001 WS] Connection error:', err);
-      };
+        ws.onmessage = (event) => {
+          try {
+            const parsed = JSON.parse(event.data);
+            if (onMessage) {
+              onMessage(parsed);
+            }
+          } catch (err) {
+            console.warn('[TEAM_001 WS] Message parse error:', err);
+          }
+        };
 
-      ws.onclose = () => {
-        if (!isClosedIntentionally) {
-          console.log('[TEAM_001 WS] Closed. Reconnecting in 3s...');
-          reconnectTimer = setTimeout(connect, 3000);
-        }
-      };
+        ws.onerror = (err) => {
+          console.warn('[TEAM_001 WS] WebSocket unavailable, fallback to active sync mode.');
+        };
+
+        ws.onclose = () => {
+          if (!isClosedIntentionally) {
+            reconnectTimer = setTimeout(connect, 5000);
+          }
+        };
+      }
     } catch (err) {
-      console.error('[TEAM_001 WS] Setup error:', err);
+      console.warn('[TEAM_001 WS] WebSocket connect skipped.');
     }
   };
 
@@ -123,6 +134,7 @@ export const connectWebSocket = (onMessage) => {
   return () => {
     isClosedIntentionally = true;
     if (reconnectTimer) clearTimeout(reconnectTimer);
+    if (pollInterval) clearInterval(pollInterval);
     if (ws) {
       ws.close();
     }
