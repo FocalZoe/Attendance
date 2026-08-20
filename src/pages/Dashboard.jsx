@@ -1,5 +1,5 @@
 // TEAM_008: 智慧多座位在座即時儀表板 (Dashboard.jsx)
-// 支援即時座位分佈矩陣 (Seat Grid Matrix)、即時在座率統計與視覺化劃位編輯
+// 嚴禁假資料：真實反映後端與 WebSocket 最新考勤數據，無通報或無在座時確切顯示 0 席與 0.0%
 
 import React, { useState, useEffect } from 'react';
 import { Camera, Users, CheckCircle, Activity, Sparkles, Clock, LayoutGrid, Settings, AlertCircle } from 'lucide-react';
@@ -60,7 +60,7 @@ const Dashboard = () => {
     return `${year}/${month}/${day} ${hours}:${minutes}:${seconds}`;
   };
 
-  // 解析最新一筆紀錄的 AI 座位在座狀態
+  // 解析最新一筆紀錄的 AI 座位在座狀態 (嚴禁假資料 fallback)
   let latestAiAnalysis = latestRecord?.ai_analysis;
   if (typeof latestAiAnalysis === 'string') {
     try {
@@ -70,9 +70,9 @@ const Dashboard = () => {
     }
   }
 
-  const currentTotalSeats = latestAiAnalysis?.total_seats || seatConfig.seats.length || 4;
-  const currentOccupiedCount = latestAiAnalysis?.occupied_count ?? (latestRecord ? 1 : 0);
-  const currentAttendanceRate = latestAiAnalysis?.attendance_rate || `${((currentOccupiedCount / currentTotalSeats) * 100).toFixed(1)}%`;
+  const currentTotalSeats = latestAiAnalysis?.total_seats || seatConfig.seats.length;
+  const currentOccupiedCount = typeof latestAiAnalysis?.occupied_count === 'number' ? latestAiAnalysis.occupied_count : 0;
+  const currentAttendanceRate = latestAiAnalysis?.attendance_rate || (currentTotalSeats > 0 ? `${((currentOccupiedCount / currentTotalSeats) * 100).toFixed(1)}%` : '0.0%');
   const seatStatuses = Array.isArray(latestAiAnalysis?.seat_statuses) ? latestAiAnalysis.seat_statuses : [];
 
   return (
@@ -141,7 +141,7 @@ const Dashboard = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div className="stat-title">即時在座率</div>
-              <div className="stat-value" style={{ color: 'var(--success)' }}>
+              <div className="stat-value" style={{ color: currentOccupiedCount > 0 ? 'var(--success)' : 'var(--text-secondary)' }}>
                 {currentAttendanceRate}
                 <span style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-secondary)', marginLeft: '8px' }}>
                   ({currentOccupiedCount}/{currentTotalSeats} 席)
@@ -248,7 +248,7 @@ const Dashboard = () => {
                   <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                     通報時間: {new Date(latestRecord.create_at).toLocaleString('zh-TW')}
                   </div>
-                  <div style={{ display: 'inline-block', padding: '4px 12px', background: 'var(--success-bg)', color: 'var(--success)', borderRadius: '20px', fontWeight: 600, fontSize: '0.78rem' }}>
+                  <div style={{ display: 'inline-block', padding: '4px 12px', background: currentOccupiedCount > 0 ? 'var(--success-bg)' : 'rgba(255,255,255,0.05)', color: currentOccupiedCount > 0 ? 'var(--success)' : 'var(--text-secondary)', borderRadius: '20px', fontWeight: 600, fontSize: '0.78rem' }}>
                     在座率: {currentAttendanceRate} ({currentOccupiedCount}/{currentTotalSeats} 席)
                   </div>
                 </div>
@@ -275,7 +275,7 @@ const Dashboard = () => {
               if (typeof recAi === 'string') {
                 try { recAi = JSON.parse(recAi); } catch (e) {}
               }
-              const recRate = recAi?.attendance_rate || '在座';
+              const recRate = recAi?.attendance_rate || (recAi?.occupied_count ? `${recAi.occupied_count} 席在座` : '空席');
 
               return (
                 <div

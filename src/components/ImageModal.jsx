@@ -1,9 +1,9 @@
 // TEAM_008: 考勤照片大圖檢視 Modal (ImageModal.jsx)
-// 支援全螢幕 Portal 頂層覆蓋，並動態繪製多座位 (Seat ROIs) 與人員在座狀態 (🟢 OCCUPIED / ⚪ VACANT)
+// 嚴禁假資料：僅依據後端回傳的真實座號 ROI 與真實人員邊框進行精準疊加，無座標時絕不捏造假邊框
 
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
-import { X, LayoutGrid } from 'lucide-react';
+import { X } from 'lucide-react';
 
 const ImageModal = ({ record, imageUrl, title, onClose }) => {
   const [imgSize, setImgSize] = useState({ width: 640, height: 480 });
@@ -13,7 +13,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
 
   if (!targetUrl) return null;
 
-  // 1. 安全解析 ai_analysis
+  // 1. 解析 ai_analysis
   let aiAnalysis = targetRecord?.ai_analysis;
   if (typeof aiAnalysis === 'string') {
     try {
@@ -23,7 +23,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
     }
   }
 
-  // 2. 提取座位狀態清單與人員邊框
+  // 2. 提取真實座位狀態清單與真實人員邊框 (嚴禁任何假邊框注入)
   const seatStatuses = Array.isArray(aiAnalysis?.seat_statuses) ? aiAnalysis.seat_statuses : [];
   const persons = Array.isArray(aiAnalysis?.persons)
     ? aiAnalysis.persons
@@ -89,7 +89,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           <X size={22} />
         </button>
 
-        {/* 原始照片 */}
+        {/* 原始相片 */}
         <img
           src={targetUrl}
           alt={title || 'Full View'}
@@ -105,15 +105,18 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
         />
 
-        {/* 繪製偵測到的人員邊框 (藍色虛線框) */}
+        {/* 繪製真實偵測到的人員邊框 (藍色虛線框) */}
         {persons.map((person, idx) => {
           const box = person.bounding_box || person;
-          if (!box || !box.width) return null;
+          if (!box || typeof box.x !== 'number' || !box.width || box.width <= 0) return null;
 
-          const leftPct = (box.x / (box.base_width || 640)) * 100;
-          const topPct = (box.y / (box.base_height || 360)) * 100;
-          const widthPct = (box.width / (box.base_width || 640)) * 100;
-          const heightPct = (box.height / (box.base_height || 360)) * 100;
+          const baseW = box.base_width || 640;
+          const baseH = box.base_height || 360;
+
+          const leftPct = (box.x / baseW) * 100;
+          const topPct = (box.y / baseH) * 100;
+          const widthPct = (box.width / baseW) * 100;
+          const heightPct = (box.height / baseH) * 100;
 
           return (
             <div
@@ -133,14 +136,10 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           );
         })}
 
-        {/* 繪製各座號區域框 (綠色在座 / 灰色空位) */}
+        {/* 繪製各座號區域框 (僅在有真實 ROI 座標時繪製，嚴禁假座標) */}
         {seatStatuses.map((st, index) => {
-          const roi = st.person_box || (persons[index]?.bounding_box) || {
-            x: 50 + (index % 2) * 300,
-            y: 60 + Math.floor(index / 2) * 150,
-            width: 240,
-            height: 120,
-          };
+          const roi = st.person_box || st.roi;
+          if (!roi || typeof roi.x !== 'number' || !roi.width || roi.width <= 0) return null;
 
           const isOcc = st.status === 'OCCUPIED';
           const leftPct = (roi.x / 640) * 100;
@@ -149,8 +148,8 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           const heightPct = (roi.height / 360) * 100;
 
           const labelText = isOcc
-            ? `🟢 [${st.seat_id}] OCCUPIED`
-            : `⚪ [${st.seat_id}] VACANT`;
+            ? `🟢 [${st.seat_id}] 在座`
+            : `⚪ [${st.seat_id}] 空位`;
 
           return (
             <div

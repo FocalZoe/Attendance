@@ -1,5 +1,5 @@
 // TEAM_008: 歷史考勤與多座位佔用紀錄 (History.jsx)
-// 支援座位在座狀態過濾、座號卡片標記與完整 CSV 出席報表匯出
+// 嚴禁假資料：真實反映歷史在座人數與座號清單，無人時確切記錄 0 席與空清單
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { fetchHistoryRecords } from '../services/api';
@@ -45,7 +45,7 @@ const History = () => {
     });
   }, [records, searchTerm]);
 
-  // 匯出 CSV 報表 (包含座位出席率與在座座號)
+  // 匯出 CSV 報表 (包含座位出席率與真實在座座號)
   const handleExportCSV = () => {
     if (filteredRecords.length === 0) {
       alert('目前無紀錄可匯出');
@@ -57,12 +57,12 @@ const History = () => {
       if (typeof ai === 'string') {
         try { ai = JSON.parse(ai); } catch (e) {}
       }
-      const totalSeats = ai?.total_seats || 4;
-      const occupiedCount = ai?.occupied_count ?? 1;
-      const rate = ai?.attendance_rate || `${((occupiedCount / totalSeats) * 100).toFixed(1)}%`;
+      const totalSeats = ai?.total_seats || 0;
+      const occupiedCount = typeof ai?.occupied_count === 'number' ? ai.occupied_count : (ai?.face_count || 0);
+      const rate = ai?.attendance_rate || (totalSeats > 0 ? `${((occupiedCount / totalSeats) * 100).toFixed(1)}%` : '0.0%');
       const occupiedSeatsList = Array.isArray(ai?.seat_statuses)
         ? ai.seat_statuses.filter((s) => s.status === 'OCCUPIED').map((s) => s.seat_id).join(';')
-        : 'S-01';
+        : '';
 
       return [
         `"${r.id}"`,
@@ -156,9 +156,9 @@ const History = () => {
           if (typeof ai === 'string') {
             try { ai = JSON.parse(ai); } catch (e) {}
           }
-          const totalSeats = ai?.total_seats || 4;
-          const occupiedCount = ai?.occupied_count ?? (ai?.face_count || 1);
-          const rate = ai?.attendance_rate || `${((occupiedCount / totalSeats) * 100).toFixed(1)}%`;
+          const totalSeats = ai?.total_seats || 0;
+          const occupiedCount = typeof ai?.occupied_count === 'number' ? ai.occupied_count : 0;
+          const rate = ai?.attendance_rate || (totalSeats > 0 ? `${((occupiedCount / totalSeats) * 100).toFixed(1)}%` : '0.0%');
           const occupiedSeats = Array.isArray(ai?.seat_statuses)
             ? ai.seat_statuses.filter((s) => s.status === 'OCCUPIED').map((s) => s.seat_id)
             : [];
@@ -216,8 +216,8 @@ const History = () => {
                   padding: '4px 10px',
                   borderRadius: '12px',
                   fontSize: '0.75rem',
-                  color: '#10b981',
-                  border: '1px solid rgba(16, 185, 129, 0.45)',
+                  color: occupiedCount > 0 ? '#10b981' : '#94a3b8',
+                  border: `1px solid ${occupiedCount > 0 ? 'rgba(16, 185, 129, 0.45)' : 'rgba(148, 163, 184, 0.3)'}`,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
