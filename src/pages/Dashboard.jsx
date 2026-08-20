@@ -1,8 +1,8 @@
 // TEAM_008: 智慧多座位在座即時儀表板 (Dashboard.jsx)
 // 升級重點：
-// 1. 即時鏡頭分頁：只顯示「📸 立即記錄點名」按鈕與鏡頭選擇器。
-// 2. 最後通報相片分頁：只顯示「👁️ 觀看大圖」按鈕。
-// 3. 徹底移除獨立的相機點名彈窗，操作體驗一體化。
+// 1. 即時相機視訊容器鎖定鏡頭自然比例 (Zero Cropping)，所見即所拍！
+// 2. 即時鏡頭分頁只顯示「📸 立即記錄點名」按鈕；最後通報分頁只顯示「👁️ 觀看大圖」按鈕。
+// 3. 通報與紀錄全面對齊「幾月幾號第幾節」，清楚標註未到/缺席名單。
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Users, CheckCircle, Activity, Sparkles, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, Calendar, RefreshCw, Eye } from 'lucide-react';
@@ -58,6 +58,7 @@ const Dashboard = () => {
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [liveSeatStatuses, setLiveSeatStatuses] = useState([]);
+  const [camAspect, setCamAspect] = useState(4 / 3);
 
   // 畫面檢視模式：'live' (即時鏡頭) | 'latest' (最後通報相片)
   const [previewTab, setPreviewTab] = useState('live');
@@ -191,8 +192,9 @@ const Dashboard = () => {
             };
           });
 
-          // 2. 座位百分比轉為 client 像素座標
-          const scaledSeats = currentSeats.seats.map((seat) => {
+          // 2. 座位百分比轉為 client 像素座標 (絕不裁切)
+          const freshConfig = getSavedSeatsConfig();
+          const scaledSeats = freshConfig.seats.map((seat) => {
             const roi = seat.roi;
             const xPct = typeof roi.x_pct === 'number' ? roi.x_pct : (roi.x / 640) * 100;
             const yPct = typeof roi.y_pct === 'number' ? roi.y_pct : (roi.y / 480) * 100;
@@ -316,7 +318,7 @@ const Dashboard = () => {
         return;
       }
 
-      // 純淨相片截圖
+      // 純淨相片截圖 (完全依相機真實尺寸)
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const base64Data = canvas.toDataURL('image/jpeg', 0.92);
 
@@ -535,7 +537,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* 視訊畫面 / 照片顯示區 */}
+          {/* 視訊畫面 / 照片顯示區 (鎖定鏡頭真實長寬比，零裁切) */}
           <div
             style={{
               flex: 1,
@@ -550,13 +552,19 @@ const Dashboard = () => {
             }}
           >
             {previewTab === 'live' ? (
-              <>
+              <div style={{ position: 'relative', width: '100%', aspectRatio: `${camAspect}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <video
                   ref={videoRef}
                   autoPlay
                   playsInline
                   muted
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: cameraActive ? 'block' : 'none' }}
+                  onLoadedMetadata={(e) => {
+                    const target = e.currentTarget;
+                    if (target.videoWidth > 0 && target.videoHeight > 0) {
+                      setCamAspect(target.videoWidth / target.videoHeight);
+                    }
+                  }}
+                  style={{ width: '100%', height: '100%', objectFit: 'fill', display: cameraActive ? 'block' : 'none' }}
                 />
 
                 {cameraActive && (
@@ -580,7 +588,7 @@ const Dashboard = () => {
                     <p>{cameraError || '正在連線網路相機與在座分析模組...'}</p>
                   </div>
                 )}
-              </>
+              </div>
             ) : (
               // 檢視最後通報相片
               latestRecord ? (
@@ -589,7 +597,7 @@ const Dashboard = () => {
                     <img
                       src={latestRecord.file_url}
                       alt={latestRecord.message}
-                      style={{ maxWidth: '340px', maxHeight: '240px', borderRadius: '14px', border: '2.5px solid var(--success)', objectFit: 'cover', background: 'rgba(255,255,255,0.05)' }}
+                      style={{ maxWidth: '340px', maxHeight: '240px', borderRadius: '14px', border: '2.5px solid var(--success)', objectFit: 'contain', background: 'rgba(255,255,255,0.05)' }}
                     />
                     <div style={{ position: 'absolute', top: '-8px', left: '-8px', width: '24px', height: '24px', borderTop: '3.5px solid var(--success)', borderLeft: '3.5px solid var(--success)', borderRadius: '6px 0 0 0' }} />
                     <div style={{ position: 'absolute', bottom: '-8px', right: '-8px', width: '24px', height: '24px', borderBottom: '3.5px solid var(--success)', borderRight: '3.5px solid var(--success)', borderRadius: '0 0 6px 0' }} />
@@ -607,7 +615,7 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* 底部控制器：依據當前分頁只顯示對應按鈕 */}
+          {/* 底部控制器：分流按鈕 */}
           <div style={{ marginTop: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
             {previewTab === 'live' ? (
               // 即時鏡頭模式：只顯示相機裝置切換與「立即記錄點名」按鈕
