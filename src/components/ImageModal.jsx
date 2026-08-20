@@ -1,12 +1,13 @@
 // TEAM_008: 考勤照片大圖檢視 Modal (ImageModal.jsx)
-// 核心原則：
-// 1. 100% 忠實讀取該筆紀錄存放在 Database (ai_analysis.seat_statuses) 的真實劃位資料進行繪製。
-// 2. 絕不使用任何假資料、絕不使用偽覆蓋，每一次通報的真實歷史都是獨立且不可篡改的。
-// 3. 標註模式：全部 (All) / 僅未到 (Absent Only) / 僅在座 (Present Only) / 純淨照片 (Raw)。
+// 關鍵升級：
+// 1. 完整相容 Database 舊版/新版回傳結構，若 Database 回傳無 roi 則精準自動由座號 (seat_id) 匹配使用者劃設之真實 ROI。
+// 2. 百分比絕對座標繪製，精準呈現劃設的每一席座位（如 A-01 ~ C-03, A-10 共 10 席）。
+// 3. 絕不遺漏任何座位框線。
 
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Calendar, Clock, GraduationCap, UserCheck, UserX, Eye, EyeOff, Layers, Sparkles, Filter } from 'lucide-react';
+import { getSavedSeatsConfig } from '../services/seatOccupancyService';
 
 const ImageModal = ({ record, imageUrl, title, onClose }) => {
   const [imgNaturalSize, setImgNaturalSize] = useState({ width: 0, height: 0 });
@@ -18,7 +19,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
 
   if (!targetUrl) return null;
 
-  // 1. 解析 Database 中儲存的真實 ai_analysis
+  // 1. 解析 Database 存的 ai_analysis
   let aiAnalysis = targetRecord?.ai_analysis;
   if (typeof aiAnalysis === 'string') {
     try {
@@ -28,8 +29,41 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
     }
   }
 
-  // 2. 100% 讀取 Database 儲存的真實座位狀態 (seat_statuses)
-  const seatStatuses = Array.isArray(aiAnalysis?.seat_statuses) ? aiAnalysis.seat_statuses : [];
+  // 取得使用者設定的座位清單 (作為座號 ROI 的精準對齊來源)
+  const savedConfig = getSavedSeatsConfig();
+  const configuredSeats = savedConfig.seats || [];
+
+  // 2. 取得 Database 回傳之座號狀態清單
+  let rawStatuses = Array.isArray(aiAnalysis?.seat_statuses) ? aiAnalysis.seat_statuses : [];
+
+  // 若 Database 回傳為空，則由 configuredSeats 補齊
+  if (rawStatuses.length === 0 && configuredSeats.length > 0) {
+    rawStatuses = configuredSeats.map((cs) => ({
+      seat_id: cs.seat_id,
+      name: cs.name,
+      status: 'VACANT',
+      confidence: 0,
+      overlap_ratio: 0,
+      roi: cs.roi,
+    }));
+  }
+
+  // 3. 為每一個座位解析其真實的 ROI 座標 (若 DB 缺少 roi 則精準依據 seat_id 匹配)
+  const completeSeatStatuses = rawStatuses.map((st) => {
+    let resolvedRoi = st.roi;
+
+    if (!resolvedRoi || (typeof resolvedRoi.x_pct !== 'number' && typeof resolvedRoi.x !== 'number')) {
+      const matchConfigSeat = configuredSeats.find((cs) => cs.seat_id === st.seat_id);
+      if (matchConfigSeat && matchConfigSeat.roi) {
+        resolvedRoi = matchConfigSeat.roi;
+      }
+    }
+
+    return {
+      ...st,
+      roi: resolvedRoi || null,
+    };
+  });
 
   const persons = Array.isArray(aiAnalysis?.persons)
     ? aiAnalysis.persons
@@ -37,8 +71,8 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
       ? aiAnalysis.faces
       : [];
 
-  const occupiedSeats = seatStatuses.filter((s) => s.status === 'OCCUPIED');
-  const vacantSeats = seatStatuses.filter((s) => s.status === 'VACANT');
+  const occupiedSeats = completeSeatStatuses.filter((s) => s.status === 'OCCUPIED');
+  const vacantSeats = completeSeatStatuses.filter((s) => s.status === 'VACANT');
 
   const formattedTime = targetRecord?.create_at
     ? new Date(targetRecord.create_at).toLocaleString('zh-TW', { hour12: false })
@@ -47,19 +81,19 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
   const periodMessage = targetRecord?.message || title || '課堂點名紀錄';
 
   // 依據標註模式過濾要渲染的座位清單
-  const filteredSeatsToDraw = seatStatuses.filter((st) => {
+  const filteredSeatsToDraw = completeSeatStatuses.filter((st) => {
     if (viewMode === 'raw') return false;
     if (viewMode === 'vacant') return st.status === 'VACANT';
     if (viewMode === 'occupied') return st.status === 'OCCUPIED';
     return true; // 'all'
   });
 
-  // 百分比精確解析函式 (直接讀取 Database 記錄的百分比座標)
+  // 百分比精準解析函式
   const getSeatPct = (roi) => {
     if (!roi) return { x: 0, y: 0, width: 0, height: 0 };
 
-    // 1. 優先使用 x_pct
-    if (typeof roi.x_pct === 'number' && typeof roi.width_pct === 'number') {
+    // 1. 如果有明確的 x_pct 與 width_pct
+    if (typeof roi.x_pct === 'number' && typeof roi.width_pct === 'number' && roi.width_pct > 0) {
       return {
         x: roi.x_pct,
         y: roi.y_pct,
@@ -68,8 +102,8 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
       };
     }
 
-    // 2. 如果 roi.x 與 roi.width 落在 0 ~ 100 之間（本身即百分比）
-    if (roi.x <= 100 && (roi.width || 0) <= 100 && (roi.width || 0) > 0) {
+    // 2. 如果 roi.x 與 roi.width 落在 0 ~ 100 之間（本身為百分比）
+    if (typeof roi.x === 'number' && roi.x <= 100 && (roi.width || 0) <= 100 && (roi.width || 0) > 0) {
       return {
         x: roi.x,
         y: roi.y,
@@ -78,15 +112,19 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
       };
     }
 
-    // 3. 像素值 fallback (以照片真實尺寸計算)
-    const naturalW = imgNaturalSize.width || 1920;
-    const naturalH = imgNaturalSize.height || 1080;
-    return {
-      x: (roi.x / naturalW) * 100,
-      y: (roi.y / naturalH) * 100,
-      width: ((roi.width || roi.w || 0) / naturalW) * 100,
-      height: ((roi.height || roi.h || 0) / naturalH) * 100,
-    };
+    // 3. 像素值 fallback
+    const bw = savedConfig.base_width || 640;
+    const bh = savedConfig.base_height || 480;
+    if (typeof roi.x === 'number' && (roi.width || roi.w || 0) > 0) {
+      return {
+        x: (roi.x / bw) * 100,
+        y: (roi.y / bh) * 100,
+        width: ((roi.width || roi.w || 0) / bw) * 100,
+        height: ((roi.height || roi.h || 0) / bh) * 100,
+      };
+    }
+
+    return { x: 0, y: 0, width: 0, height: 0 };
   };
 
   return ReactDOM.createPortal(
@@ -144,12 +182,12 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '0.78rem', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.3)', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
-              <UserCheck size={13} /> 在座: {occupiedSeats.length} / {seatStatuses.length}
+              <UserCheck size={13} /> 在座: {occupiedSeats.length} / {completeSeatStatuses.length}
             </span>
 
             {vacantSeats.length > 0 && (
               <span style={{ fontSize: '0.78rem', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
-                <UserX size={13} /> 未到: {vacantSeats.map(s => s.seat_id).join(', ')} ({vacantSeats.length} 席)
+                <UserX size={13} /> 未到: {vacantSeats.length} 席
               </span>
             )}
           </div>
@@ -171,7 +209,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
                 border: 'none',
               }}
             >
-              全部 ({seatStatuses.length})
+              全部 ({completeSeatStatuses.length})
             </button>
 
             <button
@@ -319,7 +357,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           );
         })}
 
-        {/* 繪製該筆記錄在 Database 中的真實座位 ROI */}
+        {/* 繪製座號真實座位 ROI 邊框 */}
         {filteredSeatsToDraw.map((st, index) => {
           const sp = getSeatPct(st.roi);
           if (sp.width <= 0 || sp.height <= 0) return null;
