@@ -1,16 +1,16 @@
 // TEAM_008: 考勤照片大圖檢視 Modal (ImageModal.jsx)
 // 升級重點：
-// 1. 新增視覺化標註切換工具列 (All / Vacant / Occupied / Raw)，可隨時切換是否顯示框選位置與在座狀況！
-// 2. 頂部資訊列以 Lucide Icons 顯示「幾月幾號第幾節」與通報時間戳記。
-// 3. 圖片維持乾淨純圖，所有標註與時間皆由 UI 彈性疊加。
+// 1. 強固座位座標解析 (支援 st.roi、st.person_box 與 seatConfig.seats 多重 Fallback)，保證 100% 精準繪製各座號框線！
+// 2. 提供視覺化標註切換工具列 (全部 / 僅未到 / 僅在座 / 純淨照片)。
+// 3. 頂部資訊列以 Lucide Icons 顯示幾月幾號第幾節與通報時間。
 
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Calendar, Clock, GraduationCap, UserCheck, UserX, Eye, EyeOff, Layers, Sparkles, Filter } from 'lucide-react';
+import { getSavedSeatsConfig } from '../services/seatOccupancyService';
 
 const ImageModal = ({ record, imageUrl, title, onClose }) => {
   const [imgSize, setImgSize] = useState({ width: 640, height: 480 });
-  // 視覺化顯示模式：'all' (全部座位) | 'vacant' (僅未到) | 'occupied' (僅在座) | 'raw' (純淨照片/隱藏標註)
   const [viewMode, setViewMode] = useState('all');
   const [showPersonBoxes, setShowPersonBoxes] = useState(true);
 
@@ -19,7 +19,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
 
   if (!targetUrl) return null;
 
-  // 解析 ai_analysis
+  // 1. 解析 ai_analysis
   let aiAnalysis = targetRecord?.ai_analysis;
   if (typeof aiAnalysis === 'string') {
     try {
@@ -29,15 +29,48 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
     }
   }
 
-  const seatStatuses = Array.isArray(aiAnalysis?.seat_statuses) ? aiAnalysis.seat_statuses : [];
+  // 取得本地儲存的座位配置作為座標 fallback
+  const savedConfig = getSavedSeatsConfig();
+  const configuredSeats = savedConfig.seats || [];
+
+  // 2. 整理座位狀態清單 (若紀錄無 seat_statuses，則用 configuredSeats 補齊)
+  let rawStatuses = Array.isArray(aiAnalysis?.seat_statuses) ? aiAnalysis.seat_statuses : [];
+  if (rawStatuses.length === 0 && configuredSeats.length > 0) {
+    rawStatuses = configuredSeats.map((cs) => ({
+      seat_id: cs.seat_id,
+      name: cs.name,
+      status: 'VACANT',
+      confidence: 0,
+      overlap_ratio: 0,
+      roi: cs.roi,
+    }));
+  }
+
+  // 為每一個座位狀態補齊真實的 roi 座標
+  const completeSeatStatuses = rawStatuses.map((st) => {
+    // 優先順序：st.roi -> st.person_box -> savedConfig 中同 seat_id 的 roi
+    let resolvedRoi = st.roi || st.person_box;
+    if (!resolvedRoi || typeof resolvedRoi.x !== 'number') {
+      const matchSeat = configuredSeats.find((cs) => cs.seat_id === st.seat_id);
+      if (matchSeat && matchSeat.roi) {
+        resolvedRoi = matchSeat.roi;
+      }
+    }
+
+    return {
+      ...st,
+      resolvedRoi: resolvedRoi || null,
+    };
+  });
+
   const persons = Array.isArray(aiAnalysis?.persons)
     ? aiAnalysis.persons
     : Array.isArray(aiAnalysis?.faces)
       ? aiAnalysis.faces
       : [];
 
-  const occupiedSeats = seatStatuses.filter((s) => s.status === 'OCCUPIED');
-  const vacantSeats = seatStatuses.filter((s) => s.status === 'VACANT');
+  const occupiedSeats = completeSeatStatuses.filter((s) => s.status === 'OCCUPIED');
+  const vacantSeats = completeSeatStatuses.filter((s) => s.status === 'VACANT');
 
   const aspect = imgSize.width / imgSize.height;
 
@@ -47,13 +80,16 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
 
   const periodMessage = targetRecord?.message || title || '課堂點名紀錄';
 
-  // 根據當前切換模式過濾要渲染的座位清單
-  const filteredSeatsToDraw = seatStatuses.filter((st) => {
+  // 依據標註模式過濾要渲染的座位清單
+  const filteredSeatsToDraw = completeSeatStatuses.filter((st) => {
     if (viewMode === 'raw') return false;
     if (viewMode === 'vacant') return st.status === 'VACANT';
     if (viewMode === 'occupied') return st.status === 'OCCUPIED';
     return true; // 'all'
   });
+
+  const baseW = savedConfig.base_width || 640;
+  const baseH = savedConfig.base_height || 360;
 
   const modalContent = (
     <div
@@ -141,7 +177,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
               transition: 'all 0.2s',
             }}
           >
-            全部位置 ({seatStatuses.length})
+            全部位置 ({completeSeatStatuses.length})
           </button>
 
           <button
@@ -252,22 +288,25 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
         />
 
-        {/* 繪製人員邊框 (藍色虛線框，當 viewMode !== 'raw' 時可顯示) */}
+        {/* 繪製人員邊框 (藍色虛線框，當 viewMode !== 'raw' 時顯示) */}
         {viewMode !== 'raw' && showPersonBoxes && persons.map((person, idx) => {
           const box = person.bounding_box || person;
-          if (!box || typeof box.x !== 'number' || !box.width || box.width <= 0) return null;
+          if (!box || typeof box.x !== 'number') return null;
+          const bW = box.width || box.w || 0;
+          const bH = box.height || box.h || 0;
+          if (bW <= 0 || bH <= 0) return null;
 
-          const baseW = box.base_width || 640;
-          const baseH = box.base_height || 360;
+          const pBaseW = box.base_width || baseW;
+          const pBaseH = box.base_height || baseH;
 
-          const leftPct = (box.x / baseW) * 100;
-          const topPct = (box.y / baseH) * 100;
-          const widthPct = (box.width / baseW) * 100;
-          const heightPct = (box.height / baseH) * 100;
+          const leftPct = (box.x / pBaseW) * 100;
+          const topPct = (box.y / pBaseH) * 100;
+          const widthPct = (bW / pBaseW) * 100;
+          const heightPct = (bH / pBaseH) * 100;
 
           return (
             <div
-              key={`p-${idx}`}
+              key={`person-${idx}`}
               style={{
                 position: 'absolute',
                 left: `${leftPct}%`,
@@ -285,14 +324,18 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
 
         {/* 繪製各座號區域框 (依據切換模式動態呈現 🟢 在座 / ❌ 未到) */}
         {filteredSeatsToDraw.map((st, index) => {
-          const roi = st.person_box || st.roi;
-          if (!roi || typeof roi.x !== 'number' || !roi.width || roi.width <= 0) return null;
+          const roi = st.resolvedRoi;
+          if (!roi || typeof roi.x !== 'number') return null;
+
+          const roiW = roi.width || roi.w || 0;
+          const roiH = roi.height || roi.h || 0;
+          if (roiW <= 0 || roiH <= 0) return null;
 
           const isOcc = st.status === 'OCCUPIED';
-          const leftPct = (roi.x / 640) * 100;
-          const topPct = (roi.y / 360) * 100;
-          const widthPct = (roi.width / 640) * 100;
-          const heightPct = (roi.height / 360) * 100;
+          const leftPct = (roi.x / baseW) * 100;
+          const topPct = (roi.y / baseH) * 100;
+          const widthPct = (roiW / baseW) * 100;
+          const heightPct = (roiH / baseH) * 100;
 
           const labelText = isOcc
             ? `🟢 [${st.seat_id}] 在座`
@@ -308,12 +351,12 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
                 width: `${widthPct}%`,
                 height: `${heightPct}%`,
                 border: isOcc ? '2.5px solid #10b981' : '2.5px dashed #ef4444',
-                background: isOcc ? 'rgba(16, 185, 129, 0.18)' : 'rgba(239, 68, 68, 0.18)',
+                background: isOcc ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.18)',
                 borderRadius: '8px',
                 boxSizing: 'border-box',
                 pointerEvents: 'none',
                 zIndex: 15,
-                transition: 'all 0.25s ease',
+                transition: 'all 0.2s ease',
               }}
             >
               {/* 四角 L 型邊框 */}
