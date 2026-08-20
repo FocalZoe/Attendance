@@ -48,22 +48,21 @@ export const fetchHistoryRecords = async ({ limit = 50, search = '' } = {}) => {
 };
 
 /**
- * 發送相機打卡 Telemetry 資料 (Base64 JPEG)
+ * 發送相機打卡 Telemetry 資料 (含當下完整真實座位配置)
  * @param {Object} payload 
- * @param {string} payload.message
- * @param {string} payload.file Base64
- * @param {string} [payload.timestamp]
  */
-export const sendTelemetry = async ({ message, file, timestamp }) => {
+export const sendTelemetry = async (payload) => {
   const response = await fetch(getApiUrl('/api/telemetry'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      message,
-      file,
-      timestamp: timestamp || new Date().toISOString(),
+      message: payload.message,
+      file: payload.file,
+      timestamp: payload.timestamp || new Date().toISOString(),
+      detected_persons: payload.detected_persons || [],
+      seats: payload.seats || [],
     }),
   });
 

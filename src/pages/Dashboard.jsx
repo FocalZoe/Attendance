@@ -1,15 +1,14 @@
 // TEAM_008: 智慧多座位在座即時儀表板 (Dashboard.jsx)
 // 升級重點：
-// 1. 即時相機視訊容器鎖定鏡頭自然比例 (Zero Cropping)，所見即所拍！
-// 2. 即時鏡頭分頁只顯示「📸 立即記錄點名」按鈕；最後通報分頁只顯示「👁️ 觀看大圖」按鈕。
-// 3. 通報與紀錄全面對齊「幾月幾號第幾節」，清楚標註未到/缺席名單。
+// 1. 每次點名發送時，100% 完整傳送當下的真實座位劃位清單至 Database。
+// 2. 通報成功後立即以 Database 回傳之最新記錄更新畫面與歷史。
+// 3. 即時鏡頭分頁只顯示「📸 立即記錄點名」按鈕；最後通報相片只顯示「👁️ 觀看大圖」按鈕。
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Users, CheckCircle, Activity, Sparkles, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, Calendar, RefreshCw, Eye } from 'lucide-react';
 import { ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision';
-import { fetchHistoryRecords, connectWebSocket } from '../services/api';
+import { fetchHistoryRecords, sendTelemetry, connectWebSocket } from '../services/api';
 import { getSavedSeatsConfig, formatFullPeriodMessage, matchPersonsToSeats } from '../services/seatOccupancyService';
-import { getApiUrl } from '../config/api';
 import SeatMapEditorModal from '../components/SeatMapEditorModal';
 import ImageModal from '../components/ImageModal';
 
@@ -93,7 +92,7 @@ const Dashboard = () => {
 
     try {
       const constraints = {
-        video: deviceId ? { deviceId: { exact: deviceId } } : { width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: deviceId ? { deviceId: { exact: deviceId } } : { width: { ideal: 1920 }, height: { ideal: 1080 } },
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -192,7 +191,7 @@ const Dashboard = () => {
             };
           });
 
-          // 2. 座位百分比轉為 client 像素座標 (絕不裁切)
+          // 2. 座位百分比轉為 client 像素座標
           const freshConfig = getSavedSeatsConfig();
           const scaledSeats = freshConfig.seats.map((seat) => {
             const roi = seat.roi;
@@ -216,7 +215,7 @@ const Dashboard = () => {
           const statuses = matchPersonsToSeats(scaledSeats, detectedPersonsInView, 0.2);
           setLiveSeatStatuses(statuses);
 
-          // 4. 繪製座位標註框 (在座綠色 / 未到紅色虛線)
+          // 4. 繪製座位標註框
           statuses.forEach((st) => {
             const isOcc = st.status === 'OCCUPIED';
             const { x, y, width, height } = st.roi;
@@ -300,7 +299,7 @@ const Dashboard = () => {
     };
   }, [selectedDeviceId]);
 
-  // 拍照並發送點名
+  // 拍照並發送點名 (100% 傳送當下真實劃位)
   const handleTriggerAttendance = async () => {
     if (!videoRef.current || !canvasRef.current) return;
     setIsSending(true);
@@ -334,28 +333,26 @@ const Dashboard = () => {
         confidence: det.categories[0]?.score || 0.95,
       }));
 
-      const targetApiUrl = getApiUrl('/api/telemetry');
-      const response = await fetch(targetApiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: formattedMessage,
-          file: base64Data,
-          timestamp: new Date().toISOString(),
-          detected_persons: detectedPersonsPayload,
-          seats: currentConfig.seats,
-        }),
+      // 使用統一 API 模組發送當下劃位
+      const result = await sendTelemetry({
+        message: formattedMessage,
+        file: base64Data,
+        timestamp: new Date().toISOString(),
+        detected_persons: detectedPersonsPayload,
+        seats: currentConfig.seats,
       });
 
-      if (response.ok) {
-        await loadRecords();
+      console.log('[Dashboard] 點名通報成功，Database 回傳紀錄:', result);
+
+      if (result && result.record) {
+        setLatestRecord(result.record);
+        setRecords((prev) => [result.record, ...prev.filter((r) => r.id !== result.record.id)].slice(0, 20));
       } else {
-        const errorJson = await response.json().catch(() => ({}));
-        alert(`點名通報失敗 (${response.status}): ${errorJson.error || '伺服器回應異常'}`);
+        await loadRecords();
       }
     } catch (err) {
       console.error('[Telemetry Exception]', err);
-      alert('通報異常，請確認後端服務是否正常運作。');
+      alert(`通報異常: ${err?.message || '請確認伺服器連線狀態'}`);
     } finally {
       setIsSending(false);
     }
@@ -537,7 +534,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* 視訊畫面 / 照片顯示區 (鎖定鏡頭真實長寬比，零裁切) */}
+          {/* 視訊畫面 / 照片顯示區 */}
           <div
             style={{
               flex: 1,
@@ -615,7 +612,7 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* 底部控制器：分流按鈕 */}
+          {/* 底部控制器 */}
           <div style={{ marginTop: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
             {previewTab === 'live' ? (
               // 即時鏡頭模式：只顯示相機裝置切換與「立即記錄點名」按鈕

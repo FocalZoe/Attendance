@@ -1,5 +1,7 @@
-// TEAM_007: API 網址自動切換模組 (api.js)
-// 自動讀取 VITE_API_BASE_URL 環境變數，若未設定則在本地端預設相應端點，避免硬編碼導致 Vercel 部署發生網路異常。
+// TEAM_007: API 網址統一配置模組 (api.js)
+// 確保所有前端請求 (發送通報、查詢歷史、WebSocket) 100% 指向同一個真實伺服器與資料庫！
+
+const DEFAULT_REMOTE_BACKEND = 'https://attendance-backend-p1pj.onrender.com';
 
 /**
  * 取得 HTTP API 基礎網址
@@ -9,11 +11,7 @@ export const getApiBaseUrl = () => {
   if (envUrl) {
     return envUrl.replace(/\/+$/, '');
   }
-  // 在瀏覽器環境中若為本機 localhost，回傳預設本機 API 埠位 (http://localhost:3000)
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return 'http://localhost:3000';
-  }
-  return '';
+  return DEFAULT_REMOTE_BACKEND;
 };
 
 /**
