@@ -1,8 +1,8 @@
 // TEAM_008: 考勤照片大圖檢視 Modal (ImageModal.jsx)
-// 升級重點：
-// 1. 座標全面支援百分比對齊 (x_pct, y_pct, width_pct, height_pct)，徹底消除任何相機裁切導致的位移變形！
-// 2. 提供視覺化標註切換工具列 (全部 / 僅未到 / 僅在座 / 純淨照片)。
-// 3. 頂部資訊列以 Lucide Icons 顯示幾月幾號第幾節與通報時間。
+// 關鍵修正：
+// 1. 座位框永遠鎖定使用者劃位的「真實座位區域 (Seat ROI)」，絕對不再誤用人體全身邊框 (Person Box) 取代座位框！
+// 2. 移除 objectFit: 'cover'，確保相片長寬比 100% 自然吻合，零裁切、零變形、零位移！
+// 3. 綠框/紅框代表座位在座/未到，藍色虛線代表偵測到的人體，層次清晰分明。
 
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -10,7 +10,7 @@ import { X, Calendar, Clock, GraduationCap, UserCheck, UserX, Eye, EyeOff, Layer
 import { getSavedSeatsConfig } from '../services/seatOccupancyService';
 
 const ImageModal = ({ record, imageUrl, title, onClose }) => {
-  const [imgSize, setImgSize] = useState({ width: 640, height: 480 });
+  const [imgNaturalSize, setImgNaturalSize] = useState({ width: 0, height: 0 });
   const [viewMode, setViewMode] = useState('all');
   const [showPersonBoxes, setShowPersonBoxes] = useState(true);
 
@@ -33,7 +33,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
   const savedConfig = getSavedSeatsConfig();
   const configuredSeats = savedConfig.seats || [];
 
-  // 2. 整理座位狀態清單 (若紀錄無 seat_statuses，則用 configuredSeats 補齊)
+  // 2. 整理座位狀態清單
   let rawStatuses = Array.isArray(aiAnalysis?.seat_statuses) ? aiAnalysis.seat_statuses : [];
   if (rawStatuses.length === 0 && configuredSeats.length > 0) {
     rawStatuses = configuredSeats.map((cs) => ({
@@ -46,19 +46,19 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
     }));
   }
 
-  // 為每一個座位狀態補齊真實的 roi 座標
+  // 為每一個座位鎖定其「真正的座位 ROI」 (絕不使用 person_box 覆蓋座位形狀)
   const completeSeatStatuses = rawStatuses.map((st) => {
-    let resolvedRoi = st.roi || st.person_box;
-    if (!resolvedRoi || typeof resolvedRoi.x !== 'number') {
+    let seatRoi = st.roi;
+    if (!seatRoi || (typeof seatRoi.x_pct !== 'number' && typeof seatRoi.x !== 'number')) {
       const matchSeat = configuredSeats.find((cs) => cs.seat_id === st.seat_id);
       if (matchSeat && matchSeat.roi) {
-        resolvedRoi = matchSeat.roi;
+        seatRoi = matchSeat.roi;
       }
     }
 
     return {
       ...st,
-      resolvedRoi: resolvedRoi || null,
+      seatRoi: seatRoi || null,
     };
   });
 
@@ -70,8 +70,6 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
 
   const occupiedSeats = completeSeatStatuses.filter((s) => s.status === 'OCCUPIED');
   const vacantSeats = completeSeatStatuses.filter((s) => s.status === 'VACANT');
-
-  const aspect = imgSize.width / imgSize.height;
 
   const formattedTime = targetRecord?.create_at
     ? new Date(targetRecord.create_at).toLocaleString('zh-TW', { hour12: false })
@@ -87,6 +85,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
     return true; // 'all'
   });
 
+  // 計算百分比座標
   const getSeatPct = (roi) => {
     if (!roi) return { x: 0, y: 0, width: 0, height: 0 };
     if (typeof roi.x_pct === 'number' && typeof roi.width_pct === 'number') {
@@ -122,7 +121,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 999999,
-        padding: '20px',
+        padding: '16px',
         boxSizing: 'border-box',
       }}
     >
@@ -140,7 +139,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           border: '1px solid rgba(255, 255, 255, 0.1)',
           padding: '10px 18px',
           borderRadius: '12px',
-          marginBottom: '12px',
+          marginBottom: '10px',
           color: '#fff',
           boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
           flexWrap: 'wrap',
@@ -167,13 +166,13 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
 
             {vacantSeats.length > 0 && (
               <span style={{ fontSize: '0.78rem', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
-                <UserX size={13} /> 未到: {vacantSeats.map(s => s.seat_id).join(', ')} ({vacantSeats.length})
+                <UserX size={13} /> 未到: {vacantSeats.map((s) => s.seat_id).join(', ')} ({vacantSeats.length})
               </span>
             )}
           </div>
         </div>
 
-        {/* 中間：視覺化切換開關工具列 (Toggle Overlay Mode) */}
+        {/* 中間：視覺化切換開關工具列 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,0,0,0.4)', padding: '4px 8px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
           <span style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px', marginRight: '4px' }}>
             <Layers size={14} /> 標註模式：
@@ -273,35 +272,42 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
         </button>
       </div>
 
-      {/* 照片與座位覆蓋層 */}
+      {/* 照片與座位覆蓋容器 (完全依據相片真實長寬比呈現，零裁切零變形) */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
           position: 'relative',
+          display: 'inline-block',
           maxWidth: '94vw',
-          maxHeight: '80vh',
-          aspectRatio: `${aspect}`,
-          borderRadius: '16px',
+          maxHeight: '82vh',
+          borderRadius: '14px',
           overflow: 'hidden',
           boxShadow: '0 25px 60px rgba(0,0,0,0.9)',
           border: '1px solid rgba(56, 189, 248, 0.4)',
           background: '#090d16',
         }}
       >
-        {/* 原始純淨相片 */}
+        {/* 原始純淨相片 (完全保持相片自然比例) */}
         <img
           src={targetUrl}
           alt={periodMessage}
           onLoad={(e) => {
             const target = e.currentTarget;
             if (target.naturalWidth > 0 && target.naturalHeight > 0) {
-              setImgSize({
+              setImgNaturalSize({
                 width: target.naturalWidth,
                 height: target.naturalHeight,
               });
             }
           }}
-          style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
+          style={{
+            display: 'block',
+            maxWidth: '94vw',
+            maxHeight: '82vh',
+            width: 'auto',
+            height: 'auto',
+            objectFit: 'contain',
+          }}
         />
 
         {/* 繪製人員邊框 (藍色虛線框) */}
@@ -312,8 +318,8 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           const bH = box.height || box.h || 0;
           if (bW <= 0 || bH <= 0) return null;
 
-          const pBaseW = box.base_width || 640;
-          const pBaseH = box.base_height || 480;
+          const pBaseW = box.base_width || (imgNaturalSize.width > 0 ? imgNaturalSize.width : 640);
+          const pBaseH = box.base_height || (imgNaturalSize.height > 0 ? imgNaturalSize.height : 480);
 
           const leftPct = (box.x / pBaseW) * 100;
           const topPct = (box.y / pBaseH) * 100;
@@ -338,9 +344,9 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           );
         })}
 
-        {/* 繪製各座號區域框 (百分比精準對齊) */}
+        {/* 繪製各座號真實座位區域框 (Seat ROI - 絕非全身人體框) */}
         {filteredSeatsToDraw.map((st, index) => {
-          const sp = getSeatPct(st.resolvedRoi);
+          const sp = getSeatPct(st.seatRoi);
           if (sp.width <= 0 || sp.height <= 0) return null;
 
           const isOcc = st.status === 'OCCUPIED';
@@ -369,35 +375,37 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
               {/* 四角 L 型邊框 */}
               {isOcc ? (
                 <>
-                  <div style={{ position: 'absolute', top: 0, left: 0, width: '12px', height: '12px', borderTop: '3.5px solid #10b981', borderLeft: '3.5px solid #10b981' }} />
-                  <div style={{ position: 'absolute', top: 0, right: 0, width: '12px', height: '12px', borderTop: '3.5px solid #10b981', borderRight: '3.5px solid #10b981' }} />
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, width: '12px', height: '12px', borderBottom: '3.5px solid #10b981', borderLeft: '3.5px solid #10b981' }} />
-                  <div style={{ position: 'absolute', bottom: 0, right: 0, width: '12px', height: '12px', borderBottom: '3.5px solid #10b981', borderRight: '3.5px solid #10b981' }} />
+                  <div style={{ position: 'absolute', top: 0, left: 0, width: '10px', height: '10px', borderTop: '3px solid #10b981', borderLeft: '3px solid #10b981' }} />
+                  <div style={{ position: 'absolute', top: 0, right: 0, width: '10px', height: '10px', borderTop: '3px solid #10b981', borderRight: '3px solid #10b981' }} />
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, width: '10px', height: '10px', borderBottom: '3px solid #10b981', borderLeft: '3px solid #10b981' }} />
+                  <div style={{ position: 'absolute', bottom: 0, right: 0, width: '10px', height: '10px', borderBottom: '3px solid #10b981', borderRight: '3px solid #10b981' }} />
                 </>
               ) : (
                 <>
-                  <div style={{ position: 'absolute', top: 0, left: 0, width: '12px', height: '12px', borderTop: '3.5px solid #ef4444', borderLeft: '3.5px solid #ef4444' }} />
-                  <div style={{ position: 'absolute', top: 0, right: 0, width: '12px', height: '12px', borderTop: '3.5px solid #ef4444', borderRight: '3.5px solid #ef4444' }} />
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, width: '12px', height: '12px', borderBottom: '3.5px solid #ef4444', borderLeft: '3.5px solid #ef4444' }} />
-                  <div style={{ position: 'absolute', bottom: 0, right: 0, width: '12px', height: '12px', borderBottom: '3.5px solid #ef4444', borderRight: '3.5px solid #ef4444' }} />
+                  <div style={{ position: 'absolute', top: 0, left: 0, width: '10px', height: '10px', borderTop: '3px solid #ef4444', borderLeft: '3px solid #ef4444' }} />
+                  <div style={{ position: 'absolute', top: 0, right: 0, width: '10px', height: '10px', borderTop: '3px solid #ef4444', borderRight: '3px solid #ef4444' }} />
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, width: '10px', height: '10px', borderBottom: '3px solid #ef4444', borderLeft: '3px solid #ef4444' }} />
+                  <div style={{ position: 'absolute', bottom: 0, right: 0, width: '10px', height: '10px', borderBottom: '3px solid #ef4444', borderRight: '3px solid #ef4444' }} />
                 </>
               )}
 
               {/* 座號狀態標籤 */}
-              <div style={{
-                position: 'absolute',
-                top: sp.y > 8 ? '-26px' : '4px',
-                left: '4px',
-                background: isOcc ? 'rgba(16, 185, 129, 0.95)' : 'rgba(239, 68, 68, 0.95)',
-                color: '#ffffff',
-                border: `1px solid ${isOcc ? '#10b981' : '#ef4444'}`,
-                padding: '2px 8px',
-                borderRadius: '4px',
-                fontSize: '0.78rem',
-                fontWeight: 'bold',
-                whiteSpace: 'nowrap',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-              }}>
+              <div
+                style={{
+                  position: 'absolute',
+                  top: sp.y > 8 ? '-24px' : '4px',
+                  left: '4px',
+                  background: isOcc ? 'rgba(16, 185, 129, 0.95)' : 'rgba(239, 68, 68, 0.95)',
+                  color: '#ffffff',
+                  border: `1px solid ${isOcc ? '#10b981' : '#ef4444'}`,
+                  padding: '2px 7px',
+                  borderRadius: '4px',
+                  fontSize: '0.75rem',
+                  fontWeight: 'bold',
+                  whiteSpace: 'nowrap',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                }}
+              >
                 {labelText}
               </div>
             </div>

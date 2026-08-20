@@ -1,8 +1,8 @@
 // TEAM_008: 智慧多座位在座即時儀表板 (Dashboard.jsx)
 // 升級重點：
-// 1. 將相機考勤點名功能直接整合至「最新點名捕捉影像」卡片中，即時串流相機畫面 + MediaPipe 人員在座分析 + 一鍵點名。
-// 2. 徹底移除獨立的「模擬相機考勤點名」彈窗 (CameraSimulatorModal)，操作體驗一體化。
-// 3. 通報與紀錄全面對齊「幾月幾號第幾節」，清楚標註未到/缺席名單。
+// 1. 即時鏡頭分頁：只顯示「📸 立即記錄點名」按鈕與鏡頭選擇器。
+// 2. 最後通報相片分頁：只顯示「👁️ 觀看大圖」按鈕。
+// 3. 徹底移除獨立的相機點名彈窗，操作體驗一體化。
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Users, CheckCircle, Activity, Sparkles, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, Calendar, RefreshCw, Eye } from 'lucide-react';
@@ -59,7 +59,7 @@ const Dashboard = () => {
   const [isSending, setIsSending] = useState(false);
   const [liveSeatStatuses, setLiveSeatStatuses] = useState([]);
 
-  // 畫面檢視模式：'live' (即時鏡頭點名) | 'latest' (最新通報照片)
+  // 畫面檢視模式：'live' (即時鏡頭) | 'latest' (最後通報相片)
   const [previewTab, setPreviewTab] = useState('live');
 
   const videoRef = useRef(null);
@@ -484,11 +484,11 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* 主體區塊：即時相機點名捕捉影像 (左側) 與 即時通報紀錄 (右側) */}
+      {/* 主體區塊：最新點名捕捉影像 (左側) 與 即時通報紀錄簿 (右側) */}
       <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '24px', minHeight: '540px' }}>
-        {/* 最新點名捕捉影像卡片 (內建相機與即時點名功能) */}
+        {/* 最新點名捕捉影像卡片 */}
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
-          {/* 卡片標題與即時模式切換 */}
+          {/* 卡片標題與分頁切換 */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Camera size={22} color="var(--accent-primary)" />
@@ -607,56 +607,70 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* 底部控制器：相機切換 + 📸 即時點名記錄按鈕 */}
+          {/* 底部控制器：依據當前分頁只顯示對應按鈕 */}
           <div style={{ marginTop: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Camera size={16} color="var(--accent-primary)" />
-              <select
-                value={selectedDeviceId}
-                onChange={(e) => setSelectedDeviceId(e.target.value)}
-                style={{ padding: '7px 12px', borderRadius: '8px', background: '#0f172a', color: '#fff', border: '1px solid #334155', fontSize: '0.82rem' }}
-              >
-                {devices.map((d, index) => (
-                  <option key={d.deviceId} value={d.deviceId}>
-                    {d.label || `鏡頭 #${index + 1}`}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {previewTab === 'live' ? (
+              // 即時鏡頭模式：只顯示相機裝置切換與「立即記錄點名」按鈕
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Camera size={16} color="var(--accent-primary)" />
+                  <select
+                    value={selectedDeviceId}
+                    onChange={(e) => setSelectedDeviceId(e.target.value)}
+                    style={{ padding: '7px 12px', borderRadius: '8px', background: '#0f172a', color: '#fff', border: '1px solid #334155', fontSize: '0.82rem' }}
+                  >
+                    {devices.map((d, index) => (
+                      <option key={d.deviceId} value={d.deviceId}>
+                        {d.label || `鏡頭 #${index + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
-              {latestRecord && (
                 <button
-                  onClick={() => setSelectedRecord(latestRecord)}
+                  onClick={handleTriggerAttendance}
+                  disabled={isSending || !cameraActive}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    padding: '8px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--glass-border)',
-                    color: 'white', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '9px 22px', borderRadius: '8px',
+                    background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
+                    color: '#fff', fontWeight: 600, fontSize: '0.88rem',
+                    border: 'none', cursor: isSending || !cameraActive ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 14px rgba(59, 130, 246, 0.35)',
+                    transition: 'transform 0.2s',
+                    marginLeft: 'auto',
                   }}
+                  onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
+                  onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
                 >
-                  <Eye size={15} /> 觀看大圖
+                  <Camera size={16} />
+                  {isSending ? '通報點名中...' : `📸 立即記錄點名 (${currentPeriodTitle})`}
                 </button>
-              )}
+              </>
+            ) : (
+              // 最後通報相片模式：只顯示「觀看大圖」按鈕
+              <>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Calendar size={14} />
+                  <span>{latestRecord ? `最後紀錄：${latestRecord.message}` : '尚無點名照片'}</span>
+                </div>
 
-              <button
-                onClick={handleTriggerAttendance}
-                disabled={isSending || !cameraActive}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '8px',
-                  padding: '9px 20px', borderRadius: '8px',
-                  background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
-                  color: '#fff', fontWeight: 600, fontSize: '0.88rem',
-                  border: 'none', cursor: isSending || !cameraActive ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 4px 14px rgba(59, 130, 246, 0.35)',
-                  transition: 'transform 0.2s',
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-                onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
-              >
-                <Camera size={16} />
-                {isSending ? '通報點名中...' : `📸 立即記錄點名 (${currentPeriodTitle})`}
-              </button>
-            </div>
+                {latestRecord && (
+                  <button
+                    onClick={() => setSelectedRecord(latestRecord)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      padding: '9px 20px', background: 'var(--accent-primary)',
+                      color: 'white', borderRadius: '8px', fontSize: '0.88rem', fontWeight: 600,
+                      border: 'none', cursor: 'pointer', marginLeft: 'auto',
+                      boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+                    }}
+                  >
+                    <Eye size={16} /> 觀看大圖
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </div>
 
