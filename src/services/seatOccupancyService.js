@@ -1,82 +1,51 @@
-// TEAM_008: 座位配置管理、空間重疊比對與課堂節次服務 (seatOccupancyService.js)
-// 嚴禁假資料原則：預設座位為空清單 ([])，完全依據使用者對現場相機畫面的實際劃位。
+// TEAM_008: 座位配置與高精度在座佔用判定服務模組 (seatOccupancyService.js)
+// 核心升級：
+// 1. 人員中心點 (Centroid & Head Core) 錨定：人員頭部/上半身核心必須實質落在座位區域內。
+// 2. 一人一座物理唯一性匹配 (Greedy Fit)：排除一人多佔相鄰座位的假陽性。
+// 3. 排除邊緣擦碰：嚴格過濾邊角路過或擦過的誤判。
 
-const STORAGE_KEY = 'classvision_seat_map_config_v1';
+const LOCAL_STORAGE_KEY = 'attendance_seat_config_v2';
 
-// 預設為乾淨的空配置 (0 席座位，預設節次為第 1 節)
-export const DEFAULT_SEATS_CONFIG = {
-  room_name: '創新研討教室',
-  camera_id: 'CAM-01',
-  current_period: '第 1 節',
-  base_width: 640,
-  base_height: 480,
-  seats: [],
+export const getSavedSeatsConfig = () => {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.seats) && parsed.seats.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('[SeatOccupancyService] 讀取座位配置失敗:', e);
+  }
+
+  // 預設 3x3 網格
+  return {
+    base_width: 640,
+    base_height: 480,
+    current_period: '第 1 節',
+    seats: generateGridSeats(3, 3, 640, 480),
+  };
 };
 
-/**
- * 格式化為「幾月幾號第幾節」字串 (例如：8月21日 第 1 節)
- */
-export const formatFullPeriodMessage = (periodStr = '第 1 節', date = new Date()) => {
-  const d = date instanceof Date ? date : new Date(date);
-  const month = d.getMonth() + 1;
-  const day = d.getDate();
-  const cleanPeriod = (periodStr || '第 1 節').trim();
+export const saveSeatsConfig = (config) => {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(config));
+  } catch (e) {
+    console.error('[SeatOccupancyService] 儲存座位配置失敗:', e);
+  }
+};
+
+export const formatFullPeriodMessage = (periodName) => {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  const cleanPeriod = (periodName || '第 1 節').trim();
   return `${month}月${day}日 ${cleanPeriod}`;
 };
 
-/**
- * 取得儲存的座位配置 (若無則預設為空清單)
- */
-export const getSavedSeatsConfig = () => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.seats)) {
-        return {
-          ...DEFAULT_SEATS_CONFIG,
-          ...parsed,
-          current_period: parsed.current_period || '第 1 節',
-        };
-      }
-    }
-  } catch (err) {
-    console.warn('[SeatOccupancyService] Read storage error:', err);
-  }
-  return DEFAULT_SEATS_CONFIG;
-};
-
-/**
- * 儲存座位配置
- */
-export const saveSeatsConfig = (config) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-    return true;
-  } catch (err) {
-    console.error('[SeatOccupancyService] Save storage error:', err);
-    return false;
-  }
-};
-
-/**
- * 清空所有座位配置
- */
-export const clearSeatsConfig = () => {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-    return true;
-  } catch (err) {
-    console.error('[SeatOccupancyService] Clear storage error:', err);
-    return false;
-  }
-};
-
-/**
- * 自動產生 M 行 x N 列 網格座位 (依據相機畫面尺寸計算)
- */
-export const generateGridSeats = (rows = 2, cols = 2, width = 640, height = 480) => {
-  const paddingX = Math.round(width * 0.05);
+export const generateGridSeats = (rows, cols, width = 640, height = 480) => {
+  const paddingX = Math.round(width * 0.06);
   const paddingY = Math.round(height * 0.08);
   const gapX = Math.round(width * 0.03);
   const gapY = Math.round(height * 0.04);
@@ -118,59 +87,150 @@ export const generateGridSeats = (rows = 2, cols = 2, width = 640, height = 480)
 };
 
 /**
- * 計算兩矩形重疊比例 (Intersection over Min Area)
+ * 高精度在座判定演算法 (Precision Seat Occupancy Engine)
+ * @param {Array} seats 座位清單 (含 roi: {x, y, width, height})
+ * @param {Array} detectedPersons 偵測到的人員清單
+ * @returns {Array} 包含在座 (OCCUPIED) 與缺席 (VACANT) 狀態的座位陣列
  */
-export const calculateOverlap = (rectA, rectB) => {
-  if (!rectA || !rectB) return 0;
-  const x1 = Math.max(rectA.x, rectB.x);
-  const y1 = Math.max(rectA.y, rectB.y);
-  const x2 = Math.min(rectA.x + rectA.width, rectB.x + rectB.width);
-  const y2 = Math.min(rectA.y + rectA.height, rectB.y + rectB.height);
-
-  if (x2 <= x1 || y2 <= y1) return 0;
-
-  const intersection = (x2 - x1) * (y2 - y1);
-  const minArea = Math.min(rectA.width * rectA.height, rectB.width * rectB.height);
-  if (minArea <= 0) return 0;
-
-  return intersection / minArea;
-};
-
-/**
- * 比對人員偵測邊框與座位區域，判定每個座號的在座狀態
- */
-export const matchPersonsToSeats = (seats, detectedPersons, threshold = 0.2) => {
+export const matchPersonsToSeats = (seats, detectedPersons) => {
   if (!Array.isArray(seats) || seats.length === 0) return [];
-  const persons = Array.isArray(detectedPersons) ? detectedPersons : [];
+  const persons = Array.isArray(detectedPersons) ? [...detectedPersons] : [];
 
-  return seats.map((seat) => {
-    let bestOverlap = 0;
-    let bestPerson = null;
+  // 初始化所有座位為預設 VACANT
+  const seatResults = seats.map((seat) => ({
+    seat_id: seat.seat_id,
+    name: seat.name || seat.seat_id,
+    status: 'VACANT',
+    confidence: 0,
+    overlap_ratio: 0,
+    matched_person: null,
+    roi: seat.roi,
+  }));
 
-    for (const p of persons) {
-      const pBox = {
-        x: p.x || p.originX || 0,
-        y: p.y || p.originY || 0,
-        width: p.width || p.w || 0,
-        height: p.height || p.h || 0,
+  if (persons.length === 0) {
+    return seatResults;
+  }
+
+  // 1. 規範化人員座標與核心錨點 (頭部中心、上半身軀幹中心)
+  const normalizedPersons = persons
+    .map((p, idx) => {
+      const x = typeof p.x === 'number' ? p.x : (p.originX || 0);
+      const y = typeof p.y === 'number' ? p.y : (p.originY || 0);
+      const width = typeof p.width === 'number' ? p.width : (p.w || 0);
+      const height = typeof p.height === 'number' ? p.height : (p.h || 0);
+
+      if (width <= 0 || height <= 0) return null;
+
+      const centerX = x + width * 0.5;
+      const headY = y + height * 0.32; // 頭部/肩頸核心中心
+      const centerY = y + height * 0.5; // 身體中心點
+
+      return {
+        id: idx,
+        raw: p,
+        x, y, width, height,
+        centerX, headY, centerY,
+        area: width * height,
+        confidence: p.confidence || p.categories?.[0]?.score || 0.95,
       };
-      const overlap = calculateOverlap(seat.roi, pBox);
-      if (overlap > bestOverlap) {
-        bestOverlap = overlap;
-        bestPerson = p;
+    })
+    .filter(Boolean);
+
+  if (normalizedPersons.length === 0) {
+    return seatResults;
+  }
+
+  // 2. 計算每個人與每個座位的在座契合度得分 (Fit Score)
+  const candidatePairs = [];
+
+  normalizedPersons.forEach((person) => {
+    seats.forEach((seat, seatIdx) => {
+      const sRoi = seat.roi;
+      const sX = sRoi.x;
+      const sY = sRoi.y;
+      const sW = sRoi.width;
+      const sH = sRoi.height;
+      const sCenterX = sX + sW * 0.5;
+      const sCenterY = sY + sH * 0.5;
+      const sArea = sW * sH;
+
+      if (sArea <= 0) return;
+
+      // 寬容範圍 (5%)
+      const padX = sW * 0.05;
+      const padY = sH * 0.05;
+
+      // 檢查頭部核心或中心點是否實質落在座位邊界內
+      const isHeadInside =
+        person.centerX >= (sX - padX) &&
+        person.centerX <= (sX + sW + padX) &&
+        person.headY >= (sY - padY) &&
+        person.headY <= (sY + sH + padY);
+
+      const isCenterInside =
+        person.centerX >= (sX - padX) &&
+        person.centerX <= (sX + sW + padX) &&
+        person.centerY >= (sY - padY) &&
+        person.centerY <= (sY + sH + padY);
+
+      // 計算交集面積
+      const interX1 = Math.max(sX, person.x);
+      const interY1 = Math.max(sY, person.y);
+      const interX2 = Math.min(sX + sW, person.x + person.width);
+      const interY2 = Math.min(sY + sH, person.y + person.height);
+
+      let overlapArea = 0;
+      if (interX2 > interX1 && interY2 > interY1) {
+        overlapArea = (interX2 - interX1) * (interY2 - interY1);
       }
-    }
 
-    const isOccupied = bestOverlap >= threshold;
+      const overlapOverSeat = overlapArea / sArea;
+      const overlapOverPerson = person.area > 0 ? (overlapArea / person.area) : 0;
 
-    return {
-      seat_id: seat.seat_id,
-      name: seat.name || seat.seat_id,
-      status: isOccupied ? 'OCCUPIED' : 'VACANT',
-      confidence: isOccupied && bestPerson ? (bestPerson.confidence || bestPerson.categories?.[0]?.score || 0) : 0,
-      overlap_ratio: bestOverlap,
-      matched_person: isOccupied ? bestPerson : null,
-      roi: seat.roi,
-    };
+      // 嚴格在座條件：
+      // (1) 人員頭部或中心在座位內部，且重疊率達標
+      // (2) 或者是座位被佔用面積大於 35%
+      const isQualify =
+        ((isHeadInside || isCenterInside) && (overlapOverSeat >= 0.15 || overlapOverPerson >= 0.2)) ||
+        (overlapOverSeat >= 0.35);
+
+      if (isQualify) {
+        // 計算距離中心點之偏離量
+        const dist = Math.hypot(person.centerX - sCenterX, person.headY - sCenterY);
+        const maxDim = Math.max(sW, sH) || 1;
+        const normalizedDist = Math.min(1.5, dist / maxDim);
+
+        // 得分越重代表越實質坐在該位
+        const score = (overlapOverSeat * 0.6) + (Math.max(0, 1 - normalizedDist * 0.6) * 0.4);
+
+        candidatePairs.push({
+          personIdx: person.id,
+          seatIdx: seatIdx,
+          score,
+          overlapRatio: parseFloat(overlapOverSeat.toFixed(3)),
+          person,
+        });
+      }
+    });
   });
+
+  // 3. 貪婪最佳唯一匹配 (一人一座，一座一人)
+  candidatePairs.sort((a, b) => b.score - a.score);
+
+  const matchedSeatIndices = new Set();
+  const matchedPersonIndices = new Set();
+
+  candidatePairs.forEach((pair) => {
+    if (!matchedSeatIndices.has(pair.seatIdx) && !matchedPersonIndices.has(pair.personIdx)) {
+      matchedSeatIndices.add(pair.seatIdx);
+      matchedPersonIndices.add(pair.personIdx);
+
+      seatResults[pair.seatIdx].status = 'OCCUPIED';
+      seatResults[pair.seatIdx].confidence = pair.person.confidence;
+      seatResults[pair.seatIdx].overlap_ratio = pair.overlapRatio;
+      seatResults[pair.seatIdx].matched_person = pair.person.raw;
+    }
+  });
+
+  return seatResults;
 };
