@@ -60,6 +60,8 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
 
   const lastDetectionsRef = useRef([]);
   const lastDetectionTimeRef = useRef(0);
+  // TEAM_008: 記錄 MediaPipe 前次傳入時間戳，維護嚴格單調遞增
+  const lastDetectionTimestampRef = useRef(0);
 
   const getCameraDevices = async () => {
     try {
@@ -74,28 +76,51 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
     }
   };
 
+  // TEAM_008: 強化相機開啟與多層次智慧降級 (exact -> soft -> generic)
   const startCamera = async (deviceId) => {
     setCameraError(null);
     stopCamera();
 
     try {
-      const constraints = {
-        video: deviceId ? { deviceId: { exact: deviceId } } : { width: { ideal: 1280 }, height: { ideal: 720 } },
-      };
+      let stream = null;
+      try {
+        const constraints = {
+          video: deviceId ? { deviceId: { exact: deviceId } } : { width: { ideal: 1280 }, height: { ideal: 720 } },
+        };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err1) {
+        console.warn('[CameraSimulator TEAM_008] Exact constraint failed, trying soft deviceId:', err1);
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: deviceId ? { deviceId: deviceId } : { width: { ideal: 1280 }, height: { ideal: 720 } },
+          });
+        } catch (err2) {
+          console.warn('[CameraSimulator TEAM_008] Soft constraint failed, fallback to generic video stream:', err2);
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
+      }
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
+
+      // 監聽軌道中斷自動恢復
+      stream.getVideoTracks().forEach((track) => {
+        track.onended = () => {
+          console.warn('[CameraSimulator TEAM_008] Camera stream track ended. Auto restarting...');
+          setCameraActive(false);
+          setTimeout(() => startCamera(selectedDeviceId), 1200);
+        };
+      });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.play().catch((e) => console.warn('[CameraSimulator TEAM_008] Play error:', e));
       }
 
       setCameraActive(true);
       await getCameraDevices();
     } catch (err) {
-      console.error('[CameraSimulator] Open camera error:', err);
-      setCameraError('無法開啟網路攝像機，請確認已授權相機存取權限。');
+      console.error('[CameraSimulator TEAM_008] Open camera error:', err);
+      setCameraError('無法開啟網路攝影機，請確認相機權限或連線。');
       setCameraActive(false);
     }
   };
@@ -151,7 +176,11 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
           if (personDetector && video.currentTime !== lastVideoTimeRef.current) {
             lastVideoTimeRef.current = video.currentTime;
             try {
-              const results = personDetector.detectForVideo(video, now);
+              // TEAM_008: MediaPipe 要求傳入 timestamp 必須嚴格單調遞增 (Monotonic)
+              const safeTimestamp = Math.max(now, lastDetectionTimestampRef.current + 1);
+              lastDetectionTimestampRef.current = safeTimestamp;
+
+              const results = personDetector.detectForVideo(video, safeTimestamp);
               const newDetections = results.detections || [];
               if (newDetections.length > 0) {
                 lastDetectionsRef.current = newDetections;
@@ -160,7 +189,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
                 lastDetectionsRef.current = [];
               }
             } catch (e) {
-              // 容錯
+              console.warn('[CameraSimulator TEAM_008] MediaPipe detectForVideo exception safe handled:', e);
             }
           }
 

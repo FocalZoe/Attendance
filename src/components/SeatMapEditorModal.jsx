@@ -44,27 +44,49 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
   };
 
   // 啟動相機
+  // TEAM_008: 升級相機相容降級與軌道中斷恢復
   const startCamera = async (deviceId) => {
     setCameraError(null);
     stopCamera();
 
     try {
-      const constraints = {
-        video: deviceId ? { deviceId: { exact: deviceId } } : { width: { ideal: 1920 }, height: { ideal: 1080 } },
-      };
+      let stream = null;
+      try {
+        const constraints = {
+          video: deviceId ? { deviceId: { exact: deviceId } } : { width: { ideal: 1920 }, height: { ideal: 1080 } },
+        };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err1) {
+        console.warn('[SeatMapEditor TEAM_008] Exact constraint failed, try soft deviceId:', err1);
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: deviceId ? { deviceId: deviceId } : { width: { ideal: 1280 }, height: { ideal: 720 } },
+          });
+        } catch (err2) {
+          console.warn('[SeatMapEditor TEAM_008] Soft constraint failed, fallback to generic video:', err2);
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
+      }
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
+
+      stream.getVideoTracks().forEach((track) => {
+        track.onended = () => {
+          console.warn('[SeatMapEditor TEAM_008] Camera stream track ended. Auto restarting...');
+          setCameraActive(false);
+          setTimeout(() => startCamera(selectedDeviceId), 1200);
+        };
+      });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.play().catch((e) => console.warn('[SeatMapEditor TEAM_008] Video play warning:', e));
       }
 
       setCameraActive(true);
       await getCameraDevices();
     } catch (err) {
-      console.warn('[SeatMapEditor] Camera error:', err);
+      console.warn('[SeatMapEditor TEAM_008] Camera error:', err);
       setCameraError('無法開啟相機鏡頭，請確認鏡頭權限與連線。');
       setCameraActive(false);
     }

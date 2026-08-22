@@ -70,6 +70,8 @@ const Dashboard = () => {
   const lastVideoTimeRef = useRef(-1);
   const lastDetectionsRef = useRef([]);
   const lastDetectionTimeRef = useRef(0);
+  // TEAM_008: 記錄 MediaPipe 前次傳入時間戳，維護嚴格單調遞增
+  const lastDetectionTimestampRef = useRef(0);
 
   // 取得可用相機裝置清單
   const getCameraDevices = async () => {
@@ -86,28 +88,64 @@ const Dashboard = () => {
   };
 
   // 啟動相機
+  // TEAM_008: 強化相機啟動邏輯（含多層 constraints 容錯備援與軌道中斷自動喚醒）
   const startCamera = async (deviceId) => {
     setCameraError(null);
     stopCamera();
 
     try {
-      const constraints = {
-        video: deviceId ? { deviceId: { exact: deviceId } } : { width: { ideal: 1920 }, height: { ideal: 1080 } },
-      };
+      let stream = null;
+      // TEAM_008: 第一層 exact 裝置 constraint 嘗試，失敗時漸進降級
+      try {
+        const constraints = {
+          video: deviceId ? { deviceId: { exact: deviceId } } : { width: { ideal: 1920 }, height: { ideal: 1080 } },
+        };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err1) {
+        console.warn('[Dashboard TEAM_008] Exact constraint failed, fallback to soft deviceId constraint:', err1);
+        try {
+          const fallbackConstraints = {
+            video: deviceId ? { deviceId: deviceId } : { width: { ideal: 1280 }, height: { ideal: 720 } },
+          };
+          stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+        } catch (err2) {
+          console.warn('[Dashboard TEAM_008] Soft constraint failed, fallback to generic video stream:', err2);
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
+      }
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
+
+      // TEAM_008: 綁定視訊軌道事件（中斷時自動排程重連，被遮蔽解除時自動播放）
+      stream.getVideoTracks().forEach((track) => {
+        track.onended = () => {
+          console.warn('[Dashboard TEAM_008] Camera stream track ended. Attempting auto restart...');
+          setCameraActive(false);
+          setTimeout(() => {
+            startCamera(selectedDeviceId);
+          }, 1200);
+        };
+        track.onmute = () => {
+          console.warn('[Dashboard TEAM_008] Camera stream track muted.');
+        };
+        track.onunmute = () => {
+          console.log('[Dashboard TEAM_008] Camera stream track unmuted.');
+          if (videoRef.current && videoRef.current.paused) {
+            videoRef.current.play().catch(() => {});
+          }
+        };
+      });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.play().catch((e) => console.warn('[Dashboard TEAM_008] Video play warning:', e));
       }
 
       setCameraActive(true);
       await getCameraDevices();
     } catch (err) {
-      console.error('[Dashboard] Start camera error:', err);
-      setCameraError('尚未啟動相機鏡頭');
+      console.error('[Dashboard TEAM_008] Start camera error:', err);
+      setCameraError('尚未啟動相機鏡頭（相機被佔用或權限未開啟）');
       setCameraActive(false);
     }
   };
@@ -162,7 +200,11 @@ const Dashboard = () => {
           if (personDetector && video.currentTime !== lastVideoTimeRef.current) {
             lastVideoTimeRef.current = video.currentTime;
             try {
-              const results = personDetector.detectForVideo(video, now);
+              // TEAM_008: MediaPipe 要求傳入 timestamp 必須嚴格單調遞增 (Monotonic)
+              const safeTimestamp = Math.max(now, lastDetectionTimestampRef.current + 1);
+              lastDetectionTimestampRef.current = safeTimestamp;
+
+              const results = personDetector.detectForVideo(video, safeTimestamp);
               const newDetections = results.detections || [];
               if (newDetections.length > 0) {
                 lastDetectionsRef.current = newDetections;
@@ -170,7 +212,9 @@ const Dashboard = () => {
               } else if (now - lastDetectionTimeRef.current > 400) {
                 lastDetectionsRef.current = [];
               }
-            } catch (e) {}
+            } catch (e) {
+              console.warn('[Dashboard TEAM_008] MediaPipe detectForVideo exception safe handled:', e);
+            }
           }
 
           const detections = lastDetectionsRef.current;
@@ -275,6 +319,40 @@ const Dashboard = () => {
       setLatestRecord(data[0]);
     }
   };
+
+  // TEAM_008: 自動檢查並確保 Video srcObject 串流持續綁定與分頁喚醒重播放
+  useEffect(() => {
+    if (cameraActive && streamRef.current && videoRef.current) {
+      if (videoRef.current.srcObject !== streamRef.current) {
+        console.log('[Dashboard TEAM_008] Re-attaching streamRef to videoRef.current');
+        videoRef.current.srcObject = streamRef.current;
+      }
+      if (videoRef.current.paused) {
+        videoRef.current.play().catch(() => {});
+      }
+    }
+  }, [cameraActive, previewTab]);
+
+  // TEAM_008: 分頁恢復焦點與背景喚醒自動恢復畫面播放
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && cameraActive && streamRef.current) {
+        console.log('[Dashboard TEAM_008] Tab reactivated, ensuring camera playback...');
+        if (videoRef.current && videoRef.current.paused) {
+          videoRef.current.play().catch(() => {});
+        }
+      }
+    };
+    const handleFocus = () => handleVisibilityChange();
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [cameraActive]);
 
   useEffect(() => {
     loadRecords();
@@ -553,56 +631,57 @@ const Dashboard = () => {
               justifyContent: 'center',
             }}
           >
-            {previewTab === 'live' ? (
-              <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  onLoadedMetadata={(e) => {
-                    const target = e.currentTarget;
-                    if (target.videoWidth > 0 && target.videoHeight > 0) {
-                      setCamAspect(target.videoWidth / target.videoHeight);
-                    }
-                  }}
+            {/* TEAM_008: 即時相機視訊區塊 (常駐 DOM 避免切換 Tab 時被 React 卸載導致 srcObject 遺失與黑屏) */}
+            <div style={{ position: 'relative', width: '100%', height: '100%', display: previewTab === 'live' ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center' }}>
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                onLoadedMetadata={(e) => {
+                  const target = e.currentTarget;
+                  if (target.videoWidth > 0 && target.videoHeight > 0) {
+                    setCamAspect(target.videoWidth / target.videoHeight);
+                  }
+                }}
+                style={{
+                  display: cameraActive ? 'block' : 'none',
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  width: 'auto',
+                  height: 'auto',
+                  objectFit: 'contain',
+                }}
+              />
+
+              {cameraActive && (
+                <canvas
+                  ref={overlayCanvasRef}
                   style={{
-                    display: cameraActive ? 'block' : 'none',
-                    maxWidth: '100%',
-                    maxHeight: '100%',
-                    width: 'auto',
-                    height: 'auto',
-                    objectFit: 'contain',
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    pointerEvents: 'none',
+                    zIndex: 2,
                   }}
                 />
+              )}
 
-                {cameraActive && (
-                  <canvas
-                    ref={overlayCanvasRef}
-                    style={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      pointerEvents: 'none',
-                      zIndex: 2,
-                    }}
-                  />
-                )}
-
-                {!cameraActive && (
-                  <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ padding: '16px', background: 'rgba(239, 68, 68, 0.15)', borderRadius: '50%', color: '#ef4444' }}>
-                      <AlertTriangle size={36} />
-                    </div>
-                    <h4 style={{ color: '#ef4444', margin: '4px 0 0 0' }}>尚未啟動相機鏡頭</h4>
-                    <p style={{ margin: 0, fontSize: '0.85rem' }}>{cameraError || '請選擇鏡頭或授權攝影機存取以開啟即時預覽。'}</p>
+              {!cameraActive && (
+                <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ padding: '16px', background: 'rgba(239, 68, 68, 0.15)', borderRadius: '50%', color: '#ef4444' }}>
+                    <AlertTriangle size={36} />
                   </div>
-                )}
-              </div>
-            ) : (
-              // 檢視最後通報相片 (中間顯示訊息與未到人數，不顯示時間)
-              latestRecord ? (
+                  <h4 style={{ color: '#ef4444', margin: '4px 0 0 0' }}>尚未啟動相機鏡頭</h4>
+                  <p style={{ margin: 0, fontSize: '0.85rem' }}>{cameraError || '請選擇鏡頭或授權攝影機存取以開啟即時預覽。'}</p>
+                </div>
+              )}
+            </div>
+
+            {/* TEAM_008: 最後通報相片區塊 (切換為 latest 時顯示) */}
+            <div style={{ position: 'relative', width: '100%', height: '100%', display: previewTab === 'latest' ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center' }}>
+              {latestRecord ? (
                 <div key={latestRecord.id} className="animate-fade-in" style={{ textAlign: 'center', padding: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', boxSizing: 'border-box' }}>
                   <div style={{ position: 'relative', display: 'inline-block', cursor: 'pointer' }} onClick={() => setSelectedRecord(latestRecord)}>
                     <img
@@ -644,8 +723,8 @@ const Dashboard = () => {
                   <Camera size={44} style={{ opacity: 0.3, marginBottom: '10px' }} />
                   <p style={{ margin: 0 }}>尚未有任何通報紀錄</p>
                 </div>
-              )
-            )}
+              )}
+            </div>
           </div>
 
           {/* 底部控制器 */}
@@ -666,6 +745,27 @@ const Dashboard = () => {
                       </option>
                     ))}
                   </select>
+
+                  {/* TEAM_008: 新增重啟/重新整理相機按鈕 */}
+                  <button
+                    onClick={() => startCamera(selectedDeviceId)}
+                    title="重新載入相機串流"
+                    style={{
+                      padding: '7px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(59, 130, 246, 0.15)',
+                      color: 'var(--accent-primary)',
+                      border: '1px solid rgba(59, 130, 246, 0.3)',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    <RefreshCw size={14} /> 重新整理鏡頭
+                  </button>
                 </div>
 
                 <button
