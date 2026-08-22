@@ -44,25 +44,32 @@ export const formatFullPeriodMessage = (periodName) => {
   return `${month}月${day}日 ${cleanPeriod}`;
 };
 
-export const generateGridSeats = (rows, cols, width = 640, height = 480) => {
-  const paddingX = Math.round(width * 0.06);
-  const paddingY = Math.round(height * 0.08);
-  const gapX = Math.round(width * 0.03);
-  const gapY = Math.round(height * 0.04);
+export const generateGridSeats = (rows = 3, cols = 3, width = 640, height = 480) => {
+  const safeRows = Math.max(1, parseInt(rows, 10) || 1);
+  const safeCols = Math.max(1, parseInt(cols, 10) || 1);
 
-  const totalGapX = (cols - 1) * gapX;
-  const totalGapY = (rows - 1) * gapY;
-  const seatW = Math.floor((width - paddingX * 2 - totalGapX) / cols);
-  const seatH = Math.floor((height - paddingY * 2 - totalGapY) / rows);
+  // 依據欄列數動態自適應 padding 與 gap 百分比
+  const paddingRatioX = safeCols > 6 ? 0.03 : 0.06;
+  const paddingRatioY = safeRows > 6 ? 0.04 : 0.08;
+  const gapRatioX = safeCols > 6 ? 0.015 : 0.03;
+  const gapRatioY = safeRows > 6 ? 0.02 : 0.04;
 
-  const rowLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+  const paddingX = Math.round(width * paddingRatioX);
+  const paddingY = Math.round(height * paddingRatioY);
+  const gapX = Math.round(width * gapRatioX);
+  const gapY = Math.round(height * gapRatioY);
+
+  const totalGapX = (safeCols - 1) * gapX;
+  const totalGapY = (safeRows - 1) * gapY;
+  const seatW = Math.max(10, Math.floor((width - paddingX * 2 - totalGapX) / safeCols));
+  const seatH = Math.max(10, Math.floor((height - paddingY * 2 - totalGapY) / safeRows));
+
   const seats = [];
+  let count = 1;
 
-  for (let r = 0; r < rows; r++) {
-    const letter = rowLetters[r] || `R${r + 1}`;
-    for (let c = 0; c < cols; c++) {
-      const seatNum = String(c + 1).padStart(2, '0');
-      const seatId = `${letter}-${seatNum}`;
+  for (let r = 0; r < safeRows; r++) {
+    for (let c = 0; c < safeCols; c++) {
+      const seatId = String(count);
       const x = paddingX + c * (seatW + gapX);
       const y = paddingY + r * (seatH + gapY);
 
@@ -80,6 +87,7 @@ export const generateGridSeats = (rows, cols, width = 640, height = 480) => {
           height_pct: parseFloat(((seatH / height) * 100).toFixed(2)),
         },
       });
+      count++;
     }
   }
 

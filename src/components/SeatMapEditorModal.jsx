@@ -3,20 +3,32 @@
 // 1. 使用 ReactDOM.createPortal 達成 100% 全域全螢幕覆蓋 (zIndex: 999999)。
 // 2. 無相機時嚴格禁止劃位，並顯示提示。
 // 3. 有相機時，畫面與畫布鎖定鏡頭真實長寬比等比例縮放，確保劃位百分之百精確。
+// 4. 支援自訂排數 (Rows) 與每排欄數 (Cols) 數值網格生成，純數字流水號座號。
+// 5. 支援選取座位框拖曳移動 (Drag Move) 與 4 個角落把手自訂縮放大小 (Resize Handles)。
 
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { X, Trash2, Grid, Save, LayoutGrid, Check, Info, Camera, GraduationCap, Calendar, Clock, AlertTriangle } from 'lucide-react';
+import { X, Trash2, Grid, Save, LayoutGrid, Check, Info, Camera, GraduationCap, AlertTriangle } from 'lucide-react';
 import { getSavedSeatsConfig, saveSeatsConfig, generateGridSeats, formatFullPeriodMessage } from '../services/seatOccupancyService';
 
 export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
   const [config, setConfig] = useState(getSavedSeatsConfig());
   const [period, setPeriod] = useState(config.current_period || '第 1 節');
   const [selectedSeatIndex, setSelectedSeatIndex] = useState(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [drawStartPct, setDrawStartPct] = useState({ x: 0, y: 0 });
-  const [currentDrawRectPct, setCurrentDrawRectPct] = useState(null);
   const [savedNotice, setSavedNotice] = useState(false);
+
+  // 自訂網格設定
+  const [gridRows, setGridRows] = useState(3);
+  const [gridCols, setGridCols] = useState(3);
+
+  // 互動狀態：'NONE' | 'DRAW' | 'MOVE' | 'RESIZE'
+  const [interactionMode, setInteractionMode] = useState('NONE');
+  const [resizeHandle, setResizeHandle] = useState(null); // 'nw' | 'ne' | 'sw' | 'se'
+  const [dragStartPoint, setDragStartPoint] = useState({ x: 0, y: 0 });
+  const [initialSeatPct, setInitialSeatPct] = useState(null);
+  const [currentDrawRectPct, setCurrentDrawRectPct] = useState(null);
+  const [drawStartPct, setDrawStartPct] = useState({ x: 0, y: 0 });
+  const [hasMoved, setHasMoved] = useState(false);
 
   // 相機真實視訊解析度與長寬比
   const [videoDims, setVideoDims] = useState({ width: 0, height: 0 });
@@ -43,8 +55,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
     }
   };
 
-  // 啟動相機
-  // TEAM_008: 升級相機相容降級與軌道中斷恢復
+  // 啟動相機 (相容降級與軌道中斷恢復)
   const startCamera = async (deviceId) => {
     setCameraError(null);
     stopCamera();
@@ -152,86 +163,200 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
     };
   };
 
-  // 滑鼠按下 (無相機時禁止劃位)
-  const handleMouseDown = (e) => {
+  // 更新座位的百分比與像素幾何
+  const updateSeatRoiPct = (index, newPct) => {
+    const vW = videoDims.width || 640;
+    const vH = videoDims.height || 480;
+    const updatedSeats = [...config.seats];
+    const targetSeat = updatedSeats[index];
+    if (!targetSeat) return;
+
+    const xPct = parseFloat(newPct.x.toFixed(2));
+    const yPct = parseFloat(newPct.y.toFixed(2));
+    const wPct = parseFloat(newPct.width.toFixed(2));
+    const hPct = parseFloat(newPct.height.toFixed(2));
+
+    updatedSeats[index] = {
+      ...targetSeat,
+      roi: {
+        ...targetSeat.roi,
+        x_pct: xPct,
+        y_pct: yPct,
+        width_pct: wPct,
+        height_pct: hPct,
+        x: Math.round((xPct / 100) * vW),
+        y: Math.round((yPct / 100) * vH),
+        width: Math.round((wPct / 100) * vW),
+        height: Math.round((hPct / 100) * vH),
+      },
+    };
+
+    setConfig({
+      ...config,
+      base_width: vW,
+      base_height: vH,
+      seats: updatedSeats,
+    });
+  };
+
+  // 縮放把手點擊按下
+  const handleResizeHandleMouseDown = (e, handleType, seatIndex) => {
+    if (!cameraActive) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    const pt = getPointPct(e);
+    setSelectedSeatIndex(seatIndex);
+    setInteractionMode('RESIZE');
+    setResizeHandle(handleType);
+    setDragStartPoint(pt);
+    setInitialSeatPct(getSeatPct(config.seats[seatIndex]));
+    setHasMoved(false);
+  };
+
+  // 座位框本體點擊按下 (開始移動或切換選取)
+  const handleSeatMouseDown = (e, seatIndex) => {
+    if (!cameraActive) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    const pt = getPointPct(e);
+    setSelectedSeatIndex(seatIndex);
+    setInteractionMode('MOVE');
+    setDragStartPoint(pt);
+    setInitialSeatPct(getSeatPct(config.seats[seatIndex]));
+    setHasMoved(false);
+  };
+
+  // 畫布空白處按下 (開始繪製新座位)
+  const handleCanvasMouseDown = (e) => {
     if (!cameraActive) return;
 
-    const { x: clickX, y: clickY } = getPointPct(e);
-
-    // 檢查是否點擊到現有座位
-    const clickedIndex = config.seats.findIndex((seat) => {
-      const sp = getSeatPct(seat);
-      return clickX >= sp.x && clickX <= sp.x + sp.width && clickY >= sp.y && clickY <= sp.y + sp.height;
-    });
-
-    if (clickedIndex !== -1) {
-      setSelectedSeatIndex(clickedIndex);
-      setIsDrawing(false);
-      return;
-    }
-
-    // 開始繪製新座位框
-    setIsDrawing(true);
-    setDrawStartPct({ x: clickX, y: clickY });
-    setCurrentDrawRectPct({ x: clickX, y: clickY, width: 0, height: 0 });
-    setSelectedSeatIndex(null);
+    const pt = getPointPct(e);
+    setInteractionMode('DRAW');
+    setDrawStartPct(pt);
+    setCurrentDrawRectPct({ x: pt.x, y: pt.y, width: 0, height: 0 });
+    setDragStartPoint(pt);
+    setHasMoved(false);
   };
 
+  // 滑鼠移動處理 (移動座位、縮放座位或拉框繪製)
   const handleMouseMove = (e) => {
-    if (!isDrawing || !cameraActive) return;
-    const { x: currX, y: currY } = getPointPct(e);
+    if (!cameraActive || interactionMode === 'NONE') return;
+    const pt = getPointPct(e);
 
-    const x = Math.min(drawStartPct.x, currX);
-    const y = Math.min(drawStartPct.y, currY);
-    const width = Math.abs(currX - drawStartPct.x);
-    const height = Math.abs(currY - drawStartPct.y);
+    if (interactionMode === 'MOVE' && selectedSeatIndex !== null && initialSeatPct) {
+      const dx = pt.x - dragStartPoint.x;
+      const dy = pt.y - dragStartPoint.y;
+      if (Math.abs(dx) > 0.2 || Math.abs(dy) > 0.2) {
+        setHasMoved(true);
+      }
+      const newX = Math.max(0, Math.min(100 - initialSeatPct.width, initialSeatPct.x + dx));
+      const newY = Math.max(0, Math.min(100 - initialSeatPct.height, initialSeatPct.y + dy));
+      updateSeatRoiPct(selectedSeatIndex, {
+        x: newX,
+        y: newY,
+        width: initialSeatPct.width,
+        height: initialSeatPct.height,
+      });
+    } else if (interactionMode === 'RESIZE' && selectedSeatIndex !== null && initialSeatPct) {
+      const dx = pt.x - dragStartPoint.x;
+      const dy = pt.y - dragStartPoint.y;
+      setHasMoved(true);
 
-    setCurrentDrawRectPct({ x, y, width, height });
+      let newX = initialSeatPct.x;
+      let newY = initialSeatPct.y;
+      let newW = initialSeatPct.width;
+      let newH = initialSeatPct.height;
+
+      if (resizeHandle === 'se') {
+        newW = Math.max(2, Math.min(100 - initialSeatPct.x, initialSeatPct.width + dx));
+        newH = Math.max(2, Math.min(100 - initialSeatPct.y, initialSeatPct.height + dy));
+      } else if (resizeHandle === 'sw') {
+        newX = Math.max(0, Math.min(initialSeatPct.x + initialSeatPct.width - 2, initialSeatPct.x + dx));
+        newW = (initialSeatPct.x + initialSeatPct.width) - newX;
+        newH = Math.max(2, Math.min(100 - initialSeatPct.y, initialSeatPct.height + dy));
+      } else if (resizeHandle === 'ne') {
+        newW = Math.max(2, Math.min(100 - initialSeatPct.x, initialSeatPct.width + dx));
+        newY = Math.max(0, Math.min(initialSeatPct.y + initialSeatPct.height - 2, initialSeatPct.y + dy));
+        newH = (initialSeatPct.y + initialSeatPct.height) - newY;
+      } else if (resizeHandle === 'nw') {
+        newX = Math.max(0, Math.min(initialSeatPct.x + initialSeatPct.width - 2, initialSeatPct.x + dx));
+        newY = Math.max(0, Math.min(initialSeatPct.y + initialSeatPct.height - 2, initialSeatPct.y + dy));
+        newW = (initialSeatPct.x + initialSeatPct.width) - newX;
+        newH = (initialSeatPct.y + initialSeatPct.height) - newY;
+      }
+
+      updateSeatRoiPct(selectedSeatIndex, {
+        x: newX,
+        y: newY,
+        width: newW,
+        height: newH,
+      });
+    } else if (interactionMode === 'DRAW') {
+      const x = Math.min(drawStartPct.x, pt.x);
+      const y = Math.min(drawStartPct.y, pt.y);
+      const width = Math.abs(pt.x - drawStartPct.x);
+      const height = Math.abs(pt.y - drawStartPct.y);
+      if (width > 0.5 || height > 0.5) {
+        setHasMoved(true);
+      }
+      setCurrentDrawRectPct({ x, y, width, height });
+    }
   };
 
+  // 滑鼠放開處理
   const handleMouseUp = () => {
     if (!cameraActive) {
-      setIsDrawing(false);
+      setInteractionMode('NONE');
       setCurrentDrawRectPct(null);
       return;
     }
 
-    if (isDrawing && currentDrawRectPct && currentDrawRectPct.width > 2 && currentDrawRectPct.height > 2) {
-      const nextNum = config.seats.length + 1;
-      const xPct = parseFloat(currentDrawRectPct.x.toFixed(2));
-      const yPct = parseFloat(currentDrawRectPct.y.toFixed(2));
-      const wPct = parseFloat(currentDrawRectPct.width.toFixed(2));
-      const hPct = parseFloat(currentDrawRectPct.height.toFixed(2));
+    if (interactionMode === 'DRAW') {
+      if (currentDrawRectPct && currentDrawRectPct.width > 2 && currentDrawRectPct.height > 2) {
+        const nextNum = config.seats.length + 1;
+        const xPct = parseFloat(currentDrawRectPct.x.toFixed(2));
+        const yPct = parseFloat(currentDrawRectPct.y.toFixed(2));
+        const wPct = parseFloat(currentDrawRectPct.width.toFixed(2));
+        const hPct = parseFloat(currentDrawRectPct.height.toFixed(2));
 
-      const vW = videoDims.width || 640;
-      const vH = videoDims.height || 480;
+        const vW = videoDims.width || 640;
+        const vH = videoDims.height || 480;
 
-      const newSeat = {
-        seat_id: `A-${String(nextNum).padStart(2, '0')}`,
-        name: `座位 #${nextNum}`,
-        roi: {
-          x_pct: xPct,
-          y_pct: yPct,
-          width_pct: wPct,
-          height_pct: hPct,
-          x: Math.round((xPct / 100) * vW),
-          y: Math.round((yPct / 100) * vH),
-          width: Math.round((wPct / 100) * vW),
-          height: Math.round((hPct / 100) * vH),
-        },
-      };
+        const newSeat = {
+          seat_id: String(nextNum),
+          name: `座位 #${nextNum}`,
+          roi: {
+            x_pct: xPct,
+            y_pct: yPct,
+            width_pct: wPct,
+            height_pct: hPct,
+            x: Math.round((xPct / 100) * vW),
+            y: Math.round((yPct / 100) * vH),
+            width: Math.round((wPct / 100) * vW),
+            height: Math.round((hPct / 100) * vH),
+          },
+        };
 
-      const updated = {
-        ...config,
-        base_width: vW,
-        base_height: vH,
-        seats: [...config.seats, newSeat],
-      };
-      setConfig(updated);
-      setSelectedSeatIndex(updated.seats.length - 1);
+        const updated = {
+          ...config,
+          base_width: vW,
+          base_height: vH,
+          seats: [...config.seats, newSeat],
+        };
+        setConfig(updated);
+        setSelectedSeatIndex(updated.seats.length - 1);
+      } else if (!hasMoved) {
+        // 單純點擊空白畫布，取消選取
+        setSelectedSeatIndex(null);
+      }
     }
-    setIsDrawing(false);
+
+    setInteractionMode('NONE');
     setCurrentDrawRectPct(null);
+    setResizeHandle(null);
+    setInitialSeatPct(null);
   };
 
   // 刪除選取座位
@@ -254,15 +379,17 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
     setConfig({ ...config, seats: updatedSeats });
   };
 
-  // 一鍵產生網格佈局
+  // 產生自訂數值網格佈局
   const handleGenerateGrid = (rows, cols) => {
     if (!cameraActive) {
       alert('請先啟動相機鏡頭以進行劃位。');
       return;
     }
+    const r = Math.max(1, parseInt(rows, 10) || 1);
+    const c = Math.max(1, parseInt(cols, 10) || 1);
     const vW = videoDims.width || 640;
     const vH = videoDims.height || 480;
-    const newSeats = generateGridSeats(rows, cols, vW, vH);
+    const newSeats = generateGridSeats(r, c, vW, vH);
     setConfig({
       ...config,
       base_width: vW,
@@ -288,6 +415,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
   const currentFormattedPeriod = formatFullPeriodMessage(period);
   const aspectVal = (videoDims.width && videoDims.height) ? (videoDims.width / videoDims.height) : (4 / 3);
+  const totalGridSeats = (parseInt(gridRows, 10) || 1) * (parseInt(gridCols, 10) || 1);
 
   const modalContent = (
     <div
@@ -311,7 +439,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
-          maxWidth: '1020px',
+          maxWidth: '1060px',
           maxHeight: '94vh',
           overflowY: 'auto',
           background: '#1e293b',
@@ -343,7 +471,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
                 )}
               </h2>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                {cameraActive ? `鏡頭視野等比例呈現，滑鼠拖曳拉框標定座位 (已配置 ${config.seats.length} 席)` : '需啟動相機鏡頭方可進行精確劃位'}
+                {cameraActive ? `可拖曳移動座位、拉伸四角調整大小，或在空白處框選新座位 (目前共 ${config.seats.length} 席)` : '需啟動相機鏡頭方可進行精確劃位'}
               </span>
             </div>
           </div>
@@ -395,35 +523,90 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
           </div>
         </div>
 
-        {/* 快捷排版與相機設定列 */}
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', background: 'rgba(15, 23, 42, 0.6)', padding: '10px 16px', borderRadius: '10px', justifyContent: 'space-between' }}>
+        {/* 快捷排版與相機設定列 (支援自訂排數與欄數) */}
+        <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap', background: 'rgba(15, 23, 42, 0.65)', padding: '12px 16px', borderRadius: '10px', justifyContent: 'space-between', border: '1px solid rgba(255,255,255,0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '0.85rem', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
               <Grid size={16} /> 快速生成網格：
             </span>
+
+            {/* 自訂排數與欄數輸入 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#0f172a', padding: '4px 8px', borderRadius: '8px', border: '1px solid #334155' }}>
+              <label style={{ fontSize: '0.78rem', color: '#94a3b8' }}>排數 (Rows)</label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={gridRows}
+                onChange={(e) => setGridRows(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                style={{ width: '46px', padding: '3px 6px', background: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: '#fff', fontSize: '0.82rem', textAlign: 'center' }}
+              />
+              <span style={{ color: '#64748b', fontSize: '0.8rem' }}>×</span>
+              <label style={{ fontSize: '0.78rem', color: '#94a3b8' }}>每排席數 (Cols)</label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={gridCols}
+                onChange={(e) => setGridCols(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                style={{ width: '46px', padding: '3px 6px', background: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: '#fff', fontSize: '0.82rem', textAlign: 'center' }}
+              />
+            </div>
+
+            {/* 一鍵產生自訂網格按鈕 */}
             <button
-              onClick={() => handleGenerateGrid(2, 2)}
+              onClick={() => handleGenerateGrid(gridRows, gridCols)}
               disabled={!cameraActive}
-              style={{ padding: '5px 12px', background: cameraActive ? '#334155' : 'rgba(255,255,255,0.05)', color: cameraActive ? '#fff' : '#64748b', borderRadius: '6px', fontSize: '0.8rem', cursor: cameraActive ? 'pointer' : 'not-allowed' }}
+              style={{
+                padding: '6px 14px',
+                background: cameraActive ? 'linear-gradient(135deg, #0284c7, #2563eb)' : 'rgba(255,255,255,0.05)',
+                color: cameraActive ? '#fff' : '#64748b',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                cursor: cameraActive ? 'pointer' : 'not-allowed',
+                boxShadow: cameraActive ? '0 2px 8px rgba(37, 99, 235, 0.3)' : 'none',
+                transition: 'all 0.2s',
+              }}
             >
-              2 × 2 (4 席)
+              生成網格 (共 {totalGridSeats} 席)
             </button>
-            <button
-              onClick={() => handleGenerateGrid(2, 3)}
-              disabled={!cameraActive}
-              style={{ padding: '5px 12px', background: cameraActive ? '#334155' : 'rgba(255,255,255,0.05)', color: cameraActive ? '#fff' : '#64748b', borderRadius: '6px', fontSize: '0.8rem', cursor: cameraActive ? 'pointer' : 'not-allowed' }}
-            >
-              2 × 3 (6 席)
-            </button>
-            <button
-              onClick={() => handleGenerateGrid(3, 3)}
-              disabled={!cameraActive}
-              style={{ padding: '5px 12px', background: cameraActive ? '#334155' : 'rgba(255,255,255,0.05)', color: cameraActive ? '#fff' : '#64748b', borderRadius: '6px', fontSize: '0.8rem', cursor: cameraActive ? 'pointer' : 'not-allowed' }}
-            >
-              3 × 3 (9 席)
-            </button>
+
+            {/* 常用尺寸快速選擇 */}
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              {[
+                { r: 2, c: 2, label: '2×2' },
+                { r: 2, c: 3, label: '2×3' },
+                { r: 3, c: 3, label: '3×3' },
+                { r: 4, c: 5, label: '4×5' },
+                { r: 5, c: 6, label: '5×6' },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  onClick={() => {
+                    setGridRows(item.r);
+                    setGridCols(item.c);
+                    handleGenerateGrid(item.r, item.c);
+                  }}
+                  disabled={!cameraActive}
+                  style={{
+                    padding: '4px 8px',
+                    background: 'rgba(255,255,255,0.06)',
+                    color: cameraActive ? '#cbd5e1' : '#64748b',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: '4px',
+                    fontSize: '0.76rem',
+                    cursor: cameraActive ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
             <button onClick={handleClearAllSeats} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 12px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>
-              <Trash2 size={13} /> 清空所有座位
+              <Trash2 size={13} /> 清空
             </button>
           </div>
 
@@ -449,7 +632,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
           {/* 畫布容器 */}
           <div
             ref={containerRef}
-            onMouseDown={handleMouseDown}
+            onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             style={{
@@ -522,7 +705,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
               </div>
             )}
 
-            {/* 繪製現有座位 (百分比定位) */}
+            {/* 繪製現有座位 (百分比定位，支援選取、拖曳移動與邊角縮放) */}
             {config.seats.map((seat, idx) => {
               const isSelected = selectedSeatIndex === idx;
               const sp = getSeatPct(seat);
@@ -530,6 +713,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
               return (
                 <div
                   key={idx}
+                  onMouseDown={(e) => handleSeatMouseDown(e, idx)}
                   style={{
                     position: 'absolute',
                     left: `${sp.x}%`,
@@ -537,26 +721,102 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
                     width: `${sp.width}%`,
                     height: `${sp.height}%`,
                     border: isSelected ? '2.5px solid #38bdf8' : '2px dashed rgba(59, 130, 246, 0.85)',
-                    background: isSelected ? 'rgba(56, 189, 248, 0.25)' : 'rgba(59, 130, 246, 0.12)',
+                    background: isSelected ? 'rgba(56, 189, 248, 0.3)' : 'rgba(59, 130, 246, 0.15)',
                     borderRadius: '8px',
                     boxSizing: 'border-box',
-                    pointerEvents: 'none',
+                    pointerEvents: cameraActive ? 'auto' : 'none',
+                    cursor: cameraActive ? (isSelected ? 'move' : 'pointer') : 'default',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
                     padding: '6px 8px',
-                    zIndex: 12,
-                    boxShadow: isSelected ? '0 0 14px rgba(56, 189, 248, 0.5)' : 'none',
+                    zIndex: isSelected ? 16 : 12,
+                    boxShadow: isSelected ? '0 0 16px rgba(56, 189, 248, 0.6)' : 'none',
+                    transition: interactionMode === 'NONE' ? 'border 0.15s, background 0.15s' : 'none',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pointerEvents: 'none' }}>
                     <span style={{ fontSize: '0.82rem', fontWeight: 'bold', background: isSelected ? '#38bdf8' : '#3b82f6', color: '#0f172a', padding: '2px 7px', borderRadius: '4px', boxShadow: '0 2px 6px rgba(0,0,0,0.4)' }}>
                       {seat.seat_id}
                     </span>
                   </div>
-                  <span style={{ fontSize: '0.74rem', color: '#e2e8f0', textShadow: '0 1px 3px rgba(0,0,0,0.8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                  <span style={{ fontSize: '0.74rem', color: '#e2e8f0', textShadow: '0 1px 3px rgba(0,0,0,0.8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, pointerEvents: 'none' }}>
                     {seat.name}
                   </span>
+
+                  {/* 選取狀態下的 4 個角落縮放把手 (Resize Handles) */}
+                  {isSelected && cameraActive && (
+                    <>
+                      {/* 左上 (nw) */}
+                      <div
+                        onMouseDown={(e) => handleResizeHandleMouseDown(e, 'nw', idx)}
+                        style={{
+                          position: 'absolute',
+                          top: '-6px',
+                          left: '-6px',
+                          width: '12px',
+                          height: '12px',
+                          background: '#fff',
+                          border: '2px solid #38bdf8',
+                          borderRadius: '50%',
+                          cursor: 'nwse-resize',
+                          zIndex: 20,
+                          boxShadow: '0 0 6px rgba(0,0,0,0.5)',
+                        }}
+                      />
+                      {/* 右上 (ne) */}
+                      <div
+                        onMouseDown={(e) => handleResizeHandleMouseDown(e, 'ne', idx)}
+                        style={{
+                          position: 'absolute',
+                          top: '-6px',
+                          right: '-6px',
+                          width: '12px',
+                          height: '12px',
+                          background: '#fff',
+                          border: '2px solid #38bdf8',
+                          borderRadius: '50%',
+                          cursor: 'nesw-resize',
+                          zIndex: 20,
+                          boxShadow: '0 0 6px rgba(0,0,0,0.5)',
+                        }}
+                      />
+                      {/* 左下 (sw) */}
+                      <div
+                        onMouseDown={(e) => handleResizeHandleMouseDown(e, 'sw', idx)}
+                        style={{
+                          position: 'absolute',
+                          bottom: '-6px',
+                          left: '-6px',
+                          width: '12px',
+                          height: '12px',
+                          background: '#fff',
+                          border: '2px solid #38bdf8',
+                          borderRadius: '50%',
+                          cursor: 'nesw-resize',
+                          zIndex: 20,
+                          boxShadow: '0 0 6px rgba(0,0,0,0.5)',
+                        }}
+                      />
+                      {/* 右下 (se) */}
+                      <div
+                        onMouseDown={(e) => handleResizeHandleMouseDown(e, 'se', idx)}
+                        style={{
+                          position: 'absolute',
+                          bottom: '-6px',
+                          right: '-6px',
+                          width: '12px',
+                          height: '12px',
+                          background: '#fff',
+                          border: '2px solid #38bdf8',
+                          borderRadius: '50%',
+                          cursor: 'nwse-resize',
+                          zIndex: 20,
+                          boxShadow: '0 0 6px rgba(0,0,0,0.5)',
+                        }}
+                      />
+                    </>
+                  )}
                 </div>
               );
             })}
@@ -574,7 +834,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
                   background: 'rgba(16, 185, 129, 0.25)',
                   borderRadius: '8px',
                   pointerEvents: 'none',
-                  zIndex: 15,
+                  zIndex: 18,
                 }}
               />
             )}
@@ -590,7 +850,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div>
                   <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                    座號 ID (如 A-01, 1號桌)
+                    座號 ID (如 1, 2, 01 等純數字)
                   </label>
                   <input
                     type="text"
@@ -612,9 +872,15 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
                   />
                 </div>
 
+                <div style={{ background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.2)', padding: '10px', borderRadius: '8px', fontSize: '0.78rem', color: '#cbd5e1' }}>
+                  <div style={{ fontWeight: 600, color: '#38bdf8', marginBottom: '4px' }}>💡 調整提示：</div>
+                  <div>• 拖曳框框內部可平移位置</div>
+                  <div>• 拖曳四角圓點可自訂大小</div>
+                </div>
+
                 <button
                   onClick={() => handleDeleteSeat(selectedSeatIndex)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '6px', cursor: 'pointer', marginTop: '10px' }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '6px', cursor: 'pointer', marginTop: '6px' }}
                 >
                   <Trash2 size={16} /> 刪除此座位
                 </button>
@@ -626,8 +892,8 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
                   {!cameraActive
                     ? '請先啟動相機鏡頭以進行劃位。'
                     : config.seats.length === 0
-                      ? '目前尚未配置任何座位，請在左側相機畫面上滑鼠拖曳拉框劃位。'
-                      : '請在左側畫面上點選座位，或拖曳框選新座位。'}
+                      ? '目前尚未配置任何座位，請在上方自訂網格生成，或在相機畫面上拖曳拉框劃位。'
+                      : '點選左側座位框可進行拖曳移動或拉伸縮放；在空白處拖曳可新增座位。'}
                 </span>
               </div>
             )}

@@ -56,7 +56,6 @@ const Dashboard = () => {
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [liveSeatStatuses, setLiveSeatStatuses] = useState([]);
   const [camAspect, setCamAspect] = useState(4 / 3);
 
   // 畫面檢視模式：'live' (即時鏡頭) | 'latest' (最後通報相片)
@@ -257,7 +256,6 @@ const Dashboard = () => {
 
           // 3. 計算即時在座狀態
           const statuses = matchPersonsToSeats(scaledSeats, detectedPersonsInView, 0.2);
-          setLiveSeatStatuses(statuses);
 
           // 4. 繪製座位標註框 (在座綠色 / 未到紅色虛線)
           statuses.forEach((st) => {

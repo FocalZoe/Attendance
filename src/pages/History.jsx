@@ -5,12 +5,25 @@
 // 3. 圖示全面採用 Lucide-react。
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchHistoryRecords } from '../services/api';
+import { fetchHistoryRecords, connectWebSocket } from '../services/api';
 import ImageModal from '../components/ImageModal';
 import { Search, RefreshCw, Eye, Calendar, Download, History as HistoryIcon, LayoutGrid, CheckCircle, GraduationCap, UserCheck, UserX, AlertCircle } from 'lucide-react';
 
+const HISTORY_CACHE_KEY = 'attendance_history_cache_v1';
+
+const getCachedHistory = () => {
+  try {
+    const raw = localStorage.getItem(HISTORY_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return [];
+};
+
 const History = () => {
-  const [records, setRecords] = useState([]);
+  const [records, setRecords] = useState(getCachedHistory);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -19,7 +32,12 @@ const History = () => {
     setLoading(true);
     try {
       const data = await fetchHistoryRecords({ limit: 100, search: '' });
-      setRecords(data);
+      if (Array.isArray(data) && data.length > 0) {
+        setRecords(data);
+        try {
+          localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data));
+        } catch (e) {}
+      }
     } catch (err) {
       console.error('[History] Load data failed:', err);
     } finally {
@@ -29,6 +47,26 @@ const History = () => {
 
   useEffect(() => {
     loadData();
+
+    // 訂閱即時點名 WebSocket 推播
+    const cleanupWs = connectWebSocket((event) => {
+      if (event && (event.type === 'NEW_ATTENDANCE_RECORD' || event.data)) {
+        const newRecord = event.data || event.record;
+        if (newRecord) {
+          setRecords((prev) => {
+            const updated = [newRecord, ...prev.filter((r) => r.id !== newRecord.id)];
+            try {
+              localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(updated.slice(0, 100)));
+            } catch (e) {}
+            return updated;
+          });
+        }
+      }
+    });
+
+    return () => {
+      cleanupWs();
+    };
   }, []);
 
   // 根據搜尋關鍵字過濾紀錄 (支援節次訊息、UUID、座號搜尋)
@@ -285,6 +323,32 @@ const History = () => {
           );
         })}
       </div>
+
+      {/* 首次載入時的骨架屏 (Skeleton Cards) */}
+      {loading && records.length === 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div
+              key={i}
+              className="glass-panel"
+              style={{
+                height: '300px',
+                borderRadius: '16px',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                opacity: 0.7,
+              }}
+            >
+              <div style={{ width: '100%', height: '190px', background: 'rgba(255,255,255,0.06)' }} />
+              <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ width: '60%', height: '18px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px' }} />
+                <div style={{ width: '40%', height: '14px', background: 'rgba(255,255,255,0.04)', borderRadius: '4px' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* 無資料提示 */}
       {filteredRecords.length === 0 && !loading && (
