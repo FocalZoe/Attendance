@@ -5,11 +5,13 @@
 // 3. 最後通報相片中間顯示訊息與未到人數（不顯示時間），左下角清楚呈現「最後紀錄：時間」。
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Users, CheckCircle, Activity, Sparkles, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, Calendar, RefreshCw, Eye, AlertTriangle } from 'lucide-react';
+import { Camera, Users, CheckCircle, Activity, Sparkles, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, Calendar, RefreshCw, Eye, AlertTriangle, Bell, Timer, Play, Pause } from 'lucide-react';
 import { ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision';
 import { fetchHistoryRecords, sendTelemetry, connectWebSocket } from '../services/api';
 import { getSavedSeatsConfig, formatFullPeriodMessage, matchPersonsToSeats } from '../services/seatOccupancyService';
+import { getSavedSchedulesConfig, checkScheduleTrigger, getNextUpcomingSchedule } from '../services/scheduleService';
 import SeatMapEditorModal from '../components/SeatMapEditorModal';
+import ScheduleModal from '../components/ScheduleModal';
 import ImageModal from '../components/ImageModal';
 
 let detectorInstance = null;
@@ -47,8 +49,15 @@ const Dashboard = () => {
   const [records, setRecords] = useState([]);
   const [latestRecord, setLatestRecord] = useState(null);
   const [isSeatEditorOpen, setIsSeatEditorOpen] = useState(false);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [scheduleConfig, setScheduleConfig] = useState(getSavedSchedulesConfig());
+  const [autoRollcallToast, setAutoRollcallToast] = useState(null);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [seatConfig, setSeatConfig] = useState(getSavedSeatsConfig());
+
+  // 排程執行防重複觸發 Ref
+  const lastTriggeredKeyRef = useRef(null);
+  const isAutoSendingRef = useRef(false);
 
   // 鏡頭相關 state
   const [cameraActive, setCameraActive] = useState(false);
@@ -375,10 +384,32 @@ const Dashboard = () => {
     };
   }, [selectedDeviceId]);
 
-  // 拍照並發送點名
-  const handleTriggerAttendance = async () => {
-    if (!videoRef.current || !canvasRef.current || !cameraActive) return;
+  // 定時自動點名排程常駐監聽心跳 (每秒檢查一次)
+  useEffect(() => {
+    const checkTimer = setInterval(() => {
+      const triggerResult = checkScheduleTrigger(scheduleConfig, lastTriggeredKeyRef.current);
+      if (triggerResult && triggerResult.shouldTrigger) {
+        lastTriggeredKeyRef.current = triggerResult.triggerKey;
+        console.log(`⏰ [Dashboard] 命中定時自動點名排程: ${triggerResult.schedule.time} (${triggerResult.schedule.period})`);
+        executeRollcall(triggerResult.schedule.period, true);
+      }
+    }, 1000);
+
+    return () => clearInterval(checkTimer);
+  }, [scheduleConfig, cameraActive]);
+
+  // 拍照並發送點名 (支援手動點名與定時自動點名)
+  const executeRollcall = async (targetPeriodName = null, isAuto = false) => {
+    if (!videoRef.current || !canvasRef.current || !cameraActive) {
+      if (isAuto) {
+        console.warn('[Dashboard AutoSchedule] 定時點名時間已到，但相機尚未啟動或處於關閉狀態。');
+      }
+      return;
+    }
+    if (isSending || isAutoSendingRef.current) return;
+
     setIsSending(true);
+    if (isAuto) isAutoSendingRef.current = true;
 
     try {
       const video = videoRef.current;
@@ -388,8 +419,7 @@ const Dashboard = () => {
 
       const ctx = canvas.getContext('2d');
       if (!ctx) {
-        alert('擷取畫面失敗');
-        setIsSending(false);
+        if (!isAuto) alert('擷取畫面失敗');
         return;
       }
 
@@ -398,7 +428,7 @@ const Dashboard = () => {
       const base64Data = canvas.toDataURL('image/jpeg', 0.92);
 
       const currentConfig = getSavedSeatsConfig();
-      const currentPeriodName = currentConfig.current_period || '第 1 節';
+      const currentPeriodName = targetPeriodName || currentConfig.current_period || '第 1 節';
       const formattedMessage = formatFullPeriodMessage(currentPeriodName);
 
       const detectedPersonsPayload = (lastDetectionsRef.current || []).map((det) => ({
@@ -418,7 +448,7 @@ const Dashboard = () => {
         seats: currentConfig.seats,
       });
 
-      console.log('[Dashboard] 點名通報成功，Database 回傳紀錄:', result);
+      console.log(`[Dashboard ${isAuto ? 'Auto-Schedule' : 'Manual'}] 點名通報成功，Database 回傳紀錄:`, result);
 
       if (result && result.record) {
         setLatestRecord(result.record);
@@ -426,11 +456,23 @@ const Dashboard = () => {
       } else {
         await loadRecords();
       }
+
+      if (isAuto) {
+        const nowTimeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
+        setAutoRollcallToast({
+          period: currentPeriodName,
+          time: nowTimeStr,
+        });
+        setTimeout(() => setAutoRollcallToast(null), 6000);
+      }
     } catch (err) {
       console.error('[Telemetry Exception]', err);
-      alert(`通報異常: ${err?.message || '請確認伺服器連線狀態'}`);
+      if (!isAuto) {
+        alert(`通報異常: ${err?.message || '請確認伺服器連線狀態'}`);
+      }
     } finally {
       setIsSending(false);
+      if (isAuto) isAutoSendingRef.current = false;
     }
   };
 
@@ -467,12 +509,42 @@ const Dashboard = () => {
   const latestVacantSeatIds = latestStatuses.filter((s) => s.status === 'VACANT').map((s) => s.seat_id);
 
   const currentPeriodTitle = formatFullPeriodMessage(seatConfig.current_period);
+  const nextUpcoming = getNextUpcomingSchedule(scheduleConfig);
 
   return (
     <div className="animate-fade-in">
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      <header style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+      {/* 自動點名成功即時通知 Banner */}
+      {autoRollcallToast && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95))',
+            color: '#fff',
+            padding: '14px 20px',
+            borderRadius: '12px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 8px 24px rgba(16, 185, 129, 0.4)',
+            animation: 'fadeIn 0.3s ease-out',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}>
+            <Bell size={20} />
+            <span>⏰ [{autoRollcallToast.time}] <strong>{autoRollcallToast.period}</strong> 定時自動點名通報已成功執行並儲存！</span>
+          </div>
+          <button
+            onClick={() => setAutoRollcallToast(null)}
+            style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', opacity: 0.8, fontSize: '1rem' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      <header style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             課堂考勤即時儀表板 <Sparkles color="var(--accent-primary)" size={24} />
@@ -483,6 +555,28 @@ const Dashboard = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          {/* 定時自動點名排程按鈕 */}
+          <button
+            onClick={() => setIsScheduleModalOpen(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              background: scheduleConfig.enabled ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.06)',
+              color: scheduleConfig.enabled ? '#10b981' : 'var(--text-secondary)',
+              border: `1px solid ${scheduleConfig.enabled ? 'rgba(16, 185, 129, 0.4)' : 'var(--glass-border)'}`,
+              padding: '10px 18px', borderRadius: '10px',
+              fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
+              boxShadow: scheduleConfig.enabled ? '0 0 12px rgba(16, 185, 129, 0.2)' : 'none',
+              transition: 'all 0.2s',
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
+            onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+          >
+            <Clock size={18} />
+            {scheduleConfig.enabled
+              ? `自動點名 (${scheduleConfig.schedules.filter((s) => s.enabled).length} 個時段)`
+              : '自動點名 (已暫停)'}
+          </button>
+
           {/* 座位劃位設定按鈕 */}
           <button
             onClick={() => setIsSeatEditorOpen(true)}
@@ -502,6 +596,32 @@ const Dashboard = () => {
           </button>
         </div>
       </header>
+
+      {/* 下一次排程時間提示標籤 */}
+      {scheduleConfig.enabled && nextUpcoming && (
+        <div
+          onClick={() => setIsScheduleModalOpen(true)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'rgba(59, 130, 246, 0.12)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            color: '#93c5fd',
+            padding: '6px 14px',
+            borderRadius: '20px',
+            fontSize: '0.82rem',
+            marginBottom: '18px',
+            cursor: 'pointer',
+            transition: 'background 0.2s',
+          }}
+          onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)')}
+          onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(59, 130, 246, 0.12)')}
+        >
+          <Timer size={15} color="#60a5fa" />
+          <span>定時排程：下一次自動點名將於 <strong>{nextUpcoming.formattedText}</strong> 自動執行</span>
+        </div>
+      )}
 
       {/* 統計卡片 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '24px' }}>
@@ -767,7 +887,7 @@ const Dashboard = () => {
                 </div>
 
                 <button
-                  onClick={handleTriggerAttendance}
+                  onClick={() => executeRollcall(null, false)}
                   disabled={isSending || !cameraActive}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '8px',
@@ -917,6 +1037,15 @@ const Dashboard = () => {
         onClose={() => setIsSeatEditorOpen(false)}
         onSaveSuccess={(newConfig) => {
           setSeatConfig(newConfig);
+        }}
+      />
+
+      {/* 定時自動點名排程 Modal */}
+      <ScheduleModal
+        isOpen={isScheduleModalOpen}
+        onClose={() => setIsScheduleModalOpen(false)}
+        onConfigChange={(newCfg) => {
+          setScheduleConfig(newCfg);
         }}
       />
 
