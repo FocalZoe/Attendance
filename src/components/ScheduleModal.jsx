@@ -8,9 +8,13 @@ import ReactDOM from 'react-dom';
 import { X, Clock, Plus, Trash2, Power, RotateCcw, Calendar, Check, AlertCircle, Sparkles, Bell } from 'lucide-react';
 import { getSavedSchedulesConfig, saveSchedulesConfig, getDefaultSchedules, getNextUpcomingSchedule } from '../services/scheduleService';
 
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+
 export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
   const [config, setConfig] = useState(getSavedSchedulesConfig());
-  const [newTime, setNewTime] = useState('08:05');
+  const [selectedHour, setSelectedHour] = useState('08');
+  const [selectedMinute, setSelectedMinute] = useState('05');
   const [newPeriod, setNewPeriod] = useState('第 1 節');
   const [customPeriod, setCustomPeriod] = useState('');
   const [savedNotice, setSavedNotice] = useState(false);
@@ -48,20 +52,20 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
   // 新增排程
   const handleAddSchedule = (e) => {
     e.preventDefault();
-    if (!newTime) return;
+    const timeString = `${selectedHour}:${selectedMinute}`;
 
     const periodName = customPeriod.trim() ? customPeriod.trim() : newPeriod;
 
     // 檢查是否重複時間
-    const exists = config.schedules.some((s) => s.time === newTime);
+    const exists = config.schedules.some((s) => s.time === timeString);
     if (exists) {
-      alert(`已存在 ${newTime} 的排程時間點，請設定不同時間。`);
+      alert(`已存在 ${timeString} 的排程時間點，請設定不同時間。`);
       return;
     }
 
     const newSchedule = {
       id: `sch-${Date.now()}`,
-      time: newTime,
+      time: timeString,
       period: periodName,
       enabled: true,
     };
@@ -251,25 +255,60 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
           </div>
 
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* 時間選擇 */}
+            {/* 時間選擇 (時 : 分 下拉選單，無循環滾動) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '0.75rem', color: '#94a3b8' }}>排程時間 (時:分)</label>
-              <input
-                type="time"
-                value={newTime}
-                onChange={(e) => setNewTime(e.target.value)}
-                required
-                style={{
-                  padding: '7px 10px',
-                  borderRadius: '6px',
-                  background: '#0f172a',
-                  border: '1px solid #334155',
-                  color: '#fff',
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  outline: 'none',
-                }}
-              />
+              <label style={{ fontSize: '0.75rem', color: '#94a3b8' }}>排程時間 (時 : 分)</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <select
+                  value={selectedHour}
+                  onChange={(e) => setSelectedHour(e.target.value)}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '6px',
+                    background: '#0f172a',
+                    border: '1px solid #334155',
+                    color: '#38bdf8',
+                    fontSize: '0.92rem',
+                    fontWeight: 700,
+                    fontFamily: 'monospace',
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
+                  title="選擇小時 (00~23)"
+                >
+                  {HOURS.map((h) => (
+                    <option key={h} value={h}>
+                      {h} 點
+                    </option>
+                  ))}
+                </select>
+
+                <span style={{ fontWeight: 700, color: '#94a3b8', fontSize: '1rem' }}>:</span>
+
+                <select
+                  value={selectedMinute}
+                  onChange={(e) => setSelectedMinute(e.target.value)}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '6px',
+                    background: '#0f172a',
+                    border: '1px solid #334155',
+                    color: '#38bdf8',
+                    fontSize: '0.92rem',
+                    fontWeight: 700,
+                    fontFamily: 'monospace',
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
+                  title="選擇分鐘 (00~59)"
+                >
+                  {MINUTES.map((m) => (
+                    <option key={m} value={m}>
+                      {m} 分
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* 節次選擇 */}
