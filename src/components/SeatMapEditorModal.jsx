@@ -10,6 +10,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Trash2, Grid, Save, LayoutGrid, Check, Info, Camera, GraduationCap, AlertTriangle } from 'lucide-react';
 import { getSavedSeatsConfig, saveSeatsConfig, generateGridSeats, formatFullPeriodMessage } from '../services/seatOccupancyService';
+import { getDesktopCameraSources, acquireCameraStream } from '../services/cameraDeviceService';
 
 export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
   const [config, setConfig] = useState(getSavedSeatsConfig());
@@ -33,7 +34,6 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
   // 相機真實視訊解析度與長寬比
   const [videoDims, setVideoDims] = useState({ width: 0, height: 0 });
   const [cameraActive, setCameraActive] = useState(false);
-  const [cameraError, setCameraError] = useState(null);
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
 
@@ -41,49 +41,31 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
   const streamRef = useRef(null);
   const containerRef = useRef(null);
 
-  // 取得相機裝置清單
+  // 取得相機裝置清單 (Webcam + Ameba)
   const getCameraDevices = async () => {
     try {
-      const allDevices = await navigator.mediaDevices.enumerateDevices();
-      const videoInputs = allDevices.filter((device) => device.kind === 'videoinput');
-      setDevices(videoInputs);
-      if (videoInputs.length > 0 && !selectedDeviceId) {
-        setSelectedDeviceId(videoInputs[0].deviceId);
+      const sources = await getDesktopCameraSources();
+      setDevices(sources);
+      if (sources.length > 0 && !selectedDeviceId) {
+        setSelectedDeviceId(sources[0].id);
       }
     } catch (err) {
       console.warn('[SeatMapEditor] Enumerate devices error:', err);
     }
   };
 
-  // 啟動相機 (相容降級與軌道中斷恢復)
+  // 啟動相機 (支援 Webcam 與 Ameba 網路相機分流)
   const startCamera = async (deviceId) => {
     setCameraError(null);
     stopCamera();
 
     try {
-      let stream = null;
-      try {
-        const constraints = {
-          video: deviceId ? { deviceId: { exact: deviceId } } : { width: { ideal: 1920 }, height: { ideal: 1080 } },
-        };
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (err1) {
-        console.warn('[SeatMapEditor TEAM_008] Exact constraint failed, try soft deviceId:', err1);
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: deviceId ? { deviceId: deviceId } : { width: { ideal: 1280 }, height: { ideal: 720 } },
-          });
-        } catch (err2) {
-          console.warn('[SeatMapEditor TEAM_008] Soft constraint failed, fallback to generic video:', err2);
-          stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        }
-      }
-
+      const stream = await acquireCameraStream(deviceId);
       streamRef.current = stream;
 
       stream.getVideoTracks().forEach((track) => {
         track.onended = () => {
-          console.warn('[SeatMapEditor TEAM_008] Camera stream track ended. Auto restarting...');
+          console.warn('[SeatMapEditor] Camera stream track ended. Auto restarting...');
           setCameraActive(false);
           setTimeout(() => startCamera(selectedDeviceId), 1200);
         };
@@ -91,13 +73,13 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play().catch((e) => console.warn('[SeatMapEditor TEAM_008] Video play warning:', e));
+        videoRef.current.play().catch((e) => console.warn('[SeatMapEditor] Video play warning:', e));
       }
 
       setCameraActive(true);
       await getCameraDevices();
     } catch (err) {
-      console.warn('[SeatMapEditor TEAM_008] Camera error:', err);
+      console.warn('[SeatMapEditor] Camera error:', err);
       setCameraError('無法開啟相機鏡頭，請確認鏡頭權限與連線。');
       setCameraActive(false);
     }
@@ -616,12 +598,16 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
             <Camera size={16} color="var(--accent-primary)" />
             <select
               value={selectedDeviceId}
-              onChange={(e) => setSelectedDeviceId(e.target.value)}
-              style={{ padding: '5px 10px', borderRadius: '6px', background: '#0f172a', color: '#fff', border: '1px solid #334155', fontSize: '0.8rem' }}
+              onChange={(e) => {
+                const nextId = e.target.value;
+                setSelectedDeviceId(nextId);
+                startCamera(nextId);
+              }}
+              style={{ padding: '5px 10px', borderRadius: '6px', background: '#0f172a', color: '#fff', border: '1px solid #334155', fontSize: '0.8rem', maxWidth: '240px' }}
             >
-              {devices.map((d, index) => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  {d.label || `相機 #${index + 1}`}
+              {devices.map((d) => (
+                <option key={d.id || d.deviceId} value={d.id || d.deviceId}>
+                  {d.name || d.label || `相機 (${d.deviceId})`}
                 </option>
               ))}
             </select>

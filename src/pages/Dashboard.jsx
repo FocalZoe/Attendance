@@ -5,11 +5,12 @@
 // 3. 最後通報相片中間顯示訊息與未到人數（不顯示時間），左下角清楚呈現「最後紀錄：時間」。
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, CheckCircle, Activity, Sparkles, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, RefreshCw, Eye, AlertTriangle, Timer } from 'lucide-react';
+import { Camera, CheckCircle, Activity, Sparkles, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, RefreshCw, Eye, AlertTriangle, Timer, Smartphone, Bell } from 'lucide-react';
 import { ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision';
 import { fetchHistoryRecords, sendTelemetry, connectWebSocket } from '../services/api';
 import { getSavedSeatsConfig, formatFullPeriodMessage, matchPersonsToSeats } from '../services/seatOccupancyService';
 import { getSavedSchedulesConfig, checkScheduleTrigger, getNextUpcomingSchedule } from '../services/scheduleService';
+import { isMobileDevice, getDesktopCameraSources, acquireCameraStream } from '../services/cameraDeviceService';
 import SeatMapEditorModal from '../components/SeatMapEditorModal';
 import ScheduleModal from '../components/ScheduleModal';
 import ImageModal from '../components/ImageModal';
@@ -46,6 +47,9 @@ const getSharedPersonDetector = async () => {
 };
 
 const Dashboard = () => {
+  // 智慧偵測當前終端是否為行動裝置
+  const [isMobile] = useState(isMobileDevice());
+
   const [records, setRecords] = useState([]);
   const [latestRecord, setLatestRecord] = useState(null);
   const [isSeatEditorOpen, setIsSeatEditorOpen] = useState(false);
@@ -65,10 +69,9 @@ const Dashboard = () => {
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [camAspect, setCamAspect] = useState(4 / 3);
 
-  // 畫面檢視模式：'live' (即時鏡頭) | 'latest' (最後通報相片)
-  const [previewTab, setPreviewTab] = useState('live');
+  // 畫面檢視模式：手機端固定為 'latest' (最後通報相片)，電腦端預設為 'live' (即時鏡頭)
+  const [previewTab, setPreviewTab] = useState(() => (isMobileDevice() ? 'latest' : 'live'));
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -81,63 +84,40 @@ const Dashboard = () => {
   // TEAM_008: 記錄 MediaPipe 前次傳入時間戳，維護嚴格單調遞增
   const lastDetectionTimestampRef = useRef(0);
 
-  // 取得可用相機裝置清單
+  // 取得電腦端可用之相機裝置清單 (Webcam + Ameba 網路相機)
   const getCameraDevices = async () => {
+    if (isMobile) return;
     try {
-      const allDevices = await navigator.mediaDevices.enumerateDevices();
-      const videoInputs = allDevices.filter((d) => d.kind === 'videoinput');
-      setDevices(videoInputs);
-      if (videoInputs.length > 0 && !selectedDeviceId) {
-        setSelectedDeviceId(videoInputs[0].deviceId);
+      const sources = await getDesktopCameraSources();
+      setDevices(sources);
+      if (sources.length > 0 && !selectedDeviceId) {
+        setSelectedDeviceId(sources[0].id);
       }
     } catch (err) {
       console.warn('[Dashboard] Enumerate devices error:', err);
     }
   };
 
-  // 啟動相機
-  // TEAM_008: 強化相機啟動邏輯（含多層 constraints 容錯備援與軌道中斷自動喚醒）
+  // 啟動相機 (僅電腦端執行，支援 Webcam 與 Ameba 網路相機分流)
   const startCamera = async (deviceId) => {
+    if (isMobile) return;
     setCameraError(null);
     stopCamera();
 
     try {
-      let stream = null;
-      // TEAM_008: 第一層 exact 裝置 constraint 嘗試，失敗時漸進降級
-      try {
-        const constraints = {
-          video: deviceId ? { deviceId: { exact: deviceId } } : { width: { ideal: 1920 }, height: { ideal: 1080 } },
-        };
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (err1) {
-        console.warn('[Dashboard TEAM_008] Exact constraint failed, fallback to soft deviceId constraint:', err1);
-        try {
-          const fallbackConstraints = {
-            video: deviceId ? { deviceId: deviceId } : { width: { ideal: 1280 }, height: { ideal: 720 } },
-          };
-          stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
-        } catch (err2) {
-          console.warn('[Dashboard TEAM_008] Soft constraint failed, fallback to generic video stream:', err2);
-          stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        }
-      }
-
+      const stream = await acquireCameraStream(deviceId);
       streamRef.current = stream;
 
-      // TEAM_008: 綁定視訊軌道事件（中斷時自動排程重連，被遮蔽解除時自動播放）
+      // 綁定視訊軌道事件（中斷自動重連）
       stream.getVideoTracks().forEach((track) => {
         track.onended = () => {
-          console.warn('[Dashboard TEAM_008] Camera stream track ended. Attempting auto restart...');
+          console.warn('[Dashboard] Camera stream track ended. Auto restart...');
           setCameraActive(false);
           setTimeout(() => {
-            startCamera(selectedDeviceId);
+            if (!isMobile) startCamera(selectedDeviceId);
           }, 1200);
         };
-        track.onmute = () => {
-          console.warn('[Dashboard TEAM_008] Camera stream track muted.');
-        };
         track.onunmute = () => {
-          console.log('[Dashboard TEAM_008] Camera stream track unmuted.');
           if (videoRef.current && videoRef.current.paused) {
             videoRef.current.play().catch(() => {});
           }
@@ -146,13 +126,13 @@ const Dashboard = () => {
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play().catch((e) => console.warn('[Dashboard TEAM_008] Video play warning:', e));
+        videoRef.current.play().catch((e) => console.warn('[Dashboard] Video play warning:', e));
       }
 
       setCameraActive(true);
       await getCameraDevices();
     } catch (err) {
-      console.error('[Dashboard TEAM_008] Start camera error:', err);
+      console.error('[Dashboard] Start camera error:', err);
       setCameraError('尚未啟動相機鏡頭（相機被佔用或權限未開啟）');
       setCameraActive(false);
     }
@@ -364,7 +344,9 @@ const Dashboard = () => {
   useEffect(() => {
     loadRecords();
     setSeatConfig(getSavedSeatsConfig());
-    startCamera(selectedDeviceId);
+    if (!isMobile) {
+      startCamera(selectedDeviceId);
+    }
 
     // 訂閱 WebSocket 即時考勤通報廣播
     const cleanupWs = connectWebSocket((event) => {
@@ -382,7 +364,7 @@ const Dashboard = () => {
       stopCamera();
       cleanupWs();
     };
-  }, [selectedDeviceId]);
+  }, [selectedDeviceId, isMobile]);
 
   // 定時自動點名排程常駐監聽心跳 (每秒檢查一次)
   useEffect(() => {
@@ -549,58 +531,66 @@ const Dashboard = () => {
           <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             課堂考勤即時儀表板 <Sparkles color="var(--accent-primary)" size={24} />
           </h1>
-          <p style={{ color: 'var(--text-secondary)' }}>
-            即時鏡頭智慧點名與缺席座號追蹤 (當前課堂：<strong style={{ color: '#38bdf8' }}>{currentPeriodTitle}</strong>)
+          <p style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span>即時鏡頭智慧點名與缺席座號追蹤 (當前課堂：<strong style={{ color: '#38bdf8' }}>{currentPeriodTitle}</strong>)</span>
+            {isMobile && (
+              <span style={{ fontSize: '0.75rem', padding: '3px 10px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.15)', color: '#38bdf8', border: '1px solid rgba(59, 130, 246, 0.3)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Smartphone size={13} /> 巡堂查驗模式 (唯讀)
+              </span>
+            )}
           </p>
         </div>
 
-        <div className="header-actions" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          {/* 定時自動點名排程按鈕 */}
-          <button
-            onClick={() => setIsScheduleModalOpen(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              background: scheduleConfig.enabled ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.06)',
-              color: scheduleConfig.enabled ? '#10b981' : 'var(--text-secondary)',
-              border: `1px solid ${scheduleConfig.enabled ? 'rgba(16, 185, 129, 0.4)' : 'var(--glass-border)'}`,
-              padding: '10px 18px', borderRadius: '10px',
-              fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
-              boxShadow: scheduleConfig.enabled ? '0 0 12px rgba(16, 185, 129, 0.2)' : 'none',
-              transition: 'all 0.2s',
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-            onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
-          >
-            <Clock size={18} />
-            {scheduleConfig.enabled
-              ? `自動點名 (${scheduleConfig.schedules.filter((s) => s.enabled).length} 個時段)`
-              : '自動點名 (已暫停)'}
-          </button>
+        {/* 電腦端具備完整管理權限；手機端只能檢視，隱藏設定按鈕 */}
+        {!isMobile && (
+          <div className="header-actions" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            {/* 定時自動點名排程按鈕 */}
+            <button
+              onClick={() => setIsScheduleModalOpen(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                background: scheduleConfig.enabled ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.06)',
+                color: scheduleConfig.enabled ? '#10b981' : 'var(--text-secondary)',
+                border: `1px solid ${scheduleConfig.enabled ? 'rgba(16, 185, 129, 0.4)' : 'var(--glass-border)'}`,
+                padding: '10px 18px', borderRadius: '10px',
+                fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
+                boxShadow: scheduleConfig.enabled ? '0 0 12px rgba(16, 185, 129, 0.2)' : 'none',
+                transition: 'all 0.2s',
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
+              onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+            >
+              <Clock size={18} />
+              {scheduleConfig.enabled
+                ? `自動點名 (${scheduleConfig.schedules.filter((s) => s.enabled).length} 個時段)`
+                : '自動點名 (已暫停)'}
+            </button>
 
-          {/* 座位劃位設定按鈕 */}
-          <button
-            onClick={() => setIsSeatEditorOpen(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
-              color: 'white', border: 'none', padding: '10px 20px', borderRadius: '10px',
-              fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(59, 130, 246, 0.35)',
-              transition: 'transform 0.2s',
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-            onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
-          >
-            <Settings size={18} />
-            課堂與座位設置 ({seatConfig.seats.length} 席 · {seatConfig.current_period || '第 1 節'})
-          </button>
-        </div>
+            {/* 座位劃位設定按鈕 */}
+            <button
+              onClick={() => setIsSeatEditorOpen(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
+                color: 'white', border: 'none', padding: '10px 20px', borderRadius: '10px',
+                fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(59, 130, 246, 0.35)',
+                transition: 'transform 0.2s',
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
+              onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+            >
+              <Settings size={18} />
+              課堂與座位設置 ({seatConfig.seats.length} 席 · {seatConfig.current_period || '第 1 節'})
+            </button>
+          </div>
+        )}
       </header>
 
-      {/* 下一次排程時間提示標籤 */}
+      {/* 下一次排程時間提示標籤 (手機端唯讀顯示，電腦端可點擊編輯) */}
       {scheduleConfig.enabled && nextUpcoming && (
         <div
-          onClick={() => setIsScheduleModalOpen(true)}
+          onClick={isMobile ? undefined : () => setIsScheduleModalOpen(true)}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -612,13 +602,17 @@ const Dashboard = () => {
             borderRadius: '20px',
             fontSize: '0.82rem',
             marginBottom: '18px',
-            cursor: 'pointer',
+            cursor: isMobile ? 'default' : 'pointer',
             transition: 'background 0.2s',
             maxWidth: '100%',
             boxSizing: 'border-box',
           }}
-          onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)')}
-          onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(59, 130, 246, 0.12)')}
+          onMouseOver={(e) => {
+            if (!isMobile) e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)';
+          }}
+          onMouseOut={(e) => {
+            if (!isMobile) e.currentTarget.style.background = 'rgba(59, 130, 246, 0.12)';
+          }}
         >
           <Timer size={15} color="#60a5fa" style={{ flexShrink: 0 }} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -696,46 +690,53 @@ const Dashboard = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Camera size={22} color="var(--accent-primary)" />
               <h2 style={{ fontSize: '1.2rem', margin: 0 }}>最新點名捕捉影像</h2>
+              {isMobile && (
+                <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.15)', color: '#38bdf8', fontWeight: 600 }}>
+                  最後通報相片
+                </span>
+              )}
             </div>
 
-            {/* 即時鏡頭 / 最後通報 切換 Tab */}
-            <div style={{ display: 'flex', gap: '6px', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '8px' }}>
-              <button
-                onClick={() => setPreviewTab('live')}
-                style={{
-                  padding: '5px 12px',
-                  borderRadius: '6px',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  background: previewTab === 'live' ? 'var(--accent-primary)' : 'transparent',
-                  color: previewTab === 'live' ? '#fff' : 'var(--text-secondary)',
-                  border: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cameraActive ? '#10b981' : '#ef4444' }} />
-                即時鏡頭 (Live)
-              </button>
+            {/* 即時鏡頭 / 最後通報 切換 Tab (僅電腦端可切換即時相機，手機端鎖定通報相片) */}
+            {!isMobile && (
+              <div style={{ display: 'flex', gap: '6px', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '8px' }}>
+                <button
+                  onClick={() => setPreviewTab('live')}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '6px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    background: previewTab === 'live' ? 'var(--accent-primary)' : 'transparent',
+                    color: previewTab === 'live' ? '#fff' : 'var(--text-secondary)',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cameraActive ? '#10b981' : '#ef4444' }} />
+                  即時鏡頭 (Live)
+                </button>
 
-              <button
-                onClick={() => setPreviewTab('latest')}
-                style={{
-                  padding: '5px 12px',
-                  borderRadius: '6px',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  background: previewTab === 'latest' ? 'var(--accent-primary)' : 'transparent',
-                  color: previewTab === 'latest' ? '#fff' : 'var(--text-secondary)',
-                  border: 'none',
-                }}
-              >
-                最後通報相片
-              </button>
-            </div>
+                <button
+                  onClick={() => setPreviewTab('latest')}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '6px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    background: previewTab === 'latest' ? 'var(--accent-primary)' : 'transparent',
+                    color: previewTab === 'latest' ? '#fff' : 'var(--text-secondary)',
+                    border: 'none',
+                  }}
+                >
+                  最後通報相片
+                </button>
+              </div>
+            )}
           </div>
 
           {/* 視訊畫面 / 照片顯示區 (響應式容器) */}
@@ -838,20 +839,24 @@ const Dashboard = () => {
 
           {/* 底部控制器 */}
           <div style={{ marginTop: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-            {previewTab === 'live' ? (
-              // 即時鏡頭模式：顯示相機裝置切換與「立即記錄點名」按鈕 (無相機時禁用)
+            {!isMobile && previewTab === 'live' ? (
+              // 電腦即時鏡頭模式：顯示相機裝置切換（Webcam / Ameba）與「立即記錄點名」按鈕 (無相機時禁用)
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', flex: '1 1 auto' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: '1 1 auto', minWidth: '160px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: '1 1 auto', minWidth: '180px' }}>
                     <Camera size={16} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
                     <select
                       value={selectedDeviceId}
-                      onChange={(e) => setSelectedDeviceId(e.target.value)}
-                      style={{ padding: '7px 12px', borderRadius: '8px', background: '#0f172a', color: '#fff', border: '1px solid #334155', fontSize: '0.82rem', width: '100%', maxWidth: '220px' }}
+                      onChange={(e) => {
+                        const nextId = e.target.value;
+                        setSelectedDeviceId(nextId);
+                        startCamera(nextId);
+                      }}
+                      style={{ padding: '7px 12px', borderRadius: '8px', background: '#0f172a', color: '#fff', border: '1px solid #334155', fontSize: '0.82rem', width: '100%', maxWidth: '280px' }}
                     >
-                      {devices.map((d, index) => (
-                        <option key={d.deviceId} value={d.deviceId}>
-                          {d.label || `鏡頭 #${index + 1}`}
+                      {devices.map((d) => (
+                        <option key={d.id || d.deviceId} value={d.id || d.deviceId}>
+                          {d.name || d.label || `鏡頭 (${d.deviceId})`}
                         </option>
                       ))}
                     </select>

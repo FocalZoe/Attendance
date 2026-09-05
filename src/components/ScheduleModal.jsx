@@ -478,7 +478,6 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                       borderRadius: '6px',
                       fontSize: '0.78rem',
                       fontWeight: 600,
-                      border: 'none',
                       cursor: 'pointer',
                       background: item.enabled ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.08)',
                       color: item.enabled ? '#10b981' : '#94a3b8',
