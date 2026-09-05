@@ -141,6 +141,7 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
       }}
     >
       <div
+        className="responsive-modal-container"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',

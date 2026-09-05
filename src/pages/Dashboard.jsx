@@ -5,7 +5,7 @@
 // 3. 最後通報相片中間顯示訊息與未到人數（不顯示時間），左下角清楚呈現「最後紀錄：時間」。
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Users, CheckCircle, Activity, Sparkles, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, Calendar, RefreshCw, Eye, AlertTriangle, Bell, Timer, Play, Pause } from 'lucide-react';
+import { Camera, CheckCircle, Activity, Sparkles, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, RefreshCw, Eye, AlertTriangle, Timer } from 'lucide-react';
 import { ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision';
 import { fetchHistoryRecords, sendTelemetry, connectWebSocket } from '../services/api';
 import { getSavedSeatsConfig, formatFullPeriodMessage, matchPersonsToSeats } from '../services/seatOccupancyService';
@@ -544,7 +544,7 @@ const Dashboard = () => {
         </div>
       )}
 
-      <header style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+      <header className="page-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             課堂考勤即時儀表板 <Sparkles color="var(--accent-primary)" size={24} />
@@ -554,7 +554,7 @@ const Dashboard = () => {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        <div className="header-actions" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           {/* 定時自動點名排程按鈕 */}
           <button
             onClick={() => setIsScheduleModalOpen(true)}
@@ -614,17 +614,21 @@ const Dashboard = () => {
             marginBottom: '18px',
             cursor: 'pointer',
             transition: 'background 0.2s',
+            maxWidth: '100%',
+            boxSizing: 'border-box',
           }}
           onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)')}
           onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(59, 130, 246, 0.12)')}
         >
-          <Timer size={15} color="#60a5fa" />
-          <span>定時排程：下一次自動點名將於 <strong>{nextUpcoming.formattedText}</strong> 自動執行</span>
+          <Timer size={15} color="#60a5fa" style={{ flexShrink: 0 }} />
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            定時排程：下一次自動點名將於 <strong>{nextUpcoming.formattedText}</strong> 自動執行
+          </span>
         </div>
       )}
 
-      {/* 統計卡片 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+      {/* 統計卡片自適應網格 */}
+      <div className="stat-cards-grid">
         <div className="glass-panel stat-card" style={{ borderTop: '4px solid var(--accent-primary)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
@@ -662,7 +666,7 @@ const Dashboard = () => {
                 {currentVacantCount} <span style={{ fontSize: '1rem', fontWeight: 'normal', color: 'var(--text-secondary)' }}>席</span>
               </div>
             </div>
-            <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px', color: '#ef4444' }}>
+            <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.15)', borderRadius: '12px', color: '#ef4444' }}>
               <UserX size={24} />
             </div>
           </div>
@@ -683,8 +687,8 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* 主體區塊：最新點名捕捉影像 (左側) 與 即時通報紀錄簿 (右側) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '24px', minHeight: '560px' }}>
+      {/* 主體區塊：最新點名捕捉影像 (左側) 與 即時通報紀錄簿 (右側) - 支援 RWD 自適應堆疊 */}
+      <div className="dashboard-main-grid">
         {/* 最新點名捕捉影像卡片 */}
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
           {/* 卡片標題與分頁切換 */}
@@ -734,21 +738,8 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* 視訊畫面 / 照片顯示區 (固定高度 440px，等比例縮放呈現) */}
-          <div
-            style={{
-              height: '440px',
-              minHeight: '440px',
-              maxHeight: '440px',
-              position: 'relative',
-              borderRadius: '12px',
-              overflow: 'hidden',
-              background: '#090d16',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
+          {/* 視訊畫面 / 照片顯示區 (響應式容器) */}
+          <div className="camera-preview-container">
             {/* TEAM_008: 即時相機視訊區塊 (常駐 DOM 避免切換 Tab 時被 React 卸載導致 srcObject 遺失與黑屏) */}
             <div style={{ position: 'relative', width: '100%', height: '100%', display: previewTab === 'live' ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center' }}>
               <video
@@ -850,19 +841,21 @@ const Dashboard = () => {
             {previewTab === 'live' ? (
               // 即時鏡頭模式：顯示相機裝置切換與「立即記錄點名」按鈕 (無相機時禁用)
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Camera size={16} color="var(--accent-primary)" />
-                  <select
-                    value={selectedDeviceId}
-                    onChange={(e) => setSelectedDeviceId(e.target.value)}
-                    style={{ padding: '7px 12px', borderRadius: '8px', background: '#0f172a', color: '#fff', border: '1px solid #334155', fontSize: '0.82rem' }}
-                  >
-                    {devices.map((d, index) => (
-                      <option key={d.deviceId} value={d.deviceId}>
-                        {d.label || `鏡頭 #${index + 1}`}
-                      </option>
-                    ))}
-                  </select>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', flex: '1 1 auto' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: '1 1 auto', minWidth: '160px' }}>
+                    <Camera size={16} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
+                    <select
+                      value={selectedDeviceId}
+                      onChange={(e) => setSelectedDeviceId(e.target.value)}
+                      style={{ padding: '7px 12px', borderRadius: '8px', background: '#0f172a', color: '#fff', border: '1px solid #334155', fontSize: '0.82rem', width: '100%', maxWidth: '220px' }}
+                    >
+                      {devices.map((d, index) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label || `鏡頭 #${index + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
                   {/* TEAM_008: 新增重啟/重新整理相機按鈕 */}
                   <button
@@ -880,6 +873,7 @@ const Dashboard = () => {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '5px',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     <RefreshCw size={14} /> 重新整理鏡頭
@@ -890,7 +884,7 @@ const Dashboard = () => {
                   onClick={() => executeRollcall(null, false)}
                   disabled={isSending || !cameraActive}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '8px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                     padding: '9px 22px', borderRadius: '8px',
                     background: cameraActive && !isSending ? 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)' : '#334155',
                     color: cameraActive && !isSending ? '#fff' : '#94a3b8',
@@ -898,7 +892,8 @@ const Dashboard = () => {
                     border: 'none', cursor: isSending || !cameraActive ? 'not-allowed' : 'pointer',
                     boxShadow: cameraActive && !isSending ? '0 4px 14px rgba(59, 130, 246, 0.35)' : 'none',
                     transition: 'all 0.2s',
-                    marginLeft: 'auto',
+                    flex: '1 1 auto',
+                    minWidth: '200px',
                     opacity: cameraActive && !isSending ? 1 : 0.6,
                   }}
                   onMouseOver={(e) => {
@@ -919,8 +914,8 @@ const Dashboard = () => {
             ) : (
               // 最後通報相片模式：左下角寫「最後紀錄：時間」，右下角為「觀看大圖」按鈕
               <>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Clock size={15} color="var(--accent-primary)" />
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <Clock size={15} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
                   <span>
                     {latestRecord
                       ? `最後紀錄：${formatFullDateTime(latestRecord.create_at)}`

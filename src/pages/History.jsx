@@ -133,7 +133,7 @@ const History = () => {
 
   return (
     <div className="animate-fade-in">
-      <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+      <header className="page-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             課堂歷史紀錄簿 <HistoryIcon color="var(--accent-primary)" size={24} />
@@ -141,12 +141,12 @@ const History = () => {
           <p style={{ color: 'var(--text-secondary)' }}>調閱歷次課堂點名照片、缺席名單與出席統計報表</p>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div className="header-actions" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <button
             onClick={loadData}
             disabled={loading}
             style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
               background: 'rgba(255,255,255,0.05)', color: 'white',
               border: '1px solid var(--glass-border)', padding: '10px 18px',
               borderRadius: '8px', fontWeight: 600, cursor: 'pointer',
@@ -160,7 +160,7 @@ const History = () => {
           <button
             onClick={handleExportCSV}
             style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
               background: 'var(--accent-primary)', color: 'white',
               border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 600,
               cursor: 'pointer', transition: 'background 0.2s',
@@ -173,29 +173,30 @@ const History = () => {
       </header>
 
       {/* 搜尋列與計數區 */}
-      <div className="glass-panel" style={{ padding: '20px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: '280px' }}>
+      <div className="glass-panel" style={{ padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: '220px', width: '100%' }}>
           <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
           <input
             type="text"
-            placeholder="搜尋幾月幾號第幾節 (如 8月21日 第 1 節)、座號或關鍵字..."
+            placeholder="搜尋幾月幾號第幾節、座號或關鍵字..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
               width: '100%', padding: '12px 16px 12px 46px',
               background: 'rgba(0,0,0,0.25)', border: '1px solid var(--glass-border)',
               borderRadius: '8px', color: 'white', outline: 'none', fontSize: '0.9rem',
+              boxSizing: 'border-box',
             }}
           />
         </div>
 
-        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-          共符合 <strong style={{ color: 'var(--accent-primary)', fontSize: '1.1rem' }}>{filteredRecords.length}</strong> 筆課堂點名紀錄
+        <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+          共符合 <strong style={{ color: 'var(--accent-primary)', fontSize: '1.05rem' }}>{filteredRecords.length}</strong> 筆課堂點名紀錄
         </div>
       </div>
 
-      {/* 照片卡片網格 Layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+      {/* 照片卡片網格 Layout - 自適應最小寬度 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px' }}>
         {filteredRecords.map((rec) => {
           let ai = rec.ai_analysis;
           if (typeof ai === 'string') {

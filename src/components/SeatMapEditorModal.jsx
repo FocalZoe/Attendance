@@ -436,6 +436,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
       }}
     >
       <div
+        className="responsive-modal-container"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
@@ -628,7 +629,7 @@ export const SeatMapEditorModal = ({ isOpen, onClose, onSaveSuccess }) => {
         </div>
 
         {/* 主畫布區 (等比例縮放鏡頭畫面) */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '20px' }}>
+        <div className="seat-editor-grid">
           {/* 畫布容器 */}
           <div
             ref={containerRef}
