@@ -14,6 +14,7 @@ import { isMobileDevice, getDesktopCameraSources, acquireCameraStream } from '..
 import SeatMapEditorModal from '../components/SeatMapEditorModal';
 import ScheduleModal from '../components/ScheduleModal';
 import ImageModal from '../components/ImageModal';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 let detectorInstance = null;
 let detectorLoadingPromise = null;
@@ -1044,21 +1045,23 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* 座位劃位設定 Modal */}
-      <SeatMapEditorModal
-        isOpen={isSeatEditorOpen}
-        onClose={() => setIsSeatEditorOpen(false)}
-        onSaveSuccess={(newConfig) => {
-          setSeatConfig(newConfig);
-        }}
-        activeStream={cameraStream || streamRef.current}
-        parentCameraActive={cameraActive}
-        currentDeviceId={selectedDeviceId}
-        onDeviceChange={(newId) => {
-          setSelectedDeviceId(newId);
-          startCamera(newId);
-        }}
-      />
+      {/* 座位劃位設定 Modal (配備 ErrorBoundary 防護) */}
+      <ErrorBoundary compact onReset={() => setIsSeatEditorOpen(false)}>
+        <SeatMapEditorModal
+          isOpen={isSeatEditorOpen}
+          onClose={() => setIsSeatEditorOpen(false)}
+          onSaveSuccess={(newConfig) => {
+            setSeatConfig(newConfig);
+          }}
+          activeStream={cameraStream || streamRef.current}
+          parentCameraActive={cameraActive}
+          currentDeviceId={selectedDeviceId}
+          onDeviceChange={(newId) => {
+            setSelectedDeviceId(newId);
+            startCamera(newId);
+          }}
+        />
+      </ErrorBoundary>
 
       {/* 定時自動點名排程 Modal */}
       <ScheduleModal

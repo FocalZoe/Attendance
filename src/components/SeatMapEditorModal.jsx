@@ -8,7 +8,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { X, Trash2, Grid, Save, LayoutGrid, Check, Info, Camera, GraduationCap, AlertTriangle, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { X, Trash2, Grid, Save, LayoutGrid, Check, Info, Camera, GraduationCap, AlertTriangle, RefreshCw } from 'lucide-react';
 import { getSavedSeatsConfig, saveSeatsConfig, generateGridSeats, formatFullPeriodMessage } from '../services/seatOccupancyService';
 import { getDesktopCameraSources, acquireCameraStream } from '../services/cameraDeviceService';
 
@@ -25,7 +25,6 @@ export const SeatMapEditorModal = ({
   const [period, setPeriod] = useState(config.current_period || '第 1 節');
   const [selectedSeatIndex, setSelectedSeatIndex] = useState(null);
   const [savedNotice, setSavedNotice] = useState(false);
-  const [useTestPattern, setUseTestPattern] = useState(false);
 
   // 自訂網格設定 (預設 4 排 x 5 欄 = 20 席)
   const [gridRows, setGridRows] = useState(4);
@@ -43,9 +42,13 @@ export const SeatMapEditorModal = ({
   // 相機真實視訊解析度與長寬比
   const [videoDims, setVideoDims] = useState({ width: 0, height: 0 });
   const [cameraActive, setCameraActive] = useState(() => {
-    return !!(parentCameraActive || (activeStream && activeStream.getVideoTracks().some((t) => t.readyState === 'live')));
+    try {
+      const isParentLive = parentCameraActive || (activeStream && typeof activeStream.getVideoTracks === 'function' && activeStream.getVideoTracks().some((t) => t.readyState === 'live'));
+      return !!isParentLive;
+    } catch {
+      return false;
+    }
   });
-  const [cameraError, setCameraError] = useState(null);
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState(currentDeviceId || '');
 
@@ -53,9 +56,17 @@ export const SeatMapEditorModal = ({
   const internalStreamRef = useRef(null);
   const containerRef = useRef(null);
 
-  // 檢查串流是否具有活躍可用的視訊軌道
+  // 檢查串流是否具有活躍可用的視訊軌道 (加入型別與方法存在性防禦)
   const isStreamAlive = (stream) => {
-    return !!(stream && stream.getVideoTracks().some((t) => t.readyState === 'live'));
+    try {
+      return !!(
+        stream &&
+        typeof stream.getVideoTracks === 'function' &&
+        stream.getVideoTracks().some((t) => t.readyState === 'live')
+      );
+    } catch {
+      return false;
+    }
   };
 
   // 從 Video 或 Image DOM 節點同步寬高解析度
@@ -87,7 +98,6 @@ export const SeatMapEditorModal = ({
 
   // 內部啟動獨立相機 (僅在無父層共享串流時或切換硬體時使用)
   const startCamera = async (deviceId) => {
-    setCameraError(null);
     if (internalStreamRef.current) {
       internalStreamRef.current.getTracks().forEach((t) => t.stop());
       internalStreamRef.current = null;
@@ -125,7 +135,6 @@ export const SeatMapEditorModal = ({
         }
         setCameraActive(true);
       } else {
-        setCameraError('無法開啟相機鏡頭，請確認鏡頭權限或切換至 4×5 測試底圖。');
         setCameraActive(false);
       }
     }
@@ -163,7 +172,6 @@ export const SeatMapEditorModal = ({
     if (canUseParentStream && activeStream) {
       console.log('[SeatMapEditor] 成功對齊父層活躍相機串流，0ms 秒開免搶佔設備');
       setCameraActive(true);
-      setCameraError(null);
       if (videoRef.current) {
         if (videoRef.current.srcObject !== activeStream) {
           videoRef.current.srcObject = activeStream;
@@ -171,11 +179,22 @@ export const SeatMapEditorModal = ({
         videoRef.current.play().catch((e) => console.warn('[SeatMapEditor] activeStream play error:', e));
         updateVideoDimsFromElement(videoRef.current);
       }
-    } else if (!useTestPattern) {
-      // 僅在父層確實沒有串流且非測試圖模式時，才嘗試自主啟動鏡頭
+    } else {
+      // 僅在父層確實沒有可用串流時，才嘗試自主啟動鏡頭
       startCamera(selectedDeviceId || currentDeviceId);
     }
   }, [isOpen, activeStream, parentCameraActive]);
+
+  // 當 Modal 開啟後確保 video 元素及時取得相機串流
+  useEffect(() => {
+    if (isOpen && videoRef.current) {
+      const targetStream = activeStream || internalStreamRef.current;
+      if (targetStream && videoRef.current.srcObject !== targetStream) {
+        videoRef.current.srcObject = targetStream;
+        videoRef.current.play().catch(() => {});
+      }
+    }
+  }, [isOpen, activeStream]);
 
   if (!isOpen) return null;
 
@@ -682,42 +701,6 @@ export const SeatMapEditorModal = ({
                 </option>
               ))}
             </select>
-
-            {/* 4x5 測試底圖切換按鈕 */}
-            <button
-              onClick={() => {
-                if (useTestPattern) {
-                  setUseTestPattern(false);
-                  if (isStreamAlive(activeStream)) {
-                    setCameraActive(true);
-                  } else {
-                    startCamera(selectedDeviceId);
-                  }
-                } else {
-                  setUseTestPattern(true);
-                  setCameraActive(true);
-                  setVideoDims({ width: 1920, height: 1080 });
-                }
-              }}
-              title={useTestPattern ? '切換為即時鏡頭串流' : '切換為 4×5 課堂測試底圖'}
-              style={{
-                padding: '5px 10px',
-                borderRadius: '6px',
-                background: useTestPattern ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.06)',
-                color: useTestPattern ? '#38bdf8' : '#cbd5e1',
-                border: `1px solid ${useTestPattern ? '#38bdf8' : '#334155'}`,
-                fontSize: '0.78rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <Sparkles size={13} />
-              {useTestPattern ? '4×5 底圖模式' : '測試底圖'}
-            </button>
           </div>
         </div>
 
@@ -744,59 +727,27 @@ export const SeatMapEditorModal = ({
               justifyContent: 'center',
             }}
           >
-            {/* 底層相機即時視訊預覽或 4x5 測試底圖 (等比例縮放呈現) */}
-            {useTestPattern ? (
-              <img
-                src="/test_classroom.jpg"
-                alt="Classroom 4x5 Test Pattern"
-                onLoad={(e) => {
-                  const target = e.currentTarget;
-                  if (target.naturalWidth > 0 && target.naturalHeight > 0) {
-                    setVideoDims({
-                      width: target.naturalWidth,
-                      height: target.naturalHeight,
-                    });
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                  pointerEvents: 'none',
-                }}
-              />
-            ) : (
-              <video
-                ref={(el) => {
-                  videoRef.current = el;
-                  if (el) {
-                    const targetStream = activeStream || internalStreamRef.current;
-                    if (targetStream && el.srcObject !== targetStream) {
-                      el.srcObject = targetStream;
-                      el.play().catch(() => {});
-                    }
-                    updateVideoDimsFromElement(el);
-                  }
-                }}
-                autoPlay
-                playsInline
-                muted
-                onLoadedMetadata={(e) => updateVideoDimsFromElement(e.currentTarget)}
-                onLoadedData={(e) => updateVideoDimsFromElement(e.currentTarget)}
-                onCanPlay={(e) => updateVideoDimsFromElement(e.currentTarget)}
-                onPlaying={(e) => updateVideoDimsFromElement(e.currentTarget)}
-                style={{
-                  display: cameraActive ? 'block' : 'none',
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                  pointerEvents: 'none',
-                }}
-              />
-            )}
+            {/* 底層相機即時視訊預覽 (等比例縮放呈現) */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              onLoadedMetadata={(e) => updateVideoDimsFromElement(e.currentTarget)}
+              onLoadedData={(e) => updateVideoDimsFromElement(e.currentTarget)}
+              onCanPlay={(e) => updateVideoDimsFromElement(e.currentTarget)}
+              onPlaying={(e) => updateVideoDimsFromElement(e.currentTarget)}
+              style={{
+                display: cameraActive ? 'block' : 'none',
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                pointerEvents: 'none',
+              }}
+            />
 
-            {/* 無相機且非測試底圖時的遮罩與提示 (支援一鍵載入 4x5 測試圖劃位或重新連接) */}
-            {!cameraActive && !useTestPattern && (
+            {/* 無相機時的遮罩與提示 */}
+            {!cameraActive && (
               <div
                 style={{
                   position: 'absolute',
@@ -820,33 +771,10 @@ export const SeatMapEditorModal = ({
                 <div>
                   <h4 style={{ color: '#ef4444', margin: '0 0 6px 0', fontSize: '1.1rem' }}>尚未偵測到相機畫面</h4>
                   <p style={{ margin: 0, fontSize: '0.85rem', color: '#cbd5e1' }}>
-                    請先啟動現場相機鏡頭，或切換至 4×5 測試底圖進行劃位。
+                    請先啟動現場相機鏡頭，系統需依據現場鏡頭等比畫面方可進行劃位。
                   </p>
                 </div>
-                <div style={{ display: 'flex', gap: '10px', marginTop: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                  <button
-                    onClick={() => {
-                      setUseTestPattern(true);
-                      setCameraActive(true);
-                      setVideoDims({ width: 1920, height: 1080 });
-                    }}
-                    style={{
-                      padding: '9px 18px',
-                      borderRadius: '8px',
-                      background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
-                      color: '#fff',
-                      border: 'none',
-                      fontWeight: 600,
-                      fontSize: '0.86rem',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 4px 14px rgba(59, 130, 246, 0.4)',
-                    }}
-                  >
-                    <Sparkles size={16} /> 載入 4×5 課堂測試底圖劃位
-                  </button>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '8px', justifyContent: 'center' }}>
                   <button
                     onClick={() => {
                       if (isStreamAlive(activeStream)) {
@@ -861,11 +789,11 @@ export const SeatMapEditorModal = ({
                       }
                     }}
                     style={{
-                      padding: '9px 16px',
+                      padding: '9px 18px',
                       borderRadius: '8px',
-                      background: 'rgba(255,255,255,0.08)',
-                      color: '#cbd5e1',
-                      border: '1px solid #475569',
+                      background: 'rgba(59, 130, 246, 0.2)',
+                      color: '#60a5fa',
+                      border: '1px solid rgba(59, 130, 246, 0.4)',
                       fontWeight: 600,
                       fontSize: '0.86rem',
                       cursor: 'pointer',

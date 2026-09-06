@@ -4,14 +4,16 @@ import { Menu, LayoutDashboard, History, LayoutGrid } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import HistoryPage from './pages/History';
+import ErrorBoundary from './components/ErrorBoundary';
 import './App.css';
 
 function App() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   return (
-    <Router>
-      <div className="layout-container">
+    <ErrorBoundary>
+      <Router>
+        <div className="layout-container">
         {/* 行動端頂部 Bar */}
         <header className="mobile-topbar">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -91,6 +93,7 @@ function App() {
         </nav>
       </div>
     </Router>
+  </ErrorBoundary>
   );
 }
 
