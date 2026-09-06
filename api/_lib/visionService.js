@@ -19,9 +19,9 @@ export async function analyzeAttendanceImage(base64Data, hintMessage, clientPers
       const height = typeof p.height === 'number' ? p.height : (p.h || 0);
 
       if (width > 0 && height > 0) {
-        // 形態防偽過濾：排除橫向扁平非坐姿物體 (如平攤課本雜物或橫放背包，正常人體坐姿高寬比 >= 0.60)
+        // 形態防偽過濾：排除橫向極扁平非坐姿物體 (如平攤課本雜物，正常人體伏案坐姿高寬比 >= 0.40)
         const aspectRatio = height / (width || 1);
-        if (aspectRatio < 0.60) return;
+        if (aspectRatio < 0.40) return;
 
         const centerX = x + width * 0.5;
         const headY = y + height * 0.28;

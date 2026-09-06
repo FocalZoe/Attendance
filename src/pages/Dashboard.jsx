@@ -33,7 +33,7 @@ const getSharedPersonDetector = async () => {
             delegate: 'GPU',
           },
           runningMode: 'VIDEO',
-          scoreThreshold: 0.12,
+          scoreThreshold: 0.10,
           maxResults: 50,
           categoryAllowlist: ['person'],
         });
@@ -232,14 +232,17 @@ const Dashboard = () => {
               const yNorm = originY / (vHeight || 1);
               const aspectRatio = height / (width || 1);
 
-              // 排除橫向扁平非坐姿物體 (如平攤在桌上的課本雜物或外套)
-              if (aspectRatio < 0.60) return false;
-
-              // 透視分層自適應動態門檻：
-              // 遠景區域 (yNorm <= 0.50，第 1、2 排)：目標像素小，採用高靈敏門檻 0.12 召回背影
-              // 近景區域 (yNorm > 0.50，第 3、4 排)：人體特徵清晰，維持標準嚴格門檻 0.22 嚴防椅背外套與黑書包誤判
-              const dynamicThreshold = yNorm <= 0.50 ? 0.12 : 0.22;
-              return score >= dynamicThreshold;
+              // 透視分層自適應動態門檻與坐姿形態防偽：
+              // 遠景區域 (yNorm <= 0.50，第 1、2 排)：
+              // 遠景學生下半身受課桌完全遮擋，且雙肘伏案大開寫字 (如 5 號座) 時長寬比約 0.42~0.55；
+              // 故遠景門檻設為 0.10，形態過濾設為 aspectRatio >= 0.40，確保伏案背影學生 100% 召回。
+              // 近景區域 (yNorm > 0.50，第 3、4 排)：
+              // 近景坐姿特徵清晰，維持標準嚴格門檻 0.22，形態嚴格要求 aspectRatio >= 0.60，徹底杜絕椅背外套與桌上書包雜物假陽性。
+              if (yNorm <= 0.50) {
+                return score >= 0.10 && aspectRatio >= 0.40;
+              } else {
+                return score >= 0.22 && aspectRatio >= 0.60;
+              }
             })
             .map((det) => {
               const { originX, originY, width, height } = det.boundingBox;
@@ -452,12 +455,12 @@ const Dashboard = () => {
           const yNorm = originY / (vHeight || 1);
           const aspectRatio = height / (width || 1);
 
-          // 排除橫向扁平非坐姿雜物
-          if (aspectRatio < 0.60) return false;
-
-          // 透視分層自適應動態門檻：遠景 0.12 召回背影，近景 0.22 嚴防外套書包誤判
-          const dynamicThreshold = yNorm <= 0.50 ? 0.12 : 0.22;
-          return score >= dynamicThreshold;
+          // 透視分層自適應動態門檻與坐姿形態防偽
+          if (yNorm <= 0.50) {
+            return score >= 0.10 && aspectRatio >= 0.40;
+          } else {
+            return score >= 0.22 && aspectRatio >= 0.60;
+          }
         })
         .map((det) => ({
           x: Math.round(det.boundingBox.originX),

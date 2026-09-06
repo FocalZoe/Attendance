@@ -70,11 +70,18 @@ assert(frame4[0].status === 'OCCUPIED', '測試 3-4: 幀 4 人員重現 (400ms)�
 const frame5 = tracker.update(matchPersonsToSeats(testSeats, []), 1300);
 assert(frame5[0].status === 'VACANT', '測試 4: 超過 800ms 緩衝窗口 (t=1300ms)，平滑過渡確認為 VACANT');
 
-// 測試 5: 真實雜亂教室抗噪測試 (扁平課本雜物/橫向攤平書包，aspectRatio < 0.60)
+// 測試 5: 真實雜亂教室抗噪測試 (扁平課本雜物/橫向攤平書包，aspectRatio < 0.40)
 const clutterObject = [
-  { originX: 110, originY: 120, width: 140, height: 50, confidence: 0.85 } // 橫向扁平雜物 (aspectRatio = 50/140 = 0.357 < 0.60)
+  { originX: 110, originY: 120, width: 140, height: 50, confidence: 0.85 } // 橫向扁平雜物 (aspectRatio = 50/140 = 0.357 < 0.40)
 ];
 const result5 = matchPersonsToSeats(testSeats, clutterObject);
-assert(result5[0].status === 'VACANT', '測試 5: 雜亂教室扁平課本或橫放雜物應被形態防偽過濾 (保持 VACANT)');
+assert(result5[0].status === 'VACANT', '測試 5: 雜亂教室扁平課本或橫放雜物 (0.357) 應被形態防偽過濾 (保持 VACANT)');
+
+// 測試 6: 遠景深埋伏案趴桌雙肘開展學生測試 (如 5 號座，aspectRatio = 45/100 = 0.45 >= 0.40)
+const proneStudent = [
+  { originX: 110, originY: 100, width: 100, height: 45, confidence: 0.90 } // 伏案學生 (aspectRatio = 0.45 >= 0.40)
+];
+const result6 = matchPersonsToSeats(testSeats, proneStudent);
+assert(result6[0].status === 'OCCUPIED', '測試 6: 遠景伏案趴桌雙肘開展學生 (aspectRatio=0.45) 應順利判定為 OCCUPIED');
 
 console.log(`\n=== 測試總結: 通過 ${passedTests}/${totalTests} 項驗證 ===\n`);

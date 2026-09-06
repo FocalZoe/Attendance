@@ -134,9 +134,9 @@ export const matchPersonsToSeats = (seats, detectedPersons) => {
 
       if (width <= 0 || height <= 0) return null;
 
-      // 排除橫向扁平非坐姿物體 (如平攤在桌上的課本雜物或外套，正常人體坐姿高寬比 >= 0.60)
+      // 排除橫向極扁平非坐姿物體 (如平攤課本雜物，aspectRatio 通常低於 0.35；正常伏案趴桌雙肘開展坐姿在 0.40 以上)
       const aspectRatio = height / (width || 1);
-      if (aspectRatio < 0.60) return null;
+      if (aspectRatio < 0.40) return null;
 
       const centerX = x + width * 0.5;
       // 俯拍視角下，頭部中心與肩頸部是判定座位的關鍵特徵

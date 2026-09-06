@@ -27,7 +27,7 @@ const getSharedPersonDetector = async () => {
             delegate: 'GPU',
           },
           runningMode: 'VIDEO',
-          scoreThreshold: 0.12,
+          scoreThreshold: 0.10,
           maxResults: 50,
           categoryAllowlist: ['person'],
         });
@@ -228,12 +228,12 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
               const yNorm = originY / (vHeight || 1);
               const aspectRatio = height / (width || 1);
 
-              // 排除橫向扁平非人體雜物 (如課本雜物或平攤外套)
-              if (aspectRatio < 0.60) return false;
-
-              // 透視分層自適應門檻：遠景 0.12 召回小目標，近景 0.22 嚴防外套書包誤判
-              const dynamicThreshold = yNorm <= 0.50 ? 0.12 : 0.22;
-              return score >= dynamicThreshold;
+              // 透視分層自適應門檻與坐姿形態防偽
+              if (yNorm <= 0.50) {
+                return score >= 0.10 && aspectRatio >= 0.40;
+              } else {
+                return score >= 0.22 && aspectRatio >= 0.60;
+              }
             })
             .map((det) => {
               const { originX, originY, width, height } = det.boundingBox;
@@ -374,12 +374,12 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
           const yNorm = originY / (vHeight || 1);
           const aspectRatio = height / (width || 1);
 
-          // 排除橫向扁平非坐姿雜物
-          if (aspectRatio < 0.60) return false;
-
-          // 透視分層自適應門檻：遠景 0.12 召回背影，近景 0.22 嚴防外套書包誤判
-          const dynamicThreshold = yNorm <= 0.50 ? 0.12 : 0.22;
-          return score >= dynamicThreshold;
+          // 透視分層自適應門檻與坐姿形態防偽
+          if (yNorm <= 0.50) {
+            return score >= 0.10 && aspectRatio >= 0.40;
+          } else {
+            return score >= 0.22 && aspectRatio >= 0.60;
+          }
         })
         .map((det) => ({
           x: Math.round(det.boundingBox.originX),
