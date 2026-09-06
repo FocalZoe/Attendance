@@ -27,7 +27,7 @@ const getSharedPersonDetector = async () => {
             delegate: 'GPU',
           },
           runningMode: 'VIDEO',
-          scoreThreshold: 0.18,
+          scoreThreshold: 0.12,
           maxResults: 50,
           categoryAllowlist: ['person'],
         });
@@ -220,18 +220,32 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
 
           const scale = renderW / vWidth;
 
-          // 1. 取得偵測到的人員邊框 (以實際視窗 pixel 為基準)
-          const detectedPersonsInView = detections.map((det) => {
-            const { originX, originY, width, height } = det.boundingBox;
-            const score = det.categories[0]?.score || 0.95;
-            return {
-              x: offsetX + originX * scale,
-              y: offsetY + originY * scale,
-              width: width * scale,
-              height: height * scale,
-              confidence: score,
-            };
-          });
+          // 1. 取得偵測到的人員邊框 (以實際視窗 pixel 為基準，加入透視分層與形態過濾)
+          const detectedPersonsInView = detections
+            .filter((det) => {
+              const { originY, width, height } = det.boundingBox;
+              const score = det.categories[0]?.score || 0;
+              const yNorm = originY / (vHeight || 1);
+              const aspectRatio = height / (width || 1);
+
+              // 排除橫向扁平非人體雜物 (如課本雜物或平攤外套)
+              if (aspectRatio < 0.60) return false;
+
+              // 透視分層自適應門檻：遠景 0.12 召回小目標，近景 0.22 嚴防外套書包誤判
+              const dynamicThreshold = yNorm <= 0.50 ? 0.12 : 0.22;
+              return score >= dynamicThreshold;
+            })
+            .map((det) => {
+              const { originX, originY, width, height } = det.boundingBox;
+              const score = det.categories[0]?.score || 0.95;
+              return {
+                x: offsetX + originX * scale,
+                y: offsetY + originY * scale,
+                width: width * scale,
+                height: height * scale,
+                confidence: score,
+              };
+            });
 
           // 2. 縮放座位 ROI
           const scaleBaseX = cWidth / (currentSeats.base_width || 640);
@@ -352,13 +366,28 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
       const currentPeriodName = currentConfig.current_period || '第 1 節';
       const formattedMessage = formatFullPeriodMessage(currentPeriodName);
 
-      const detectedPersonsPayload = (lastDetectionsRef.current || []).map((det) => ({
-        x: Math.round(det.boundingBox.originX),
-        y: Math.round(det.boundingBox.originY),
-        width: Math.round(det.boundingBox.width),
-        height: Math.round(det.boundingBox.height),
-        confidence: det.categories[0]?.score || 0.95,
-      }));
+      const vHeight = videoRef.current?.videoHeight || 480;
+      const detectedPersonsPayload = (lastDetectionsRef.current || [])
+        .filter((det) => {
+          const { originY, width, height } = det.boundingBox;
+          const score = det.categories[0]?.score || 0;
+          const yNorm = originY / (vHeight || 1);
+          const aspectRatio = height / (width || 1);
+
+          // 排除橫向扁平非坐姿雜物
+          if (aspectRatio < 0.60) return false;
+
+          // 透視分層自適應門檻：遠景 0.12 召回背影，近景 0.22 嚴防外套書包誤判
+          const dynamicThreshold = yNorm <= 0.50 ? 0.12 : 0.22;
+          return score >= dynamicThreshold;
+        })
+        .map((det) => ({
+          x: Math.round(det.boundingBox.originX),
+          y: Math.round(det.boundingBox.originY),
+          width: Math.round(det.boundingBox.width),
+          height: Math.round(det.boundingBox.height),
+          confidence: det.categories[0]?.score || 0.95,
+        }));
 
       const targetApiUrl = getApiUrl('/api/telemetry');
 

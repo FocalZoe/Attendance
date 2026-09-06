@@ -33,7 +33,7 @@ const getSharedPersonDetector = async () => {
             delegate: 'GPU',
           },
           runningMode: 'VIDEO',
-          scoreThreshold: 0.18,
+          scoreThreshold: 0.12,
           maxResults: 50,
           categoryAllowlist: ['person'],
         });
@@ -224,17 +224,33 @@ const Dashboard = () => {
           const scaleX = cWidth / vWidth;
           const scaleY = cHeight / vHeight;
 
-          // 1. 偵測到的人員邊框 (以 client 像素為基準)
-          const detectedPersonsInView = detections.map((det) => {
-            const { originX, originY, width, height } = det.boundingBox;
-            return {
-              x: originX * scaleX,
-              y: originY * scaleY,
-              width: width * scaleX,
-              height: height * scaleY,
-              confidence: det.categories[0]?.score || 0.95,
-            };
-          });
+          // 1. 偵測到的人員邊框 (以 client 像素為基準，實施透視分層自適應門檻與形態防偽)
+          const detectedPersonsInView = detections
+            .filter((det) => {
+              const { originY, width, height } = det.boundingBox;
+              const score = det.categories[0]?.score || 0;
+              const yNorm = originY / (vHeight || 1);
+              const aspectRatio = height / (width || 1);
+
+              // 排除橫向扁平非坐姿物體 (如平攤在桌上的課本雜物或外套)
+              if (aspectRatio < 0.60) return false;
+
+              // 透視分層自適應動態門檻：
+              // 遠景區域 (yNorm <= 0.50，第 1、2 排)：目標像素小，採用高靈敏門檻 0.12 召回背影
+              // 近景區域 (yNorm > 0.50，第 3、4 排)：人體特徵清晰，維持標準嚴格門檻 0.22 嚴防椅背外套與黑書包誤判
+              const dynamicThreshold = yNorm <= 0.50 ? 0.12 : 0.22;
+              return score >= dynamicThreshold;
+            })
+            .map((det) => {
+              const { originX, originY, width, height } = det.boundingBox;
+              return {
+                x: originX * scaleX,
+                y: originY * scaleY,
+                width: width * scaleX,
+                height: height * scaleY,
+                confidence: det.categories[0]?.score || 0.95,
+              };
+            });
 
           // 2. 座位百分比轉為 client 像素座標 (等比例精準映射)
           const freshConfig = getSavedSeatsConfig();
@@ -428,13 +444,28 @@ const Dashboard = () => {
       const currentPeriodName = targetPeriodName || currentConfig.current_period || '第 1 節';
       const formattedMessage = formatFullPeriodMessage(currentPeriodName);
 
-      const detectedPersonsPayload = (lastDetectionsRef.current || []).map((det) => ({
-        x: Math.round(det.boundingBox.originX),
-        y: Math.round(det.boundingBox.originY),
-        width: Math.round(det.boundingBox.width),
-        height: Math.round(det.boundingBox.height),
-        confidence: det.categories[0]?.score || 0.95,
-      }));
+      const vHeight = video.videoHeight || 480;
+      const detectedPersonsPayload = (lastDetectionsRef.current || [])
+        .filter((det) => {
+          const { originY, width, height } = det.boundingBox;
+          const score = det.categories[0]?.score || 0;
+          const yNorm = originY / (vHeight || 1);
+          const aspectRatio = height / (width || 1);
+
+          // 排除橫向扁平非坐姿雜物
+          if (aspectRatio < 0.60) return false;
+
+          // 透視分層自適應動態門檻：遠景 0.12 召回背影，近景 0.22 嚴防外套書包誤判
+          const dynamicThreshold = yNorm <= 0.50 ? 0.12 : 0.22;
+          return score >= dynamicThreshold;
+        })
+        .map((det) => ({
+          x: Math.round(det.boundingBox.originX),
+          y: Math.round(det.boundingBox.originY),
+          width: Math.round(det.boundingBox.width),
+          height: Math.round(det.boundingBox.height),
+          confidence: det.categories[0]?.score || 0.95,
+        }));
 
       // 使用統一 API 模組發送當下劃位
       const result = await sendTelemetry({
