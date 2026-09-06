@@ -33,7 +33,8 @@ const getSharedPersonDetector = async () => {
             delegate: 'GPU',
           },
           runningMode: 'VIDEO',
-          scoreThreshold: 0.35,
+          scoreThreshold: 0.18,
+          maxResults: 50,
           categoryAllowlist: ['person'],
         });
         detectorInstance = detector;

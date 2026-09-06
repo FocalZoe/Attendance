@@ -87,9 +87,9 @@ export async function analyzeAttendanceImage(base64Data, hintMessage, clientPers
 
       if (sArea <= 0) return;
 
-      // 寬容範圍 (適應透視邊界)
-      const padX = sW * 0.08;
-      const padY = sH * 0.08;
+      // 寬容範圍 (適應透視邊界與學生俯身傾斜)
+      const padX = sW * 0.12;
+      const padY = sH * 0.12;
 
       // (A) 頭部核心是否實質落在座位 ROI 範圍內
       const isHeadInside =
@@ -120,14 +120,14 @@ export async function analyzeAttendanceImage(base64Data, hintMessage, clientPers
       const overlapOverPerson = person.area > 0 ? (overlapArea / person.area) : 0;
 
       // (D) 走道穿行人體嚴格排除機制 (Passerby Strict Filter)
-      if (!isHeadInside && !isCenterInside && overlapOverSeat < 0.40) {
+      if (!isHeadInside && !isCenterInside && overlapOverSeat < 0.35) {
         return;
       }
 
-      // (E) 綜合入座門檻
+      // (E) 綜合入座門檻 (適應低頭俯身與背影人體)
       const isQualify =
-        ((isHeadInside || isCenterInside) && (overlapOverSeat >= 0.12 || overlapOverPerson >= 0.18)) ||
-        (overlapOverSeat >= 0.38);
+        ((isHeadInside || isCenterInside) && (overlapOverSeat >= 0.08 || overlapOverPerson >= 0.12)) ||
+        (overlapOverSeat >= 0.32);
 
       if (isQualify) {
         const dist = Math.hypot(person.centerX - sCenterX, person.headY - sHeadCenterY);
