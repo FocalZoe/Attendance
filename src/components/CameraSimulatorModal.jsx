@@ -8,7 +8,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Camera, LayoutGrid, Settings, Calendar, Clock, GraduationCap, UserCheck, UserX } from 'lucide-react';
 import { ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision';
 import { getApiUrl } from '../config/api.js';
-import { getSavedSeatsConfig, matchPersonsToSeats, formatFullPeriodMessage } from '../services/seatOccupancyService.js';
+import { getSavedSeatsConfig, matchPersonsToSeats, formatFullPeriodMessage, SeatTemporalTracker } from '../services/seatOccupancyService.js';
 
 let detectorInstance = null;
 let detectorLoadingPromise = null;
@@ -62,6 +62,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
   const lastDetectionTimeRef = useRef(0);
   // TEAM_008: 記錄 MediaPipe 前次傳入時間戳，維護嚴格單調遞增
   const lastDetectionTimestampRef = useRef(0);
+  const seatTrackerRef = useRef(new SeatTemporalTracker({ holdOffMs: 800 }));
 
   const getCameraDevices = async () => {
     try {
@@ -136,6 +137,9 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
     }
     setCameraActive(false);
     lastDetectionsRef.current = [];
+    if (seatTrackerRef.current) {
+      seatTrackerRef.current.reset();
+    }
   };
 
   // 即時 AI 人體與多座位重疊疊加渲染
@@ -242,8 +246,9 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
             },
           }));
 
-          // 3. 計算各座號狀態
-          const statuses = matchPersonsToSeats(scaledSeats, detectedPersonsInView, 0.2);
+          // 3. 計算各座號狀態 (含跨幀遲滯平滑防抖)
+          const rawStatuses = matchPersonsToSeats(scaledSeats, detectedPersonsInView);
+          const statuses = seatTrackerRef.current.update(rawStatuses, now);
           setLiveSeatStatuses(statuses);
 
           // 4. 繪製座位框 (在座綠色 / 未到紅色虛線)

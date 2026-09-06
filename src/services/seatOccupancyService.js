@@ -95,7 +95,12 @@ export const generateGridSeats = (rows = 3, cols = 3, width = 640, height = 480)
 };
 
 /**
- * 高精度在座判定演算法 (Precision Seat Occupancy Engine)
+ * 高精度空間幾何在座判定演算法 (Precision Seat Occupancy Engine v2)
+ * 核心升級：
+ * 1. 人員頭部與上半身核心 (Centroid & Head Core) 黃金錨點加權。
+ * 2. 嚴格過濾走道快速穿行路人 (Passerby Strict Exclusion)，防止相鄰空位被誤吸附。
+ * 3. 多因子契合度得分融合模型 (Multi-Factor Fit Score) + 貪婪唯一最佳匹配 (Greedy Assignment)。
+ *
  * @param {Array} seats 座位清單 (含 roi: {x, y, width, height})
  * @param {Array} detectedPersons 偵測到的人員清單
  * @returns {Array} 包含在座 (OCCUPIED) 與缺席 (VACANT) 狀態的座位陣列
@@ -119,7 +124,7 @@ export const matchPersonsToSeats = (seats, detectedPersons) => {
     return seatResults;
   }
 
-  // 1. 規範化人員座標與核心錨點 (頭部中心、上半身軀幹中心)
+  // 1. 規範化人員座標與頭部核心黃金錨點
   const normalizedPersons = persons
     .map((p, idx) => {
       const x = typeof p.x === 'number' ? p.x : (p.originX || 0);
@@ -130,8 +135,9 @@ export const matchPersonsToSeats = (seats, detectedPersons) => {
       if (width <= 0 || height <= 0) return null;
 
       const centerX = x + width * 0.5;
-      const headY = y + height * 0.32; // 頭部/肩頸核心中心
-      const centerY = y + height * 0.5; // 身體中心點
+      // 俯拍視角下，頭部中心與肩頸部是判定座位的關鍵特徵
+      const headY = y + height * 0.28; 
+      const centerY = y + height * 0.48; // 軀幹核心
 
       return {
         id: idx,
@@ -139,7 +145,7 @@ export const matchPersonsToSeats = (seats, detectedPersons) => {
         x, y, width, height,
         centerX, headY, centerY,
         area: width * height,
-        confidence: p.confidence || p.categories?.[0]?.score || 0.95,
+        confidence: typeof p.confidence === 'number' ? p.confidence : (p.categories?.[0]?.score || 0.95),
       };
     })
     .filter(Boolean);
@@ -148,7 +154,7 @@ export const matchPersonsToSeats = (seats, detectedPersons) => {
     return seatResults;
   }
 
-  // 2. 計算每個人與每個座位的在座契合度得分 (Fit Score)
+  // 2. 多因子在座契合度得分計算 (Multi-Factor Fit Scoring)
   const candidatePairs = [];
 
   normalizedPersons.forEach((person) => {
@@ -159,29 +165,30 @@ export const matchPersonsToSeats = (seats, detectedPersons) => {
       const sW = sRoi.width;
       const sH = sRoi.height;
       const sCenterX = sX + sW * 0.5;
-      const sCenterY = sY + sH * 0.5;
+      const sHeadCenterY = sY + sH * 0.35;
       const sArea = sW * sH;
 
       if (sArea <= 0) return;
 
-      // 寬容範圍 (5%)
-      const padX = sW * 0.05;
-      const padY = sH * 0.05;
+      // 寬容範圍 (適應透視邊界)
+      const padX = sW * 0.08;
+      const padY = sH * 0.08;
 
-      // 檢查頭部核心或中心點是否實質落在座位邊界內
+      // (A) 頭部核心是否實質落在座位 ROI 範圍內
       const isHeadInside =
         person.centerX >= (sX - padX) &&
         person.centerX <= (sX + sW + padX) &&
         person.headY >= (sY - padY) &&
         person.headY <= (sY + sH + padY);
 
+      // (B) 軀幹中心是否實質落在座位內部
       const isCenterInside =
         person.centerX >= (sX - padX) &&
         person.centerX <= (sX + sW + padX) &&
         person.centerY >= (sY - padY) &&
         person.centerY <= (sY + sH + padY);
 
-      // 計算交集面積
+      // (C) 計算幾何重疊面積
       const interX1 = Math.max(sX, person.x);
       const interY1 = Math.max(sY, person.y);
       const interX2 = Math.min(sX + sW, person.x + person.width);
@@ -195,21 +202,29 @@ export const matchPersonsToSeats = (seats, detectedPersons) => {
       const overlapOverSeat = overlapArea / sArea;
       const overlapOverPerson = person.area > 0 ? (overlapArea / person.area) : 0;
 
-      // 嚴格在座條件：
-      // (1) 人員頭部或中心在座位內部，且重疊率達標
-      // (2) 或者是座位被佔用面積大於 35%
+      // (D) 走道穿行人體嚴格排除機制 (Passerby Strict Filter)
+      // 若人員頭部與軀幹核心完全不在座位內部（如走道快步通過），除非覆蓋率極大否則一律過濾
+      if (!isHeadInside && !isCenterInside && overlapOverSeat < 0.40) {
+        return;
+      }
+
+      // (E) 綜合入座門檻
       const isQualify =
-        ((isHeadInside || isCenterInside) && (overlapOverSeat >= 0.15 || overlapOverPerson >= 0.2)) ||
-        (overlapOverSeat >= 0.35);
+        ((isHeadInside || isCenterInside) && (overlapOverSeat >= 0.12 || overlapOverPerson >= 0.18)) ||
+        (overlapOverSeat >= 0.38);
 
       if (isQualify) {
-        // 計算距離中心點之偏離量
-        const dist = Math.hypot(person.centerX - sCenterX, person.headY - sCenterY);
+        // 計算偏離中心之歐式距離
+        const dist = Math.hypot(person.centerX - sCenterX, person.headY - sHeadCenterY);
         const maxDim = Math.max(sW, sH) || 1;
         const normalizedDist = Math.min(1.5, dist / maxDim);
+        const centerAffinity = Math.max(0, 1 - normalizedDist * 0.6);
 
-        // 得分越重代表越實質坐在該位
-        const score = (overlapOverSeat * 0.6) + (Math.max(0, 1 - normalizedDist * 0.6) * 0.4);
+        // 頭部在座位上半部的黃金加成 (Head Core Bonus)
+        const headBonus = isHeadInside ? 1.0 : 0.4;
+
+        // 多因子融合得分：(交疊率 45% + 中心親和度 35% + 頭部加成 20%) * 置信度
+        const score = ((overlapOverSeat * 0.45) + (centerAffinity * 0.35) + (headBonus * 0.20)) * person.confidence;
 
         candidatePairs.push({
           personIdx: person.id,
@@ -222,7 +237,7 @@ export const matchPersonsToSeats = (seats, detectedPersons) => {
     });
   });
 
-  // 3. 貪婪最佳唯一匹配 (一人一座，一座一人)
+  // 3. 貪婪最佳唯一匹配 (Greedy Assignment: 一人一座，一座一人)
   candidatePairs.sort((a, b) => b.score - a.score);
 
   const matchedSeatIndices = new Set();
@@ -242,3 +257,83 @@ export const matchPersonsToSeats = (seats, detectedPersons) => {
 
   return seatResults;
 };
+
+/**
+ * 跨幀時間序列遲滯防抖狀態機 (Seat Temporal Hysteresis State Tracker)
+ * 核心原理：
+ * 1. 入場確認 (Fast IN)：當前幀偵測到在座，立即響應為 OCCUPIED。
+ * 2. 離座遲滯平滑 (Hold-off Decay OUT)：短暫未偵測到時，啟動 800ms 緩衝窗口，保持 OCCUPIED 狀態，
+ *    徹底抹平 1~2 幀的模型瞬態漏檢與低頭眨眼造成的綠框紅框跳動 (Flickering)。
+ * 3. 真正離席：超過 800ms 且連續多幀無人，才平滑過渡為缺席 (VACANT)。
+ */
+export class SeatTemporalTracker {
+  constructor(options = {}) {
+    this.holdOffMs = typeof options.holdOffMs === 'number' ? options.holdOffMs : 800; // 預設 800ms 遲滯緩衝
+    this.seatStates = new Map(); // seat_id -> { status, lastOccupiedTime, confirmedCount, data }
+  }
+
+  /**
+   * 傳入當前幀 matchPersonsToSeats 的原始結果，返回經防抖平滑濾波後的狀態清單
+   * @param {Array} rawStatuses 當前幀原始判定陣列
+   * @param {number} [timestamp] 當前時間戳 (預設 performance.now() 或 Date.now())
+   * @returns {Array} 平滑後的座位狀態清單
+   */
+  update(rawStatuses, timestamp = null) {
+    const now = typeof timestamp === 'number' ? timestamp : (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    if (!Array.isArray(rawStatuses)) return [];
+
+    return rawStatuses.map((curr) => {
+      const seatId = curr.seat_id;
+      const isRawOcc = curr.status === 'OCCUPIED';
+      let prev = this.seatStates.get(seatId);
+
+      if (!prev) {
+        prev = {
+          status: isRawOcc ? 'OCCUPIED' : 'VACANT',
+          lastOccupiedTime: isRawOcc ? now : 0,
+          confirmedCount: isRawOcc ? 1 : 0,
+          data: curr,
+        };
+        this.seatStates.set(seatId, prev);
+        return curr;
+      }
+
+      if (isRawOcc) {
+        // 當前幀確實在座 -> 立即更新在座並刷新計時
+        prev.status = 'OCCUPIED';
+        prev.lastOccupiedTime = now;
+        prev.confirmedCount++;
+        prev.data = curr;
+        return curr;
+      } else {
+        // 當前幀未命中在座 -> 檢查是否在 800ms 遲滯窗口內
+        const timeSinceLastOcc = now - prev.lastOccupiedTime;
+        if (prev.status === 'OCCUPIED' && timeSinceLastOcc < this.holdOffMs) {
+          // 處於防抖保護期間：抵抗瞬態漏檢，保持在座狀態！
+          return {
+            ...curr,
+            status: 'OCCUPIED',
+            confidence: prev.data?.confidence || curr.confidence,
+            overlap_ratio: prev.data?.overlap_ratio || curr.overlap_ratio,
+            matched_person: prev.data?.matched_person || null,
+            is_smoothed: true,
+          };
+        } else {
+          // 超過 800ms 緩衝窗口，確認為缺席
+          prev.status = 'VACANT';
+          prev.confirmedCount = 0;
+          prev.data = curr;
+          return curr;
+        }
+      }
+    });
+  }
+
+  /**
+   * 重置所有座位狀態
+   */
+  reset() {
+    this.seatStates.clear();
+  }
+}
+

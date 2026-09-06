@@ -8,7 +8,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Camera, CheckCircle, Activity, Sparkles, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, RefreshCw, Eye, AlertTriangle, Timer, Smartphone, Bell } from 'lucide-react';
 import { ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision';
 import { fetchHistoryRecords, sendTelemetry, connectWebSocket } from '../services/api';
-import { getSavedSeatsConfig, formatFullPeriodMessage, matchPersonsToSeats } from '../services/seatOccupancyService';
+import { getSavedSeatsConfig, formatFullPeriodMessage, matchPersonsToSeats, SeatTemporalTracker } from '../services/seatOccupancyService';
 import { getSavedSchedulesConfig, checkScheduleTrigger, getNextUpcomingSchedule } from '../services/scheduleService';
 import { isMobileDevice, getDesktopCameraSources, acquireCameraStream } from '../services/cameraDeviceService';
 import SeatMapEditorModal from '../components/SeatMapEditorModal';
@@ -65,6 +65,7 @@ const Dashboard = () => {
 
   // 鏡頭相關 state
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraStream, setCameraStream] = useState(null);
   const [cameraError, setCameraError] = useState(null);
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
@@ -83,6 +84,9 @@ const Dashboard = () => {
   const lastDetectionTimeRef = useRef(0);
   // TEAM_008: 記錄 MediaPipe 前次傳入時間戳，維護嚴格單調遞增
   const lastDetectionTimestampRef = useRef(0);
+  // 跨幀時間序列遲滯防抖追蹤器 (預設 800ms 平滑緩衝，根除畫面跳爍與瞬態漏檢)
+  const seatTrackerRef = useRef(new SeatTemporalTracker({ holdOffMs: 800 }));
+  const latestSmoothedStatusesRef = useRef([]);
 
   // 取得電腦端可用之相機裝置清單 (Webcam + Ameba 網路相機)
   const getCameraDevices = async () => {
@@ -107,12 +111,14 @@ const Dashboard = () => {
     try {
       const stream = await acquireCameraStream(deviceId);
       streamRef.current = stream;
+      setCameraStream(stream);
 
       // 綁定視訊軌道事件（中斷自動重連）
       stream.getVideoTracks().forEach((track) => {
         track.onended = () => {
           console.warn('[Dashboard] Camera stream track ended. Auto restart...');
           setCameraActive(false);
+          setCameraStream(null);
           setTimeout(() => {
             if (!isMobile) startCamera(selectedDeviceId);
           }, 1200);
@@ -135,6 +141,7 @@ const Dashboard = () => {
       console.error('[Dashboard] Start camera error:', err);
       setCameraError('尚未啟動相機鏡頭（相機被佔用或權限未開啟）');
       setCameraActive(false);
+      setCameraStream(null);
     }
   };
 
@@ -147,8 +154,12 @@ const Dashboard = () => {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
+    setCameraStream(null);
     setCameraActive(false);
     lastDetectionsRef.current = [];
+    if (seatTrackerRef.current) {
+      seatTrackerRef.current.reset();
+    }
   };
 
   // 即時 AI 人員偵測與座位在座狀態計算
@@ -243,8 +254,10 @@ const Dashboard = () => {
             };
           });
 
-          // 3. 計算即時在座狀態
-          const statuses = matchPersonsToSeats(scaledSeats, detectedPersonsInView, 0.2);
+          // 3. 計算即時在座狀態 (含跨幀遲滯防抖平滑)
+          const rawStatuses = matchPersonsToSeats(scaledSeats, detectedPersonsInView);
+          const statuses = seatTrackerRef.current.update(rawStatuses, now);
+          latestSmoothedStatusesRef.current = statuses;
 
           // 4. 繪製座位標註框 (在座綠色 / 未到紅色虛線)
           statuses.forEach((st) => {
@@ -1037,6 +1050,13 @@ const Dashboard = () => {
         onClose={() => setIsSeatEditorOpen(false)}
         onSaveSuccess={(newConfig) => {
           setSeatConfig(newConfig);
+        }}
+        activeStream={cameraStream || streamRef.current}
+        parentCameraActive={cameraActive}
+        currentDeviceId={selectedDeviceId}
+        onDeviceChange={(newId) => {
+          setSelectedDeviceId(newId);
+          startCamera(newId);
         }}
       />
 

@@ -20,8 +20,8 @@ export async function analyzeAttendanceImage(base64Data, hintMessage, clientPers
 
       if (width > 0 && height > 0) {
         const centerX = x + width * 0.5;
-        const headY = y + height * 0.32;
-        const centerY = y + height * 0.5;
+        const headY = y + height * 0.28;
+        const centerY = y + height * 0.48;
 
         normalizedPersons.push({
           id: idx,
@@ -82,26 +82,30 @@ export async function analyzeAttendanceImage(base64Data, hintMessage, clientPers
       const sW = seat.roi.width;
       const sH = seat.roi.height;
       const sCenterX = sX + sW * 0.5;
-      const sCenterY = sY + sH * 0.5;
+      const sHeadCenterY = sY + sH * 0.35;
       const sArea = sW * sH;
 
       if (sArea <= 0) return;
 
-      const padX = sW * 0.05;
-      const padY = sH * 0.05;
+      // 寬容範圍 (適應透視邊界)
+      const padX = sW * 0.08;
+      const padY = sH * 0.08;
 
+      // (A) 頭部核心是否實質落在座位 ROI 範圍內
       const isHeadInside =
         person.centerX >= (sX - padX) &&
         person.centerX <= (sX + sW + padX) &&
         person.headY >= (sY - padY) &&
         person.headY <= (sY + sH + padY);
 
+      // (B) 軀幹中心是否實質落在座位內部
       const isCenterInside =
         person.centerX >= (sX - padX) &&
         person.centerX <= (sX + sW + padX) &&
         person.centerY >= (sY - padY) &&
         person.centerY <= (sY + sH + padY);
 
+      // (C) 計算幾何重疊面積
       const interX1 = Math.max(sX, person.bounding_box.x);
       const interY1 = Math.max(sY, person.bounding_box.y);
       const interX2 = Math.min(sX + sW, person.bounding_box.x + person.bounding_box.width);
@@ -115,15 +119,24 @@ export async function analyzeAttendanceImage(base64Data, hintMessage, clientPers
       const overlapOverSeat = overlapArea / sArea;
       const overlapOverPerson = person.area > 0 ? (overlapArea / person.area) : 0;
 
+      // (D) 走道穿行人體嚴格排除機制 (Passerby Strict Filter)
+      if (!isHeadInside && !isCenterInside && overlapOverSeat < 0.40) {
+        return;
+      }
+
+      // (E) 綜合入座門檻
       const isQualify =
-        ((isHeadInside || isCenterInside) && (overlapOverSeat >= 0.15 || overlapOverPerson >= 0.2)) ||
-        (overlapOverSeat >= 0.35);
+        ((isHeadInside || isCenterInside) && (overlapOverSeat >= 0.12 || overlapOverPerson >= 0.18)) ||
+        (overlapOverSeat >= 0.38);
 
       if (isQualify) {
-        const dist = Math.hypot(person.centerX - sCenterX, person.headY - sCenterY);
+        const dist = Math.hypot(person.centerX - sCenterX, person.headY - sHeadCenterY);
         const maxDim = Math.max(sW, sH) || 1;
         const normalizedDist = Math.min(1.5, dist / maxDim);
-        const score = (overlapOverSeat * 0.6) + (Math.max(0, 1 - normalizedDist * 0.6) * 0.4);
+        const centerAffinity = Math.max(0, 1 - normalizedDist * 0.6);
+
+        const headBonus = isHeadInside ? 1.0 : 0.4;
+        const score = ((overlapOverSeat * 0.45) + (centerAffinity * 0.35) + (headBonus * 0.20)) * person.confidence;
 
         candidatePairs.push({
           personIdx: person.id,
