@@ -135,8 +135,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
         inset: 0,
         width: '100vw',
         height: '100vh',
-        background: 'rgba(0, 0, 0, 0.92)',
-        backdropFilter: 'blur(14px)',
+        background: 'rgba(15, 23, 42, 0.88)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -155,38 +154,37 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          background: 'rgba(15, 23, 42, 0.92)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
+          background: '#ffffff',
+          border: '1px solid var(--glass-border)',
           padding: '10px 18px',
-          borderRadius: '12px',
+          borderRadius: '6px',
           marginBottom: '10px',
-          color: '#fff',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          color: '#0f172a',
+          boxShadow: 'none',
           flexWrap: 'wrap',
           gap: '12px',
         }}
       >
         {/* 左側：節次、通報時間與座位計數 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <GraduationCap size={20} />
+          <span style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <GraduationCap size={20} color="var(--accent-primary)" />
             {periodMessage}
           </span>
 
           {formattedTime && (
-            <span style={{ fontSize: '0.82rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Clock size={14} /> {formattedTime}
             </span>
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '0.78rem', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.3)', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
+            <span style={{ fontSize: '0.78rem', background: '#ecfdf5', color: '#059669', padding: '2px 8px', borderRadius: '6px', border: '1px solid #a7f3d0', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
               <UserCheck size={13} /> 在座: {occupiedSeats.length} / {completeSeatStatuses.length}
             </span>
 
             {vacantSeats.length > 0 && (
-              <span style={{ fontSize: '0.78rem', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
+              <span style={{ fontSize: '0.78rem', background: '#fef2f2', color: '#dc2626', padding: '2px 8px', borderRadius: '6px', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
                 <UserX size={13} /> 未到: {vacantSeats.length} 席
               </span>
             )}
@@ -195,7 +193,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
 
         {/* 右側：標註過濾工具列與關閉按鈕 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.4)', padding: '3px 6px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f1f5f9', padding: '3px 6px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
             <button
               onClick={() => setViewMode('all')}
               style={{
@@ -205,7 +203,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
                 fontWeight: 600,
                 cursor: 'pointer',
                 background: viewMode === 'all' ? 'var(--accent-primary)' : 'transparent',
-                color: viewMode === 'all' ? '#fff' : '#94a3b8',
+                color: viewMode === 'all' ? '#fff' : 'var(--text-secondary)',
                 border: 'none',
               }}
             >
@@ -220,8 +218,8 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
                 fontSize: '0.76rem',
                 fontWeight: 600,
                 cursor: 'pointer',
-                background: viewMode === 'vacant' ? 'rgba(239, 68, 68, 0.3)' : 'transparent',
-                color: viewMode === 'vacant' ? '#ef4444' : '#94a3b8',
+                background: viewMode === 'vacant' ? '#fee2e2' : 'transparent',
+                color: viewMode === 'vacant' ? '#dc2626' : 'var(--text-secondary)',
                 border: 'none',
               }}
             >
@@ -236,8 +234,8 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
                 fontSize: '0.76rem',
                 fontWeight: 600,
                 cursor: 'pointer',
-                background: viewMode === 'occupied' ? 'rgba(16, 185, 129, 0.3)' : 'transparent',
-                color: viewMode === 'occupied' ? '#10b981' : '#94a3b8',
+                background: viewMode === 'occupied' ? '#d1fae5' : 'transparent',
+                color: viewMode === 'occupied' ? '#059669' : 'var(--text-secondary)',
                 border: 'none',
               }}
             >
@@ -255,8 +253,8 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '3px',
-                background: viewMode === 'raw' ? '#334155' : 'transparent',
-                color: viewMode === 'raw' ? '#38bdf8' : '#94a3b8',
+                background: viewMode === 'raw' ? '#e2e8f0' : 'transparent',
+                color: viewMode === 'raw' ? '#0f172a' : 'var(--text-secondary)',
                 border: 'none',
               }}
             >
@@ -268,12 +266,12 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           <button
             onClick={onClose}
             style={{
-              background: 'rgba(255,255,255,0.1)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              color: '#ffffff',
-              borderRadius: '50%',
-              width: '34px',
-              height: '34px',
+              background: '#f1f5f9',
+              border: '1px solid #cbd5e1',
+              color: '#0f172a',
+              borderRadius: '4px',
+              width: '32px',
+              height: '32px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -293,11 +291,11 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
           display: 'inline-block',
           maxWidth: '94vw',
           maxHeight: '82vh',
-          borderRadius: '14px',
+          borderRadius: '6px',
           overflow: 'hidden',
-          boxShadow: '0 25px 60px rgba(0,0,0,0.9)',
-          border: '1px solid rgba(56, 189, 248, 0.4)',
-          background: '#090d16',
+          boxShadow: 'none',
+          border: '1px solid #cbd5e1',
+          background: '#0f172a',
         }}
       >
         {/* 原始純淨相片 */}
@@ -416,7 +414,7 @@ const ImageModal = ({ record, imageUrl, title, onClose }) => {
                   fontSize: '0.75rem',
                   fontWeight: 'bold',
                   whiteSpace: 'nowrap',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                  boxShadow: 'none',
                 }}
               >
                 {labelText}

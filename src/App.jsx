@@ -20,11 +20,11 @@ function App() {
             <button
               onClick={() => setIsMobileSidebarOpen(true)}
               style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                color: '#fff',
+                background: '#f1f5f9',
+                color: '#0f172a',
                 border: '1px solid var(--glass-border)',
-                padding: '7px 9px',
-                borderRadius: '8px',
+                padding: '6px 8px',
+                borderRadius: '4px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -32,30 +32,30 @@ function App() {
               }}
               title="開啟選單"
             >
-              <Menu size={20} />
+              <Menu size={18} />
             </button>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '7px',
-                background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
+                width: '26px',
+                height: '26px',
+                borderRadius: '4px',
+                background: '#0f172a',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: 'white',
               }}>
-                <LayoutGrid size={16} />
+                <LayoutGrid size={15} />
               </div>
-              <span style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: '-0.02em' }}>
+              <span style={{ fontWeight: 700, fontSize: '0.95rem', letterSpacing: '-0.02em', color: '#0f172a' }}>
                 ClassVision
               </span>
             </div>
           </div>
 
-          <div style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.15)', color: '#38bdf8', border: '1px solid rgba(59, 130, 246, 0.3)', fontWeight: 600 }}>
-            ⚡ 邊緣考勤
+          <div style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '4px', background: '#f1f5f9', color: '#0f172a', border: '1px solid var(--glass-border)', fontWeight: 600 }}>
+            邊緣考勤
           </div>
         </header>
 

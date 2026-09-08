@@ -130,13 +130,12 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
         inset: 0,
         width: '100vw',
         height: '100vh',
-        background: 'rgba(0, 0, 0, 0.85)',
-        backdropFilter: 'blur(12px)',
+        background: 'rgba(15, 23, 42, 0.45)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 999999,
-        padding: '20px',
+        padding: '16px',
         boxSizing: 'border-box',
       }}
     >
@@ -148,25 +147,25 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
           maxWidth: '680px',
           maxHeight: '92vh',
           overflowY: 'auto',
-          background: '#1e293b',
-          borderRadius: '18px',
-          color: '#fff',
-          padding: '26px',
+          background: '#ffffff',
+          borderRadius: '6px',
+          color: '#0f172a',
+          padding: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
-          boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.9)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
+          boxShadow: 'none',
+          border: '1px solid var(--glass-border)',
         }}
       >
         {/* Header 標題區 */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ padding: '10px', background: 'rgba(59, 130, 246, 0.15)', borderRadius: '12px', color: 'var(--accent-primary)' }}>
-              <Clock size={24} />
+            <div style={{ padding: '8px', background: '#f1f5f9', borderRadius: '4px', color: 'var(--accent-primary)' }}>
+              <Clock size={22} />
             </div>
             <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a' }}>
                 定時自動點名排程管理
               </h2>
               <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
@@ -182,10 +181,10 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
         {/* 全域自動點名總開關面板 */}
         <div
           style={{
-            background: config.enabled ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.1)',
-            border: `1px solid ${config.enabled ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.3)'}`,
-            padding: '16px 20px',
-            borderRadius: '12px',
+            background: config.enabled ? '#ecfdf5' : '#fef2f2',
+            border: `1px solid ${config.enabled ? '#a7f3d0' : '#fecaca'}`,
+            padding: '14px 18px',
+            borderRadius: '4px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -196,18 +195,18 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
               style={{
-                width: '12px',
-                height: '12px',
+                width: '10px',
+                height: '10px',
                 borderRadius: '50%',
-                background: config.enabled ? '#10b981' : '#ef4444',
-                boxShadow: config.enabled ? '0 0 10px #10b981' : 'none',
+                background: config.enabled ? '#059669' : '#dc2626',
+                boxShadow: 'none',
               }}
             />
             <div>
-              <div style={{ fontWeight: 600, fontSize: '0.95rem', color: config.enabled ? '#10b981' : '#f87171' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.95rem', color: config.enabled ? '#059669' : '#dc2626' }}>
                 自動點名系統：{config.enabled ? '運行中 (ENABLED)' : '已暫停 (PAUSED)'}
               </div>
-              <div style={{ fontSize: '0.8rem', color: '#cbd5e1', marginTop: '2px' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                 {config.enabled
                   ? (nextUpcoming ? `下一次預定點名：${nextUpcoming.formattedText}` : '目前無已啟用的排程時間')
                   : '排程已暫停，到達時間將不自動點名 (手動點名仍隨時可用)'}
@@ -221,16 +220,16 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '8px 16px',
-              borderRadius: '8px',
+              padding: '8px 14px',
+              borderRadius: '4px',
               fontWeight: 600,
               fontSize: '0.85rem',
               border: 'none',
               cursor: 'pointer',
-              background: config.enabled ? 'rgba(239, 68, 68, 0.85)' : 'rgba(16, 185, 129, 0.85)',
+              background: config.enabled ? '#dc2626' : '#059669',
               color: '#fff',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-              transition: 'all 0.2s',
+              boxShadow: 'none',
+              transition: 'opacity 0.15s ease',
             }}
           >
             <Power size={15} />
@@ -242,23 +241,23 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
         <form
           onSubmit={handleAddSchedule}
           style={{
-            background: 'rgba(15, 23, 42, 0.65)',
+            background: '#f8fafc',
             padding: '16px',
             borderRadius: '12px',
-            border: '1px solid rgba(255,255,255,0.06)',
+            border: '1px solid var(--glass-border)',
             display: 'flex',
             flexDirection: 'column',
             gap: '12px',
           }}
         >
-          <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Plus size={16} /> 新增定時點名排程：
           </div>
 
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
             {/* 時間選擇 (時 : 分 下拉選單，無循環滾動) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '0.75rem', color: '#94a3b8' }}>排程時間 (時 : 分)</label>
+              <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>排程時間 (時 : 分)</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <select
                   value={selectedHour}
@@ -266,9 +265,9 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                   style={{
                     padding: '7px 10px',
                     borderRadius: '6px',
-                    background: '#0f172a',
-                    border: '1px solid #334155',
-                    color: '#38bdf8',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    color: '#0f172a',
                     fontSize: '0.92rem',
                     fontWeight: 700,
                     fontFamily: 'monospace',
@@ -292,9 +291,9 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                   style={{
                     padding: '7px 10px',
                     borderRadius: '6px',
-                    background: '#0f172a',
-                    border: '1px solid #334155',
-                    color: '#38bdf8',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    color: '#0f172a',
                     fontSize: '0.92rem',
                     fontWeight: 700,
                     fontFamily: 'monospace',
@@ -314,16 +313,16 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
 
             {/* 節次選擇 */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '0.75rem', color: '#94a3b8' }}>對應課堂節次</label>
+              <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>對應課堂節次</label>
               <select
                 value={newPeriod}
                 onChange={(e) => setNewPeriod(e.target.value)}
                 style={{
                   padding: '7px 10px',
                   borderRadius: '6px',
-                  background: '#0f172a',
-                  border: '1px solid #334155',
-                  color: '#fff',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  color: '#0f172a',
                   fontSize: '0.85rem',
                   outline: 'none',
                 }}
@@ -339,7 +338,7 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
             {/* 若選擇自訂節次 */}
             {newPeriod === '自訂節次' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, minWidth: '120px' }}>
-                <label style={{ fontSize: '0.75rem', color: '#94a3b8' }}>自訂課堂名稱</label>
+                <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>自訂課堂名稱</label>
                 <input
                   type="text"
                   placeholder="如: 早自習、社團活動"
@@ -348,9 +347,9 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                   style={{
                     padding: '7px 10px',
                     borderRadius: '6px',
-                    background: '#0f172a',
-                    border: '1px solid #334155',
-                    color: '#fff',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    color: '#0f172a',
                     fontSize: '0.85rem',
                     outline: 'none',
                   }}
@@ -362,10 +361,10 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
               type="submit"
               style={{
                 marginTop: 'auto',
-                padding: '8px 18px',
-                background: 'linear-gradient(135deg, var(--accent-primary), #6366f1)',
+                padding: '8px 16px',
+                background: '#0f172a',
                 color: '#fff',
-                border: 'none',
+                border: '1px solid #0f172a',
                 borderRadius: '6px',
                 fontWeight: 600,
                 fontSize: '0.85rem',
@@ -373,8 +372,11 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                boxShadow: '0 2px 8px rgba(59, 130, 246, 0.35)',
+                boxShadow: 'none',
+                transition: 'background 0.15s ease',
               }}
+              onMouseOver={(e) => (e.currentTarget.style.background = '#334155')}
+              onMouseOut={(e) => (e.currentTarget.style.background = '#0f172a')}
             >
               <Plus size={16} /> 新增排程
             </button>
@@ -382,8 +384,8 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
         </form>
 
         {/* 排程清單操作列 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '8px' }}>
-          <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
+          <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Calendar size={16} color="var(--accent-primary)" />
             已排定時程清單 ({config.schedules.length} 個時段)
           </div>
@@ -392,15 +394,16 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
               onClick={handleLoadDefaults}
               style={{
                 padding: '4px 10px',
-                background: 'rgba(255,255,255,0.06)',
-                color: '#94a3b8',
-                border: '1px solid rgba(255,255,255,0.08)',
+                background: '#f1f5f9',
+                color: '#0f172a',
+                border: '1px solid #cbd5e1',
                 borderRadius: '6px',
                 fontSize: '0.78rem',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
+                fontWeight: 500,
               }}
             >
               <RotateCcw size={12} /> 載入標準課堂範本
@@ -409,15 +412,16 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
               onClick={handleClearAll}
               style={{
                 padding: '4px 10px',
-                background: 'rgba(239, 68, 68, 0.1)',
-                color: '#ef4444',
-                border: '1px solid rgba(239, 68, 68, 0.25)',
+                background: '#fee2e2',
+                color: '#dc2626',
+                border: '1px solid #fecaca',
                 borderRadius: '6px',
                 fontSize: '0.78rem',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
+                fontWeight: 500,
               }}
             >
               <Trash2 size={12} /> 清空
@@ -428,7 +432,7 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
         {/* 排程列表 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '280px', overflowY: 'auto' }}>
           {config.schedules.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '30px', color: '#94a3b8', fontSize: '0.85rem' }}>
+            <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
               目前尚未設定任何定時點名排程，請於上方新增或點擊「載入標準課堂範本」。
             </div>
           ) : (
@@ -440,11 +444,12 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '10px 14px',
-                  background: item.enabled ? 'rgba(15, 23, 42, 0.7)' : 'rgba(15, 23, 42, 0.35)',
-                  border: `1px solid ${item.enabled ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.05)'}`,
-                  borderRadius: '10px',
-                  opacity: item.enabled ? 1 : 0.6,
-                  transition: 'all 0.2s',
+                  background: item.enabled ? '#ffffff' : '#f8fafc',
+                  border: `1px solid ${item.enabled ? '#cbd5e1' : '#e2e8f0'}`,
+                  borderRadius: '4px',
+                  opacity: item.enabled ? 1 : 0.65,
+                  boxShadow: 'none',
+                  transition: 'background 0.15s ease',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -453,18 +458,18 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                       fontSize: '1.15rem',
                       fontWeight: 700,
                       fontFamily: 'monospace',
-                      color: item.enabled ? '#38bdf8' : '#94a3b8',
-                      background: '#0f172a',
+                      color: item.enabled ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                      background: '#f1f5f9',
                       padding: '4px 10px',
                       borderRadius: '6px',
-                      border: '1px solid rgba(255,255,255,0.06)',
+                      border: '1px solid #cbd5e1',
                     }}
                   >
                     {item.time}
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#fff' }}>{item.period}</div>
-                    <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#0f172a' }}>{item.period}</div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
                       自動點名通報：{item.enabled ? '🟢 啟用中' : '⚪ 已停用'}
                     </div>
                   </div>
@@ -479,9 +484,9 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                       fontSize: '0.78rem',
                       fontWeight: 600,
                       cursor: 'pointer',
-                      background: item.enabled ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.08)',
-                      color: item.enabled ? '#10b981' : '#94a3b8',
-                      border: item.enabled ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255,255,255,0.1)',
+                      background: item.enabled ? '#ecfdf5' : '#f1f5f9',
+                      color: item.enabled ? '#059669' : '#64748b',
+                      border: item.enabled ? '1px solid #a7f3d0' : '1px solid #cbd5e1',
                     }}
                   >
                     {item.enabled ? '已啟用' : '已停用'}
@@ -492,7 +497,7 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: '#ef4444',
+                      color: '#dc2626',
                       cursor: 'pointer',
                       padding: '6px',
                       borderRadius: '6px',
@@ -509,10 +514,10 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
         </div>
 
         {/* Footer 操作區 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
           <div>
             {savedNotice && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontSize: '0.85rem' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#059669', fontSize: '0.85rem', fontWeight: 600 }}>
                 <Check size={16} /> 排程設定已即時保存生效！
               </span>
             )}
@@ -520,16 +525,19 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
           <button
             onClick={onClose}
             style={{
-              padding: '9px 22px',
-              background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
+              padding: '8px 20px',
+              background: '#0f172a',
               color: '#fff',
-              borderRadius: '8px',
+              borderRadius: '6px',
               fontWeight: 600,
               fontSize: '0.88rem',
-              border: 'none',
+              border: '1px solid #0f172a',
               cursor: 'pointer',
-              boxShadow: '0 2px 10px rgba(59, 130, 246, 0.35)',
+              boxShadow: 'none',
+              transition: 'background 0.15s ease',
             }}
+            onMouseOver={(e) => (e.currentTarget.style.background = '#334155')}
+            onMouseOut={(e) => (e.currentTarget.style.background = '#0f172a')}
           >
             完成設定
           </button>

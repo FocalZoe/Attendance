@@ -5,31 +5,31 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
-  border-radius: 12px;
+  padding: 10px 14px;
+  border-radius: 6px;
   color: var(--text-secondary);
   text-decoration: none;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   font-weight: 500;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: #f1f5f9;
   color: var(--text-primary);
 }
 
 .nav-item.active {
-  background: var(--accent-primary);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  background: #0f172a;
+  color: #ffffff;
+  box-shadow: none;
 }
 
 /* Dashboard specific */
 .stat-card {
   display: flex;
   flex-direction: column;
-  padding: 24px;
+  padding: 20px;
 }
 
 .stat-title {
@@ -54,28 +54,31 @@
 
 .history-table th {
   text-align: left;
-  padding: 16px;
+  padding: 14px 16px;
   color: var(--text-secondary);
-  font-weight: 500;
+  background: #f8fafc;
+  font-weight: 600;
+  font-size: 0.85rem;
   border-bottom: 1px solid var(--glass-border);
 }
 
 .history-table td {
-  padding: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  padding: 14px 16px;
+  color: var(--text-primary);
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .history-table tbody tr {
-  transition: background 0.2s;
+  transition: background 0.15s;
 }
 
 .history-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: #f8fafc;
 }
 
 .status-badge {
-  padding: 6px 12px;
-  border-radius: 20px;
+  padding: 4px 10px;
+  border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 600;
   display: inline-flex;
@@ -86,22 +89,20 @@
 .status-present {
   background: var(--success-bg);
   color: var(--success);
-  border: 1px solid rgba(16, 185, 129, 0.2);
+  border: 1px solid #a7f3d0;
 }
 
 .status-absent {
   background: var(--danger-bg);
   color: var(--danger);
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  border: 1px solid #fecaca;
 }
 
-/* Modal 通用響應式彈窗 */
+/* Modal 通用響應式彈窗 (純色遮罩無模糊、無陰影、微圓角) */
 .responsive-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(15, 23, 42, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -113,7 +114,11 @@
   width: 100%;
   max-height: 92vh;
   overflow-y: auto;
-  border-radius: 16px;
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+  box-shadow: none;
 }
 
 /* 劃位編輯器主畫布與側欄響應式 */
@@ -138,9 +143,10 @@
 
   .responsive-modal-container {
     max-height: 95vh;
-    border-radius: 14px;
+    border-radius: 6px;
     padding: 16px 12px !important;
   }
 }
+
 
 

@@ -63,10 +63,10 @@ export class ErrorBoundary extends React.Component {
           <div
             style={{
               padding: '24px',
-              background: 'rgba(15, 23, 42, 0.95)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
+              background: '#fef2f2',
+              border: '1px solid #fecaca',
               borderRadius: '12px',
-              color: '#f87171',
+              color: '#dc2626',
               textAlign: 'center',
               display: 'flex',
               flexDirection: 'column',
@@ -74,11 +74,11 @@ export class ErrorBoundary extends React.Component {
               gap: '12px',
             }}
           >
-            <AlertTriangle size={32} color="#ef4444" />
-            <h4 style={{ margin: 0, fontSize: '1rem', color: '#fca5a5' }}>
+            <AlertTriangle size={32} color="#dc2626" />
+            <h4 style={{ margin: 0, fontSize: '1rem', color: '#991b1b', fontWeight: 600 }}>
               此模組載入發生異常
             </h4>
-            <p style={{ margin: 0, fontSize: '0.82rem', color: '#cbd5e1' }}>
+            <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748b' }}>
               {this.state.error?.message || '發生未知的執行階段錯誤'}
             </p>
             <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
@@ -86,9 +86,9 @@ export class ErrorBoundary extends React.Component {
                 onClick={this.handleResetState}
                 style={{
                   padding: '6px 14px',
-                  background: 'rgba(59, 130, 246, 0.2)',
-                  color: '#60a5fa',
-                  border: '1px solid rgba(59, 130, 246, 0.4)',
+                  background: '#eff6ff',
+                  color: '#2563eb',
+                  border: '1px solid #bfdbfe',
                   borderRadius: '6px',
                   fontSize: '0.8rem',
                   fontWeight: 600,
@@ -105,19 +105,19 @@ export class ErrorBoundary extends React.Component {
         );
       }
 
-      // 全域全螢幕深色玻璃擬態錯誤頁面
+      // 全域全螢幕現代扁平淺色錯誤頁面
       return (
         <div
           style={{
             minHeight: '100vh',
             width: '100vw',
-            background: 'radial-gradient(circle at top right, #1e1b4b, #090d16 60%, #030712)',
+            background: '#f8fafc',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             padding: '24px',
             boxSizing: 'border-box',
-            color: '#f8fafc',
+            color: '#0f172a',
             fontFamily: 'system-ui, -apple-system, sans-serif',
           }}
         >
@@ -125,12 +125,11 @@ export class ErrorBoundary extends React.Component {
             style={{
               width: '100%',
               maxWidth: '680px',
-              background: 'rgba(15, 23, 42, 0.85)',
-              backdropFilter: 'blur(24px)',
-              border: '1px solid rgba(239, 68, 68, 0.25)',
-              borderRadius: '20px',
-              padding: '36px',
-              boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.85), 0 0 40px rgba(239, 68, 68, 0.12)',
+              background: '#ffffff',
+              border: '1px solid var(--glass-border)',
+              borderRadius: '6px',
+              padding: '32px',
+              boxShadow: 'none',
               display: 'flex',
               flexDirection: 'column',
               gap: '24px',
@@ -138,7 +137,7 @@ export class ErrorBoundary extends React.Component {
               overflow: 'hidden',
             }}
           >
-            {/* 頂部裝飾警示發光條 */}
+            {/* 頂部純色警示條 */}
             <div
               style={{
                 position: 'absolute',
@@ -146,7 +145,7 @@ export class ErrorBoundary extends React.Component {
                 left: 0,
                 right: 0,
                 height: '4px',
-                background: 'linear-gradient(90deg, #ef4444, #f97316, #ef4444)',
+                background: '#dc2626',
               }}
             />
 
@@ -154,25 +153,24 @@ export class ErrorBoundary extends React.Component {
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '18px' }}>
               <div
                 style={{
-                  width: '56px',
-                  height: '56px',
-                  borderRadius: '16px',
-                  background: 'rgba(239, 68, 68, 0.15)',
-                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '6px',
+                  background: '#fee2e2',
+                  border: '1px solid #fecaca',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
-                  boxShadow: '0 0 20px rgba(239, 68, 68, 0.25)',
                 }}
               >
-                <ShieldAlert size={30} color="#ef4444" />
+                <ShieldAlert size={26} color="#dc2626" />
               </div>
               <div>
-                <h1 style={{ margin: '0 0 6px 0', fontSize: '1.45rem', fontWeight: 700, letterSpacing: '-0.02em', color: '#fff' }}>
+                <h1 style={{ margin: '0 0 6px 0', fontSize: '1.4rem', fontWeight: 700, letterSpacing: '-0.02em', color: '#0f172a' }}>
                   系統遭遇非預期狀況
                 </h1>
-                <p style={{ margin: 0, fontSize: '0.9rem', color: '#94a3b8', lineHeight: 1.5 }}>
+                <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                   ClassVision 已為您啟動自動防護機制，主應用程式未崩潰終止。請選擇以下修復操作進行自癒恢復。
                 </p>
               </div>
@@ -181,28 +179,28 @@ export class ErrorBoundary extends React.Component {
             {/* 錯誤摘要卡片 */}
             <div
               style={{
-                background: 'rgba(0, 0, 0, 0.4)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '12px',
-                padding: '16px',
+                background: '#f8fafc',
+                border: '1px solid var(--glass-border)',
+                borderRadius: '6px',
+                padding: '14px',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '8px',
               }}
             >
-              <div style={{ fontSize: '0.78rem', color: '#f87171', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ fontSize: '0.78rem', color: '#dc2626', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <AlertTriangle size={14} /> 例外錯誤訊息
               </div>
               <div
                 style={{
                   fontFamily: 'monospace',
-                  fontSize: '0.86rem',
-                  color: '#e2e8f0',
+                  fontSize: '0.84rem',
+                  color: '#991b1b',
                   wordBreak: 'break-all',
-                  background: 'rgba(239, 68, 68, 0.08)',
-                  padding: '10px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                  background: '#fee2e2',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  border: '1px solid #fecaca',
                 }}
               >
                 {this.state.error?.toString() || '未知執行階段錯誤'}
@@ -215,59 +213,60 @@ export class ErrorBoundary extends React.Component {
                 onClick={this.handleReload}
                 style={{
                   flex: '1 1 140px',
-                  padding: '12px 18px',
-                  borderRadius: '10px',
-                  background: 'linear-gradient(135deg, var(--accent-primary, #0284c7), #3b82f6)',
+                  padding: '10px 18px',
+                  borderRadius: '6px',
+                  background: '#0f172a',
                   color: '#fff',
-                  border: 'none',
+                  border: '1px solid #0f172a',
                   fontWeight: 600,
-                  fontSize: '0.9rem',
+                  fontSize: '0.88rem',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 14px rgba(59, 130, 246, 0.4)',
-                  transition: 'transform 0.15s',
+                  boxShadow: 'none',
+                  transition: 'background 0.15s ease',
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-                onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+                onMouseOver={(e) => (e.currentTarget.style.background = '#334155')}
+                onMouseOut={(e) => (e.currentTarget.style.background = '#0f172a')}
               >
-                <RefreshCw size={16} /> 重新載入系統
+                <RefreshCw size={15} /> 重新載入系統
               </button>
 
               <button
                 onClick={this.handleGoHome}
                 style={{
                   flex: '1 1 140px',
-                  padding: '12px 18px',
-                  borderRadius: '10px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  color: '#e2e8f0',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  padding: '10px 18px',
+                  borderRadius: '6px',
+                  background: '#f1f5f9',
+                  color: '#0f172a',
+                  border: '1px solid #cbd5e1',
                   fontWeight: 600,
-                  fontSize: '0.9rem',
+                  fontSize: '0.88rem',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  transition: 'background 0.2s',
+                  boxShadow: 'none',
+                  transition: 'background 0.15s ease',
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.14)')}
-                onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)')}
+                onMouseOver={(e) => (e.currentTarget.style.background = '#e2e8f0')}
+                onMouseOut={(e) => (e.currentTarget.style.background = '#f1f5f9')}
               >
-                <Home size={16} /> 返回監控儀表板
+                <Home size={15} /> 返回監控儀表板
               </button>
 
               <button
                 onClick={this.handleClearCacheAndReload}
                 style={{
-                  padding: '12px 16px',
-                  borderRadius: '10px',
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  color: '#f87171',
-                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  padding: '10px 16px',
+                  borderRadius: '6px',
+                  background: '#fee2e2',
+                  color: '#dc2626',
+                  border: '1px solid #fecaca',
                   fontWeight: 600,
                   fontSize: '0.86rem',
                   cursor: 'pointer',
@@ -275,13 +274,14 @@ export class ErrorBoundary extends React.Component {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '6px',
-                  transition: 'background 0.2s',
+                  boxShadow: 'none',
+                  transition: 'background 0.15s ease',
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(239, 68, 68, 0.22)')}
-                onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)')}
+                onMouseOver={(e) => (e.currentTarget.style.background = '#fecaca')}
+                onMouseOut={(e) => (e.currentTarget.style.background = '#fee2e2')}
                 title="清除瀏覽器快取與劃位設定"
               >
-                <Trash2 size={15} /> 清理快取並重設
+                <Trash2 size={14} /> 清理快取並重設
               </button>
             </div>
 
@@ -292,7 +292,7 @@ export class ErrorBoundary extends React.Component {
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#94a3b8',
+                  color: 'var(--text-secondary)',
                   fontSize: '0.82rem',
                   cursor: 'pointer',
                   display: 'flex',
@@ -311,9 +311,9 @@ export class ErrorBoundary extends React.Component {
                     marginTop: '10px',
                     padding: '14px',
                     borderRadius: '10px',
-                    background: '#030712',
-                    border: '1px solid rgba(255, 255, 255, 0.06)',
-                    color: '#94a3b8',
+                    background: '#f8fafc',
+                    border: '1px solid var(--glass-border)',
+                    color: '#475569',
                     fontSize: '0.75rem',
                     fontFamily: 'monospace',
                     overflowX: 'auto',

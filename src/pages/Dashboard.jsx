@@ -5,7 +5,7 @@
 // 3. 最後通報相片中間顯示訊息與未到人數（不顯示時間），左下角清楚呈現「最後紀錄：時間」。
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, CheckCircle, Activity, Sparkles, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, RefreshCw, Eye, AlertTriangle, Timer, Smartphone, Bell } from 'lucide-react';
+import { Camera, CheckCircle, Activity, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, RefreshCw, Eye, AlertTriangle, Timer, Smartphone, Bell } from 'lucide-react';
 import { ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision';
 import { fetchHistoryRecords, sendTelemetry, connectWebSocket } from '../services/api';
 import { getSavedSeatsConfig, formatFullPeriodMessage, matchPersonsToSeats, SeatTemporalTracker } from '../services/seatOccupancyService';
@@ -546,25 +546,26 @@ const Dashboard = () => {
     <div className="animate-fade-in">
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      {/* 自動點名成功即時通知 Banner */}
+      {/* 自動點名成功即時通知 Banner (純色扁平微圓角，無陰影) */}
       {autoRollcallToast && (
         <div
           style={{
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95))',
+            background: '#059669',
             color: '#fff',
-            padding: '14px 20px',
-            borderRadius: '12px',
+            padding: '12px 18px',
+            borderRadius: '6px',
             marginBottom: '20px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            boxShadow: '0 8px 24px rgba(16, 185, 129, 0.4)',
-            animation: 'fadeIn 0.3s ease-out',
+            border: '1px solid #047857',
+            boxShadow: 'none',
+            animation: 'fadeIn 0.25s ease-out',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}>
-            <Bell size={20} />
-            <span>⏰ [{autoRollcallToast.time}] <strong>{autoRollcallToast.period}</strong> 定時自動點名通報已成功執行並儲存！</span>
+            <Bell size={18} />
+            <span>[{autoRollcallToast.time}] <strong>{autoRollcallToast.period}</strong> 定時自動點名通報已成功執行並儲存！</span>
           </div>
           <button
             onClick={() => setAutoRollcallToast(null)}
@@ -577,13 +578,13 @@ const Dashboard = () => {
 
       <header className="page-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            課堂考勤即時儀表板 <Sparkles color="var(--accent-primary)" size={24} />
+          <h1 style={{ fontSize: '1.85rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px', color: '#0f172a' }}>
+            課堂考勤即時儀表板
           </h1>
           <p style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span>即時鏡頭智慧點名與缺席座號追蹤 (當前課堂：<strong style={{ color: '#38bdf8' }}>{currentPeriodTitle}</strong>)</span>
+            <span>即時鏡頭智慧點名與缺席座號追蹤 (當前課堂：<strong style={{ color: 'var(--accent-primary)' }}>{currentPeriodTitle}</strong>)</span>
             {isMobile && (
-              <span style={{ fontSize: '0.75rem', padding: '3px 10px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.15)', color: '#38bdf8', border: '1px solid rgba(59, 130, 246, 0.3)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ fontSize: '0.75rem', padding: '3px 10px', borderRadius: '12px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 <Smartphone size={13} /> 巡堂查驗模式 (唯讀)
               </span>
             )}
@@ -598,38 +599,38 @@ const Dashboard = () => {
               onClick={() => setIsScheduleModalOpen(true)}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
-                background: scheduleConfig.enabled ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.06)',
-                color: scheduleConfig.enabled ? '#10b981' : 'var(--text-secondary)',
-                border: `1px solid ${scheduleConfig.enabled ? 'rgba(16, 185, 129, 0.4)' : 'var(--glass-border)'}`,
-                padding: '10px 18px', borderRadius: '10px',
-                fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
-                boxShadow: scheduleConfig.enabled ? '0 0 12px rgba(16, 185, 129, 0.2)' : 'none',
-                transition: 'all 0.2s',
+                background: scheduleConfig.enabled ? '#ecfdf5' : '#ffffff',
+                color: scheduleConfig.enabled ? '#059669' : 'var(--text-secondary)',
+                border: `1px solid ${scheduleConfig.enabled ? '#a7f3d0' : 'var(--glass-border)'}`,
+                padding: '9px 16px', borderRadius: '6px',
+                fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer',
+                boxShadow: 'none',
+                transition: 'background 0.15s ease',
               }}
-              onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-              onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+              onMouseOver={(e) => (e.currentTarget.style.background = scheduleConfig.enabled ? '#d1fae5' : '#f1f5f9')}
+              onMouseOut={(e) => (e.currentTarget.style.background = scheduleConfig.enabled ? '#ecfdf5' : '#ffffff')}
             >
-              <Clock size={18} />
+              <Clock size={16} />
               {scheduleConfig.enabled
                 ? `自動點名 (${scheduleConfig.schedules.filter((s) => s.enabled).length} 個時段)`
                 : '自動點名 (已暫停)'}
             </button>
 
-            {/* 座位劃位設定按鈕 */}
+            {/* 座位劃位設定按鈕 (純黑實底白字，無漸層、無陰影、無漂浮) */}
             <button
               onClick={() => setIsSeatEditorOpen(true)}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
-                background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
-                color: 'white', border: 'none', padding: '10px 20px', borderRadius: '10px',
-                fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(59, 130, 246, 0.35)',
-                transition: 'transform 0.2s',
+                background: '#0f172a',
+                color: 'white', border: '1px solid #0f172a', padding: '9px 18px', borderRadius: '6px',
+                fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer',
+                boxShadow: 'none',
+                transition: 'background 0.15s ease',
               }}
-              onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-              onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+              onMouseOver={(e) => (e.currentTarget.style.background = '#334155')}
+              onMouseOut={(e) => (e.currentTarget.style.background = '#0f172a')}
             >
-              <Settings size={18} />
+              <Settings size={16} />
               課堂與座位設置 ({seatConfig.seats.length} 席 · {seatConfig.current_period || '第 1 節'})
             </button>
           </div>
@@ -644,26 +645,26 @@ const Dashboard = () => {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '8px',
-            background: 'rgba(59, 130, 246, 0.12)',
-            border: '1px solid rgba(59, 130, 246, 0.3)',
-            color: '#93c5fd',
-            padding: '6px 14px',
-            borderRadius: '20px',
+            background: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            color: '#1d4ed8',
+            padding: '5px 12px',
+            borderRadius: '4px',
             fontSize: '0.82rem',
             marginBottom: '18px',
             cursor: isMobile ? 'default' : 'pointer',
-            transition: 'background 0.2s',
+            transition: 'background 0.15s ease',
             maxWidth: '100%',
             boxSizing: 'border-box',
           }}
           onMouseOver={(e) => {
-            if (!isMobile) e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)';
+            if (!isMobile) e.currentTarget.style.background = '#dbeafe';
           }}
           onMouseOut={(e) => {
-            if (!isMobile) e.currentTarget.style.background = 'rgba(59, 130, 246, 0.12)';
+            if (!isMobile) e.currentTarget.style.background = '#eff6ff';
           }}
         >
-          <Timer size={15} color="#60a5fa" style={{ flexShrink: 0 }} />
+          <Timer size={15} color="#2563eb" style={{ flexShrink: 0 }} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             定時排程：下一次自動點名將於 <strong>{nextUpcoming.formattedText}</strong> 自動執行
           </span>
@@ -678,8 +679,8 @@ const Dashboard = () => {
               <div className="stat-title">應到座位總數</div>
               <div className="stat-value">{currentTotalSeats} <span style={{ fontSize: '1rem', fontWeight: 'normal', color: 'var(--text-secondary)' }}>席</span></div>
             </div>
-            <div style={{ padding: '12px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '12px', color: 'var(--accent-primary)' }}>
-              <LayoutGrid size={24} />
+            <div style={{ padding: '10px', background: '#f1f5f9', borderRadius: '4px', color: '#0f172a' }}>
+              <LayoutGrid size={22} />
             </div>
           </div>
         </div>
@@ -695,36 +696,36 @@ const Dashboard = () => {
                 </span>
               </div>
             </div>
-            <div style={{ padding: '12px', background: 'var(--success-bg)', borderRadius: '12px', color: 'var(--success)' }}>
-              <UserCheck size={24} />
+            <div style={{ padding: '10px', background: 'var(--success-bg)', borderRadius: '4px', color: 'var(--success)' }}>
+              <UserCheck size={22} />
             </div>
           </div>
         </div>
 
-        <div className="glass-panel stat-card" style={{ borderTop: '4px solid #ef4444' }}>
+        <div className="glass-panel stat-card" style={{ borderTop: '4px solid #dc2626' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div className="stat-title">未到/缺席人數</div>
-              <div className="stat-value" style={{ color: currentVacantCount > 0 ? '#ef4444' : 'var(--text-secondary)' }}>
+              <div className="stat-value" style={{ color: currentVacantCount > 0 ? '#dc2626' : 'var(--text-secondary)' }}>
                 {currentVacantCount} <span style={{ fontSize: '1rem', fontWeight: 'normal', color: 'var(--text-secondary)' }}>席</span>
               </div>
             </div>
-            <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.15)', borderRadius: '12px', color: '#ef4444' }}>
-              <UserX size={24} />
+            <div style={{ padding: '10px', background: 'var(--danger-bg)', borderRadius: '4px', color: '#dc2626' }}>
+              <UserX size={22} />
             </div>
           </div>
         </div>
 
-        <div className="glass-panel stat-card" style={{ borderTop: '4px solid #8b5cf6' }}>
+        <div className="glass-panel stat-card" style={{ borderTop: '4px solid #475569' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div className="stat-title">最後點名時間</div>
-              <div className="stat-value" style={{ fontSize: '1.05rem', color: '#8b5cf6', fontWeight: 700, whiteSpace: 'nowrap', marginTop: '6px' }}>
+              <div className="stat-value" style={{ fontSize: '1.05rem', color: '#0f172a', fontWeight: 700, whiteSpace: 'nowrap', marginTop: '6px' }}>
                 {formatFullDateTime(latestRecord?.create_at)}
               </div>
             </div>
-            <div style={{ padding: '12px', background: 'rgba(139, 92, 246, 0.1)', borderRadius: '12px', color: '#8b5cf6' }}>
-              <Clock size={24} />
+            <div style={{ padding: '10px', background: '#f1f5f9', borderRadius: '4px', color: '#475569' }}>
+              <Clock size={22} />
             </div>
           </div>
         </div>
@@ -748,24 +749,25 @@ const Dashboard = () => {
 
             {/* 即時鏡頭 / 最後通報 切換 Tab (僅電腦端可切換即時相機，手機端鎖定通報相片) */}
             {!isMobile && (
-              <div style={{ display: 'flex', gap: '6px', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '8px' }}>
+              <div style={{ display: 'flex', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
                 <button
                   onClick={() => setPreviewTab('live')}
                   style={{
                     padding: '5px 12px',
-                    borderRadius: '6px',
+                    borderRadius: '4px',
                     fontSize: '0.8rem',
                     fontWeight: 600,
                     cursor: 'pointer',
-                    background: previewTab === 'live' ? 'var(--accent-primary)' : 'transparent',
-                    color: previewTab === 'live' ? '#fff' : 'var(--text-secondary)',
-                    border: 'none',
+                    background: previewTab === 'live' ? '#ffffff' : 'transparent',
+                    color: previewTab === 'live' ? '#0f172a' : 'var(--text-secondary)',
+                    border: previewTab === 'live' ? '1px solid #cbd5e1' : '1px solid transparent',
+                    boxShadow: 'none',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
                   }}
                 >
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cameraActive ? '#10b981' : '#ef4444' }} />
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cameraActive ? '#059669' : '#dc2626' }} />
                   即時鏡頭 (Live)
                 </button>
 
@@ -773,13 +775,14 @@ const Dashboard = () => {
                   onClick={() => setPreviewTab('latest')}
                   style={{
                     padding: '5px 12px',
-                    borderRadius: '6px',
+                    borderRadius: '4px',
                     fontSize: '0.8rem',
                     fontWeight: 600,
                     cursor: 'pointer',
-                    background: previewTab === 'latest' ? 'var(--accent-primary)' : 'transparent',
-                    color: previewTab === 'latest' ? '#fff' : 'var(--text-secondary)',
-                    border: 'none',
+                    background: previewTab === 'latest' ? '#ffffff' : 'transparent',
+                    color: previewTab === 'latest' ? '#0f172a' : 'var(--text-secondary)',
+                    boxShadow: 'none',
+                    border: previewTab === 'latest' ? '1px solid #cbd5e1' : '1px solid transparent',
                   }}
                 >
                   最後通報相片
@@ -854,24 +857,24 @@ const Dashboard = () => {
 
                   {/* 中間文字區域：只顯示訊息與未到幾員 */}
                   <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                    <h4 style={{ fontSize: '1.2rem', color: 'var(--accent-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
-                      <GraduationCap size={20} />
+                    <h4 style={{ fontSize: '1.2rem', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
+                      <GraduationCap size={20} color="var(--accent-primary)" />
                       {latestRecord.message}
                     </h4>
 
                     {/* 未到/缺席與實到人數標籤 */}
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '2px' }}>
                       {latestVacantSeatIds.length > 0 ? (
-                        <span style={{ fontSize: '0.85rem', padding: '3px 12px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '0.85rem', padding: '3px 12px', borderRadius: '12px', background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid #fecaca', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <UserX size={14} /> 未到: {latestVacantSeatIds.join(', ')} (共 {latestVacantSeatIds.length} 席)
                         </span>
                       ) : (
-                        <span style={{ fontSize: '0.85rem', padding: '3px 12px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.4)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '0.85rem', padding: '3px 12px', borderRadius: '12px', background: 'var(--success-bg)', color: 'var(--success)', border: '1px solid #a7f3d0', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <UserCheck size={14} /> 全員在座 (共 {currentTotalSeats} 席)
                         </span>
                       )}
 
-                      <span style={{ fontSize: '0.85rem', padding: '3px 12px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.15)', color: '#38bdf8', border: '1px solid rgba(59, 130, 246, 0.3)', fontWeight: 600 }}>
+                      <span style={{ fontSize: '0.85rem', padding: '3px 12px', borderRadius: '12px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', fontWeight: 600 }}>
                         在座率: {currentAttendanceRate} ({currentOccupiedCount}/{currentTotalSeats} 席)
                       </span>
                     </div>
@@ -901,7 +904,7 @@ const Dashboard = () => {
                         setSelectedDeviceId(nextId);
                         startCamera(nextId);
                       }}
-                      style={{ padding: '7px 12px', borderRadius: '8px', background: '#0f172a', color: '#fff', border: '1px solid #334155', fontSize: '0.82rem', width: '100%', maxWidth: '280px' }}
+                      style={{ padding: '7px 12px', borderRadius: '8px', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', fontSize: '0.82rem', width: '100%', maxWidth: '280px', outline: 'none' }}
                     >
                       {devices.map((d) => (
                         <option key={d.id || d.deviceId} value={d.id || d.deviceId}>
@@ -917,10 +920,10 @@ const Dashboard = () => {
                     title="重新載入相機串流"
                     style={{
                       padding: '7px 12px',
-                      borderRadius: '8px',
-                      background: 'rgba(59, 130, 246, 0.15)',
-                      color: 'var(--accent-primary)',
-                      border: '1px solid rgba(59, 130, 246, 0.3)',
+                      borderRadius: '4px',
+                      background: '#ffffff',
+                      color: '#0f172a',
+                      border: '1px solid var(--glass-border)',
                       fontSize: '0.8rem',
                       fontWeight: 600,
                       cursor: 'pointer',
@@ -930,7 +933,7 @@ const Dashboard = () => {
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    <RefreshCw size={14} /> 重新整理鏡頭
+                    <RefreshCw size={13} /> 重新整理鏡頭
                   </button>
                 </div>
 
@@ -939,22 +942,23 @@ const Dashboard = () => {
                   disabled={isSending || !cameraActive}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                    padding: '9px 22px', borderRadius: '8px',
-                    background: cameraActive && !isSending ? 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)' : '#334155',
+                    padding: '9px 20px', borderRadius: '6px',
+                    background: cameraActive && !isSending ? '#0f172a' : '#e2e8f0',
                     color: cameraActive && !isSending ? '#fff' : '#94a3b8',
                     fontWeight: 600, fontSize: '0.88rem',
-                    border: 'none', cursor: isSending || !cameraActive ? 'not-allowed' : 'pointer',
-                    boxShadow: cameraActive && !isSending ? '0 4px 14px rgba(59, 130, 246, 0.35)' : 'none',
-                    transition: 'all 0.2s',
+                    border: cameraActive && !isSending ? '1px solid #0f172a' : '1px solid #e2e8f0',
+                    cursor: isSending || !cameraActive ? 'not-allowed' : 'pointer',
+                    boxShadow: 'none',
+                    transition: 'background 0.15s ease',
                     flex: '1 1 auto',
                     minWidth: '200px',
-                    opacity: cameraActive && !isSending ? 1 : 0.6,
+                    opacity: cameraActive && !isSending ? 1 : 0.7,
                   }}
                   onMouseOver={(e) => {
-                    if (cameraActive && !isSending) e.currentTarget.style.transform = 'translateY(-2px)';
+                    if (cameraActive && !isSending) e.currentTarget.style.background = '#334155';
                   }}
                   onMouseOut={(e) => {
-                    if (cameraActive && !isSending) e.currentTarget.style.transform = 'translateY(0)';
+                    if (cameraActive && !isSending) e.currentTarget.style.background = '#0f172a';
                   }}
                 >
                   <Camera size={16} />
@@ -969,7 +973,7 @@ const Dashboard = () => {
               // 最後通報相片模式：左下角寫「最後紀錄：時間」，右下角為「觀看大圖」按鈕
               <>
                 <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                  <Clock size={15} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
+                  <Clock size={15} color="#0f172a" style={{ flexShrink: 0 }} />
                   <span>
                     {latestRecord
                       ? `最後紀錄：${formatFullDateTime(latestRecord.create_at)}`
@@ -982,16 +986,16 @@ const Dashboard = () => {
                     onClick={() => setSelectedRecord(latestRecord)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: '6px',
-                      padding: '9px 20px', background: 'var(--accent-primary)',
-                      color: 'white', borderRadius: '8px', fontSize: '0.88rem', fontWeight: 600,
-                      border: 'none', cursor: 'pointer', marginLeft: 'auto',
-                      boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
-                      transition: 'transform 0.2s',
+                      padding: '8px 18px', background: '#0f172a',
+                      color: 'white', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600,
+                      border: '1px solid #0f172a', cursor: 'pointer', marginLeft: 'auto',
+                      boxShadow: 'none',
+                      transition: 'background 0.15s ease',
                     }}
-                    onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-                    onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+                    onMouseOver={(e) => (e.currentTarget.style.background = '#334155')}
+                    onMouseOut={(e) => (e.currentTarget.style.background = '#0f172a')}
                   >
-                    <Eye size={16} /> 觀看大圖
+                    <Eye size={15} /> 觀看大圖
                   </button>
                 )}
               </>
@@ -1025,23 +1029,23 @@ const Dashboard = () => {
                   className="animate-fade-in"
                   style={{
                     display: 'flex', alignItems: 'center', gap: '12px',
-                    padding: '12px 16px', background: 'rgba(255,255,255,0.03)',
-                    borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)',
-                    cursor: 'pointer', transition: 'background 0.2s',
+                    padding: '12px 14px', background: '#ffffff',
+                    borderRadius: '4px', border: '1px solid var(--glass-border)',
+                    cursor: 'pointer', transition: 'background 0.15s ease',
                   }}
                   onClick={() => setSelectedRecord(rec)}
-                  onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
-                  onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                  onMouseOver={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                  onMouseOut={(e) => (e.currentTarget.style.background = '#ffffff')}
                 >
                   <img
                     src={rec.file_url}
                     alt={rec.message}
-                    style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover', background: '#000' }}
+                    style={{ width: '44px', height: '44px', borderRadius: '4px', objectFit: 'cover', background: '#0f172a' }}
                   />
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <GraduationCap size={16} />
+                    <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <GraduationCap size={16} color="var(--accent-primary)" />
                       {rec.message}
                     </div>
 

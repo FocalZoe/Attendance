@@ -147,13 +147,16 @@ const History = () => {
             disabled={loading}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              background: 'rgba(255,255,255,0.05)', color: 'white',
-              border: '1px solid var(--glass-border)', padding: '10px 18px',
-              borderRadius: '8px', fontWeight: 600, cursor: 'pointer',
-              transition: 'background 0.2s',
+              background: '#ffffff', color: '#0f172a',
+              border: '1px solid var(--glass-border)', padding: '9px 16px',
+              borderRadius: '6px', fontWeight: 600, cursor: 'pointer',
+              boxShadow: 'none',
+              transition: 'background 0.15s ease',
             }}
+            onMouseOver={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+            onMouseOut={(e) => (e.currentTarget.style.background = '#ffffff')}
           >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
             重新整理
           </button>
 
@@ -161,12 +164,15 @@ const History = () => {
             onClick={handleExportCSV}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              background: 'var(--accent-primary)', color: 'white',
-              border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 600,
-              cursor: 'pointer', transition: 'background 0.2s',
+              background: '#0f172a', color: 'white',
+              border: '1px solid #0f172a', padding: '9px 18px', borderRadius: '6px', fontWeight: 600,
+              cursor: 'pointer', boxShadow: 'none',
+              transition: 'background 0.15s ease',
             }}
+            onMouseOver={(e) => (e.currentTarget.style.background = '#334155')}
+            onMouseOut={(e) => (e.currentTarget.style.background = '#0f172a')}
           >
-            <Download size={18} />
+            <Download size={16} />
             匯出課堂出席報表
           </button>
         </div>
@@ -183,9 +189,18 @@ const History = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
               width: '100%', padding: '12px 16px 12px 46px',
-              background: 'rgba(0,0,0,0.25)', border: '1px solid var(--glass-border)',
-              borderRadius: '8px', color: 'white', outline: 'none', fontSize: '0.9rem',
+              background: '#f8fafc', border: '1px solid var(--glass-border)',
+              borderRadius: '8px', color: '#0f172a', outline: 'none', fontSize: '0.9rem',
               boxSizing: 'border-box',
+              transition: 'all 0.2s',
+            }}
+            onFocus={(e) => {
+              e.target.style.background = '#ffffff';
+              e.target.style.borderColor = 'var(--accent-primary)';
+            }}
+            onBlur={(e) => {
+              e.target.style.background = '#f8fafc';
+              e.target.style.borderColor = 'var(--glass-border)';
             }}
           />
         </div>
@@ -219,10 +234,16 @@ const History = () => {
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
-                transition: 'transform 0.2s, box-shadow 0.2s',
+                borderRadius: '6px',
+                boxShadow: 'none',
+                transition: 'border-color 0.15s ease',
               }}
-              onMouseOver={e => e.currentTarget.style.transform = 'translateY(-3px)'}
-              onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+              onMouseOver={e => {
+                e.currentTarget.style.borderColor = '#94a3b8';
+              }}
+              onMouseOut={e => {
+                e.currentTarget.style.borderColor = 'var(--glass-border)';
+              }}
             >
               {/* 照片預覽容器 */}
               <div
@@ -231,7 +252,7 @@ const History = () => {
                   position: 'relative',
                   width: '100%',
                   height: '190px',
-                  background: '#090d16',
+                  background: '#0f172a',
                   cursor: 'pointer',
                   overflow: 'hidden',
                 }}
@@ -243,13 +264,13 @@ const History = () => {
                 />
 
                 <div style={{
-                  position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', opacity: 0,
+                  position: 'absolute', inset: 0, background: 'rgba(15, 23, 42, 0.4)', opacity: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'opacity 0.2s',
                 }}
                 onMouseOver={e => e.currentTarget.style.opacity = '1'}
                 onMouseOut={e => e.currentTarget.style.opacity = '0'}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fff', background: 'rgba(0,0,0,0.6)', padding: '6px 14px', borderRadius: '20px', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fff', background: 'rgba(15, 23, 42, 0.75)', padding: '6px 14px', borderRadius: '20px', fontSize: '0.85rem' }}>
                     <Eye size={16} /> 觀看大圖
                   </div>
                 </div>
@@ -259,18 +280,18 @@ const History = () => {
                   position: 'absolute',
                   top: '10px',
                   right: '10px',
-                  background: 'rgba(15, 23, 42, 0.85)',
-                  backdropFilter: 'blur(4px)',
-                  padding: '4px 10px',
-                  borderRadius: '12px',
+                  background: '#ffffff',
+                  padding: '3px 8px',
+                  borderRadius: '4px',
                   fontSize: '0.75rem',
-                  color: vacantSeats.length > 0 ? '#ef4444' : '#10b981',
-                  border: `1px solid ${vacantSeats.length > 0 ? 'rgba(239, 68, 68, 0.45)' : 'rgba(16, 185, 129, 0.45)'}`,
+                  color: vacantSeats.length > 0 ? '#dc2626' : '#059669',
+                  border: `1px solid ${vacantSeats.length > 0 ? '#fecaca' : '#a7f3d0'}`,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
                   zIndex: 2,
                   fontWeight: 600,
+                  boxShadow: 'none',
                 }}>
                   {vacantSeats.length > 0 ? <UserX size={13} /> : <UserCheck size={13} />}
                   在座率: {rate}
@@ -280,15 +301,15 @@ const History = () => {
               {/* 卡片內容 */}
               <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, justifyContent: 'space-between' }}>
                 <div>
-                  <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                    <GraduationCap size={18} /> {rec.message}
+                  <h4 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                    <GraduationCap size={18} color="var(--accent-primary)" /> {rec.message}
                   </h4>
 
                   {/* 未到座號醒目標籤 */}
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
                     {vacantSeats.length > 0 ? (
                       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 600 }}>未到：</span>
+                        <span style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>未到：</span>
                         {vacantSeats.map((sid) => (
                           <span
                             key={sid}
@@ -296,9 +317,9 @@ const History = () => {
                               fontSize: '0.74rem',
                               padding: '2px 6px',
                               borderRadius: '4px',
-                              background: 'rgba(239, 68, 68, 0.15)',
-                              color: '#ef4444',
-                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              background: '#fee2e2',
+                              color: '#dc2626',
+                              border: '1px solid #fecaca',
                               fontWeight: 600,
                             }}
                           >
@@ -307,14 +328,14 @@ const History = () => {
                         ))}
                       </div>
                     ) : (
-                      <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <CheckCircle size={13} /> 全員在座 ({occupiedCount}/{totalSeats} 席)
                       </span>
                     )}
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '10px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '10px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <Calendar size={14} /> {new Date(rec.create_at).toLocaleString('zh-TW')}
                   </span>
@@ -338,13 +359,13 @@ const History = () => {
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
-                opacity: 0.7,
+                opacity: 0.8,
               }}
             >
-              <div style={{ width: '100%', height: '190px', background: 'rgba(255,255,255,0.06)' }} />
+              <div style={{ width: '100%', height: '190px', background: '#e2e8f0' }} />
               <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ width: '60%', height: '18px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px' }} />
-                <div style={{ width: '40%', height: '14px', background: 'rgba(255,255,255,0.04)', borderRadius: '4px' }} />
+                <div style={{ width: '60%', height: '18px', background: '#f1f5f9', borderRadius: '4px' }} />
+                <div style={{ width: '40%', height: '14px', background: '#f8fafc', borderRadius: '4px' }} />
               </div>
             </div>
           ))}

@@ -427,8 +427,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
     <div style={{
       position: 'fixed',
       inset: 0,
-      background: 'rgba(0, 0, 0, 0.85)',
-      backdropFilter: 'blur(10px)',
+      background: 'rgba(15, 23, 42, 0.45)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -441,13 +440,13 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
         width: '100%',
         maxWidth: '720px',
         padding: '24px',
-        background: '#1e293b',
-        borderRadius: '16px',
-        color: '#fff',
+        background: '#ffffff',
+        borderRadius: '6px',
+        color: '#0f172a',
         display: 'flex',
         flexDirection: 'column',
         gap: '18px',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
+        boxShadow: 'none',
         border: '1px solid var(--glass-border)',
       }}>
 
@@ -456,9 +455,9 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <LayoutGrid size={26} color="var(--accent-primary)" />
             <div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a' }}>
                 模擬相機考勤點名
-                <span style={{ fontSize: '0.8rem', background: 'rgba(59, 130, 246, 0.2)', color: '#38bdf8', padding: '2px 10px', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.4)' }}>
+                <span style={{ fontSize: '0.8rem', background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: '4px', border: '1px solid #bfdbfe', fontWeight: 600 }}>
                   {periodTitle}
                 </span>
               </h3>
@@ -472,7 +471,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
             {onOpenSeatEditor && (
               <button
                 onClick={onOpenSeatEditor}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-primary)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: '#f1f5f9', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 500 }}
               >
                 <Settings size={14} /> 編輯座位/節次
               </button>
@@ -484,13 +483,13 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
         </div>
 
         {/* 即時在座與未到摘要條 */}
-        <div style={{ display: 'flex', gap: '12px', background: 'rgba(15, 23, 42, 0.6)', padding: '10px 16px', borderRadius: '10px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '12px', background: '#f8fafc', padding: '10px 16px', borderRadius: '10px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', border: '1px solid var(--glass-border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>點名概況：</span>
-            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#059669', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <UserCheck size={16} /> 在座: {occupiedSeatsCount}
             </span>
-            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: vacantSeatsCount > 0 ? '#ef4444' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: vacantSeatsCount > 0 ? '#dc2626' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <UserX size={16} /> 未到: {vacantSeatsCount}
             </span>
           </div>
@@ -503,9 +502,9 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
                   fontSize: '0.75rem',
                   padding: '2px 8px',
                   borderRadius: '6px',
-                  background: s.status === 'OCCUPIED' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.15)',
-                  color: s.status === 'OCCUPIED' ? '#10b981' : '#ef4444',
-                  border: `1px solid ${s.status === 'OCCUPIED' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.3)'}`,
+                  background: s.status === 'OCCUPIED' ? '#ecfdf5' : '#fee2e2',
+                  color: s.status === 'OCCUPIED' ? '#059669' : '#dc2626',
+                  border: `1px solid ${s.status === 'OCCUPIED' ? '#a7f3d0' : '#fecaca'}`,
                   fontWeight: 600,
                 }}
               >
@@ -522,7 +521,8 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
           height: '360px',
           borderRadius: '12px',
           overflow: 'hidden',
-          background: '#090d16',
+          background: '#0f172a',
+          border: '1px solid var(--glass-border)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -568,7 +568,7 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
             <select
               value={selectedDeviceId}
               onChange={(e) => setSelectedDeviceId(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: '8px', background: '#0f172a', color: '#fff', border: '1px solid #334155', fontSize: '0.85rem' }}
+              style={{ padding: '8px 12px', borderRadius: '8px', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', fontSize: '0.85rem', outline: 'none' }}
             >
               {devices.map((d, index) => (
                 <option key={d.deviceId} value={d.deviceId}>
@@ -579,22 +579,28 @@ export const CameraSimulatorModal = ({ isOpen, onClose, onSuccess, onOpenSeatEdi
           </div>
 
           <div style={{ display: 'flex', gap: '12px' }}>
-            <button onClick={onClose} style={{ padding: '10px 16px', borderRadius: '8px', background: '#334155', color: '#fff', border: 'none', cursor: 'pointer' }}>
+            <button onClick={onClose} style={{ padding: '9px 16px', borderRadius: '6px', background: '#f1f5f9', color: '#0f172a', border: '1px solid #cbd5e1', cursor: 'pointer', fontWeight: 500 }}>
               取消
             </button>
             <button
               onClick={handleSendTelemetry}
               disabled={isSending || !cameraActive}
               style={{
-                padding: '10px 22px',
-                borderRadius: '8px',
-                background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
-                color: '#fff',
-                fontWeight: 'bold',
-                border: 'none',
+                padding: '9px 20px',
+                borderRadius: '6px',
+                background: isSending || !cameraActive ? '#e2e8f0' : '#0f172a',
+                color: isSending || !cameraActive ? '#94a3b8' : '#fff',
+                fontWeight: 600,
+                border: isSending || !cameraActive ? '1px solid #cbd5e1' : '1px solid #0f172a',
                 cursor: isSending || !cameraActive ? 'not-allowed' : 'pointer',
-                boxShadow: '0 4px 14px rgba(59, 130, 246, 0.4)',
-                transition: 'transform 0.2s',
+                boxShadow: 'none',
+                transition: 'background 0.15s ease',
+              }}
+              onMouseOver={(e) => {
+                if (!isSending && cameraActive) e.currentTarget.style.background = '#334155';
+              }}
+              onMouseOut={(e) => {
+                if (!isSending && cameraActive) e.currentTarget.style.background = '#0f172a';
               }}
             >
               {isSending ? '通報中...' : `📸 記錄點名 (${periodTitle})`}

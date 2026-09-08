@@ -5,16 +5,14 @@ import { LayoutDashboard, History, LayoutGrid, X } from 'lucide-react';
 const Sidebar = ({ isMobileOpen, onClose }) => {
   return (
     <>
-      {/* 行動端遮罩層 (Mobile Backdrop) */}
+      {/* 行動端遮罩層 (Mobile Backdrop，純色無模糊) */}
       {isMobileOpen && (
         <div
           onClick={onClose}
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.65)',
-            backdropFilter: 'blur(4px)',
-            WebkitBackdropFilter: 'blur(4px)',
+            background: 'rgba(15, 23, 42, 0.45)',
             zIndex: 90,
           }}
           className="mobile-only"
@@ -28,32 +26,31 @@ const Sidebar = ({ isMobileOpen, onClose }) => {
           height: '100vh',
           padding: '24px',
           borderRight: '1px solid var(--glass-border)',
-          background: 'rgba(15, 23, 42, 0.85)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
+          background: '#ffffff',
           display: 'flex',
           flexDirection: 'column',
           zIndex: 100,
-          transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          boxShadow: 'none',
+          transition: 'transform 0.25s ease',
         }}
       >
         <div style={{ marginBottom: '40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
+              width: '38px',
+              height: '38px',
+              borderRadius: '6px',
+              background: '#0f172a',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: 'white',
-              boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)'
+              boxShadow: 'none'
             }}>
-              <LayoutGrid size={22} />
+              <LayoutGrid size={20} />
             </div>
             <div>
-              <h2 style={{ fontSize: '1.2rem', margin: 0, background: 'linear-gradient(to right, #fff, #94a3b8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              <h2 style={{ fontSize: '1.15rem', margin: 0, color: '#0f172a', fontWeight: 700, letterSpacing: '-0.02em' }}>
                 ClassVision
               </h2>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>智慧座位考勤系統</span>
@@ -65,23 +62,23 @@ const Sidebar = ({ isMobileOpen, onClose }) => {
             onClick={onClose}
             className="mobile-only"
             style={{
-              background: 'rgba(255,255,255,0.06)',
-              border: 'none',
+              background: '#f1f5f9',
+              border: '1px solid var(--glass-border)',
               color: 'var(--text-secondary)',
               padding: '6px',
-              borderRadius: '8px',
+              borderRadius: '4px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
         <nav style={{ flex: 1 }}>
-          <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.05em', marginBottom: '12px', marginLeft: '4px' }}>
+          <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 600, letterSpacing: '0.05em', marginBottom: '12px', marginLeft: '4px' }}>
             功能導覽
           </div>
 
