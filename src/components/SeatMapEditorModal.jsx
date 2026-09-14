@@ -627,9 +627,9 @@ export const SeatMapEditorModal = ({
               disabled={!cameraActive}
               style={{
                 padding: '6px 14px',
-                background: cameraActive ? '#0f172a' : '#e2e8f0',
+                background: cameraActive ? 'var(--accent-primary)' : '#e2e8f0',
                 color: cameraActive ? '#fff' : '#94a3b8',
-                border: cameraActive ? '1px solid #0f172a' : '1px solid #cbd5e1',
+                border: cameraActive ? '1px solid var(--accent-primary)' : '1px solid #cbd5e1',
                 borderRadius: '4px',
                 fontSize: '0.82rem',
                 fontWeight: 600,
@@ -638,10 +638,10 @@ export const SeatMapEditorModal = ({
                 transition: 'background 0.15s ease',
               }}
               onMouseOver={(e) => {
-                if (cameraActive) e.currentTarget.style.background = '#334155';
+                if (cameraActive) e.currentTarget.style.background = 'var(--accent-hover)';
               }}
               onMouseOut={(e) => {
-                if (cameraActive) e.currentTarget.style.background = '#0f172a';
+                if (cameraActive) e.currentTarget.style.background = 'var(--accent-primary)';
               }}
             >
               生成網格 (共 {totalGridSeats} 席)
@@ -1018,22 +1018,22 @@ export const SeatMapEditorModal = ({
             )}
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
-            <button onClick={onClose} style={{ padding: '9px 16px', background: '#f1f5f9', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 500, cursor: 'pointer' }}>
+            <button onClick={onClose} style={{ padding: '9px 16px', background: '#ffffff', color: 'var(--text-primary)', border: '1px solid var(--glass-border)', borderRadius: '6px', fontWeight: 500, cursor: 'pointer' }}>
               關閉
             </button>
             <button
               onClick={handleSave}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '9px 20px', background: '#0f172a',
+                padding: '9px 20px', background: 'var(--accent-primary)',
                 color: '#fff', borderRadius: '6px', fontWeight: 600,
                 boxShadow: 'none',
-                border: '1px solid #0f172a',
+                border: '1px solid var(--accent-primary)',
                 cursor: 'pointer',
                 transition: 'background 0.15s ease',
               }}
-              onMouseOver={(e) => (e.currentTarget.style.background = '#334155')}
-              onMouseOut={(e) => (e.currentTarget.style.background = '#0f172a')}
+              onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+              onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
             >
               <Save size={16} /> 儲存劃位配置 ({config.seats.length} 席 · {period})
             </button>

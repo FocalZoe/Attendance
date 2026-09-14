@@ -147,13 +147,13 @@ const History = () => {
             disabled={loading}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              background: '#ffffff', color: '#0f172a',
+              background: '#ffffff', color: 'var(--text-primary)',
               border: '1px solid var(--glass-border)', padding: '9px 16px',
               borderRadius: '6px', fontWeight: 600, cursor: 'pointer',
               boxShadow: 'none',
               transition: 'background 0.15s ease',
             }}
-            onMouseOver={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-light)')}
             onMouseOut={(e) => (e.currentTarget.style.background = '#ffffff')}
           >
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
@@ -164,13 +164,13 @@ const History = () => {
             onClick={handleExportCSV}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              background: '#0f172a', color: 'white',
-              border: '1px solid #0f172a', padding: '9px 18px', borderRadius: '6px', fontWeight: 600,
+              background: 'var(--accent-primary)', color: 'white',
+              border: '1px solid var(--accent-primary)', padding: '9px 18px', borderRadius: '6px', fontWeight: 600,
               cursor: 'pointer', boxShadow: 'none',
               transition: 'background 0.15s ease',
             }}
-            onMouseOver={(e) => (e.currentTarget.style.background = '#334155')}
-            onMouseOut={(e) => (e.currentTarget.style.background = '#0f172a')}
+            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+            onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
           >
             <Download size={16} />
             匯出課堂出席報表
@@ -189,8 +189,8 @@ const History = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
               width: '100%', padding: '12px 16px 12px 46px',
-              background: '#f8fafc', border: '1px solid var(--glass-border)',
-              borderRadius: '8px', color: '#0f172a', outline: 'none', fontSize: '0.9rem',
+              background: '#ffffff', border: '1px solid var(--glass-border)',
+              borderRadius: '6px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.9rem',
               boxSizing: 'border-box',
               transition: 'all 0.2s',
             }}
@@ -252,7 +252,7 @@ const History = () => {
                   position: 'relative',
                   width: '100%',
                   height: '190px',
-                  background: '#0f172a',
+                  background: '#1a1613',
                   cursor: 'pointer',
                   overflow: 'hidden',
                 }}
@@ -264,13 +264,13 @@ const History = () => {
                 />
 
                 <div style={{
-                  position: 'absolute', inset: 0, background: 'rgba(15, 23, 42, 0.4)', opacity: 0,
+                  position: 'absolute', inset: 0, background: 'rgba(26, 22, 19, 0.4)', opacity: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'opacity 0.2s',
                 }}
                 onMouseOver={e => e.currentTarget.style.opacity = '1'}
                 onMouseOut={e => e.currentTarget.style.opacity = '0'}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fff', background: 'rgba(15, 23, 42, 0.75)', padding: '6px 14px', borderRadius: '20px', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fff', background: 'rgba(26, 22, 19, 0.85)', padding: '6px 14px', borderRadius: '4px', fontSize: '0.85rem' }}>
                     <Eye size={16} /> 觀看大圖
                   </div>
                 </div>
@@ -284,7 +284,7 @@ const History = () => {
                   padding: '3px 8px',
                   borderRadius: '4px',
                   fontSize: '0.75rem',
-                  color: vacantSeats.length > 0 ? '#dc2626' : '#059669',
+                  color: vacantSeats.length > 0 ? '#b91c1c' : '#15803d',
                   border: `1px solid ${vacantSeats.length > 0 ? '#fecaca' : '#a7f3d0'}`,
                   display: 'flex',
                   alignItems: 'center',
@@ -301,7 +301,7 @@ const History = () => {
               {/* 卡片內容 */}
               <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, justifyContent: 'space-between' }}>
                 <div>
-                  <h4 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
                     <GraduationCap size={18} color="var(--accent-primary)" /> {rec.message}
                   </h4>
 

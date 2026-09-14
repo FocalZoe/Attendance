@@ -2,7 +2,8 @@
 // 支援 Vercel Serverless 後端與 Render/本地環境自動切換
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-const WS_URL = import.meta.env.VITE_WS_URL || 'wss://attendance-backend-p1pj.onrender.com';
+const rawWsUrl = import.meta.env.VITE_WS_URL;
+const WS_URL = (typeof rawWsUrl === 'string' && rawWsUrl.trim().startsWith('ws')) ? rawWsUrl.trim() : null;
 
 /**
  * 取得 HTTP API 完整 URL
@@ -85,47 +86,58 @@ export const sendTelemetry = async (payload) => {
  * @returns {Function} disconnect function
  */
 export const connectWebSocket = (onMessage) => {
+  // 若未設定有效的 WebSocket 端點，安靜略過，直接走 REST 模式
+  if (!WS_URL) {
+    return () => {};
+  }
+
   let ws = null;
   let isClosedIntentionally = false;
   let reconnectTimer = null;
-  let pollInterval = null;
+  let retryCount = 0;
+  const MAX_RETRIES = 3;
 
   const connect = () => {
+    if (isClosedIntentionally || retryCount >= MAX_RETRIES) {
+      return;
+    }
+
     try {
-      if (WS_URL && WS_URL.startsWith('ws')) {
-        ws = new WebSocket(WS_URL);
+      ws = new WebSocket(WS_URL);
 
-        ws.onopen = () => {
-          console.log('[TEAM_001 WS] Connected to backend WebSocket');
-          if (pollInterval) {
-            clearInterval(pollInterval);
-            pollInterval = null;
+      ws.onopen = () => {
+        console.log('[TEAM_001 WS] Connected to backend WebSocket');
+        retryCount = 0;
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const parsed = JSON.parse(event.data);
+          if (onMessage) {
+            onMessage(parsed);
           }
-        };
+        } catch (err) {
+          console.warn('[TEAM_001 WS] Message parse error:', err);
+        }
+      };
 
-        ws.onmessage = (event) => {
-          try {
-            const parsed = JSON.parse(event.data);
-            if (onMessage) {
-              onMessage(parsed);
-            }
-          } catch (err) {
-            console.warn('[TEAM_001 WS] Message parse error:', err);
+      ws.onerror = () => {
+        // 安靜降級，不向 console 發出重試警告
+      };
+
+      ws.onclose = () => {
+        if (!isClosedIntentionally) {
+          retryCount++;
+          if (retryCount < MAX_RETRIES) {
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 8000);
+            reconnectTimer = setTimeout(connect, delay);
+          } else {
+            console.info('[TEAM_001 WS] WebSocket unavailable, fallback to active sync mode.');
           }
-        };
-
-        ws.onerror = (err) => {
-          console.warn('[TEAM_001 WS] WebSocket unavailable, fallback to active sync mode.');
-        };
-
-        ws.onclose = () => {
-          if (!isClosedIntentionally) {
-            reconnectTimer = setTimeout(connect, 5000);
-          }
-        };
-      }
+        }
+      };
     } catch (err) {
-      console.warn('[TEAM_001 WS] WebSocket connect skipped.');
+      console.warn('[TEAM_001 WS] WebSocket connect skipped:', err.message);
     }
   };
 
@@ -134,7 +146,6 @@ export const connectWebSocket = (onMessage) => {
   return () => {
     isClosedIntentionally = true;
     if (reconnectTimer) clearTimeout(reconnectTimer);
-    if (pollInterval) clearInterval(pollInterval);
     if (ws) {
       ws.close();
     }

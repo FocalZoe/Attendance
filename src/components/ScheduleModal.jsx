@@ -362,9 +362,9 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
               style={{
                 marginTop: 'auto',
                 padding: '8px 16px',
-                background: '#0f172a',
+                background: 'var(--accent-primary)',
                 color: '#fff',
-                border: '1px solid #0f172a',
+                border: '1px solid var(--accent-primary)',
                 borderRadius: '6px',
                 fontWeight: 600,
                 fontSize: '0.85rem',
@@ -375,8 +375,8 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                 boxShadow: 'none',
                 transition: 'background 0.15s ease',
               }}
-              onMouseOver={(e) => (e.currentTarget.style.background = '#334155')}
-              onMouseOut={(e) => (e.currentTarget.style.background = '#0f172a')}
+              onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+              onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
             >
               <Plus size={16} /> 新增排程
             </button>
@@ -526,18 +526,18 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
             onClick={onClose}
             style={{
               padding: '8px 20px',
-              background: '#0f172a',
+              background: 'var(--accent-primary)',
               color: '#fff',
               borderRadius: '6px',
               fontWeight: 600,
               fontSize: '0.88rem',
-              border: '1px solid #0f172a',
+              border: '1px solid var(--accent-primary)',
               cursor: 'pointer',
               boxShadow: 'none',
               transition: 'background 0.15s ease',
             }}
-            onMouseOver={(e) => (e.currentTarget.style.background = '#334155')}
-            onMouseOut={(e) => (e.currentTarget.style.background = '#0f172a')}
+            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+            onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
           >
             完成設定
           </button>

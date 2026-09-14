@@ -40,7 +40,7 @@ const Sidebar = ({ isMobileOpen, onClose }) => {
               width: '38px',
               height: '38px',
               borderRadius: '6px',
-              background: '#0f172a',
+              background: 'var(--accent-primary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -50,7 +50,7 @@ const Sidebar = ({ isMobileOpen, onClose }) => {
               <LayoutGrid size={20} />
             </div>
             <div>
-              <h2 style={{ fontSize: '1.15rem', margin: 0, color: '#0f172a', fontWeight: 700, letterSpacing: '-0.02em' }}>
+              <h2 style={{ fontSize: '1.15rem', margin: 0, color: 'var(--text-primary)', fontWeight: 700, letterSpacing: '-0.02em' }}>
                 ClassVision
               </h2>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>智慧座位考勤系統</span>
@@ -62,7 +62,7 @@ const Sidebar = ({ isMobileOpen, onClose }) => {
             onClick={onClose}
             className="mobile-only"
             style={{
-              background: '#f1f5f9',
+              background: 'var(--bg-color)',
               border: '1px solid var(--glass-border)',
               color: 'var(--text-secondary)',
               padding: '6px',
@@ -78,7 +78,7 @@ const Sidebar = ({ isMobileOpen, onClose }) => {
         </div>
 
         <nav style={{ flex: 1 }}>
-          <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 600, letterSpacing: '0.05em', marginBottom: '12px', marginLeft: '4px' }}>
+          <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.05em', marginBottom: '12px', marginLeft: '4px' }}>
             功能導覽
           </div>
 

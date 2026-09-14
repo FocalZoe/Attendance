@@ -578,7 +578,7 @@ const Dashboard = () => {
 
       <header className="page-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '1.85rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px', color: '#0f172a' }}>
+          <h1 style={{ fontSize: '1.85rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-primary)' }}>
             課堂考勤即時儀表板
           </h1>
           <p style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -607,7 +607,7 @@ const Dashboard = () => {
                 boxShadow: 'none',
                 transition: 'background 0.15s ease',
               }}
-              onMouseOver={(e) => (e.currentTarget.style.background = scheduleConfig.enabled ? '#d1fae5' : '#f1f5f9')}
+              onMouseOver={(e) => (e.currentTarget.style.background = scheduleConfig.enabled ? '#d1fae5' : 'var(--accent-light)')}
               onMouseOut={(e) => (e.currentTarget.style.background = scheduleConfig.enabled ? '#ecfdf5' : '#ffffff')}
             >
               <Clock size={16} />
@@ -616,19 +616,19 @@ const Dashboard = () => {
                 : '自動點名 (已暫停)'}
             </button>
 
-            {/* 座位劃位設定按鈕 (純黑實底白字，無漸層、無陰影、無漂浮) */}
+            {/* 座位劃位設定按鈕 (咖啡色實底白字，無漸層、無陰影、無漂浮) */}
             <button
               onClick={() => setIsSeatEditorOpen(true)}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
-                background: '#0f172a',
-                color: 'white', border: '1px solid #0f172a', padding: '9px 18px', borderRadius: '6px',
+                background: 'var(--accent-primary)',
+                color: 'white', border: '1px solid var(--accent-primary)', padding: '9px 18px', borderRadius: '6px',
                 fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer',
                 boxShadow: 'none',
                 transition: 'background 0.15s ease',
               }}
-              onMouseOver={(e) => (e.currentTarget.style.background = '#334155')}
-              onMouseOut={(e) => (e.currentTarget.style.background = '#0f172a')}
+              onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+              onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
             >
               <Settings size={16} />
               課堂與座位設置 ({seatConfig.seats.length} 席 · {seatConfig.current_period || '第 1 節'})
@@ -645,9 +645,9 @@ const Dashboard = () => {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '8px',
-            background: '#eff6ff',
-            border: '1px solid #bfdbfe',
-            color: '#1d4ed8',
+            background: 'var(--accent-light)',
+            border: '1px solid #dcd7ce',
+            color: 'var(--accent-primary)',
             padding: '5px 12px',
             borderRadius: '4px',
             fontSize: '0.82rem',
@@ -658,80 +658,20 @@ const Dashboard = () => {
             boxSizing: 'border-box',
           }}
           onMouseOver={(e) => {
-            if (!isMobile) e.currentTarget.style.background = '#dbeafe';
+            if (!isMobile) e.currentTarget.style.background = '#ede2d5';
           }}
           onMouseOut={(e) => {
-            if (!isMobile) e.currentTarget.style.background = '#eff6ff';
+            if (!isMobile) e.currentTarget.style.background = 'var(--accent-light)';
           }}
         >
-          <Timer size={15} color="#2563eb" style={{ flexShrink: 0 }} />
+          <Timer size={15} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             定時排程：下一次自動點名將於 <strong>{nextUpcoming.formattedText}</strong> 自動執行
           </span>
         </div>
       )}
 
-      {/* 統計卡片自適應網格 */}
-      <div className="stat-cards-grid">
-        <div className="glass-panel stat-card" style={{ borderTop: '4px solid var(--accent-primary)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div className="stat-title">應到座位總數</div>
-              <div className="stat-value">{currentTotalSeats} <span style={{ fontSize: '1rem', fontWeight: 'normal', color: 'var(--text-secondary)' }}>席</span></div>
-            </div>
-            <div style={{ padding: '10px', background: '#f1f5f9', borderRadius: '4px', color: '#0f172a' }}>
-              <LayoutGrid size={22} />
-            </div>
-          </div>
-        </div>
-
-        <div className="glass-panel stat-card" style={{ borderTop: '4px solid var(--success)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div className="stat-title">實到在座率</div>
-              <div className="stat-value" style={{ color: currentOccupiedCount > 0 ? 'var(--success)' : 'var(--text-secondary)' }}>
-                {currentAttendanceRate}
-                <span style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-secondary)', marginLeft: '8px' }}>
-                  ({currentOccupiedCount}/{currentTotalSeats} 席)
-                </span>
-              </div>
-            </div>
-            <div style={{ padding: '10px', background: 'var(--success-bg)', borderRadius: '4px', color: 'var(--success)' }}>
-              <UserCheck size={22} />
-            </div>
-          </div>
-        </div>
-
-        <div className="glass-panel stat-card" style={{ borderTop: '4px solid #dc2626' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div className="stat-title">未到/缺席人數</div>
-              <div className="stat-value" style={{ color: currentVacantCount > 0 ? '#dc2626' : 'var(--text-secondary)' }}>
-                {currentVacantCount} <span style={{ fontSize: '1rem', fontWeight: 'normal', color: 'var(--text-secondary)' }}>席</span>
-              </div>
-            </div>
-            <div style={{ padding: '10px', background: 'var(--danger-bg)', borderRadius: '4px', color: '#dc2626' }}>
-              <UserX size={22} />
-            </div>
-          </div>
-        </div>
-
-        <div className="glass-panel stat-card" style={{ borderTop: '4px solid #475569' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div className="stat-title">最後點名時間</div>
-              <div className="stat-value" style={{ fontSize: '1.05rem', color: '#0f172a', fontWeight: 700, whiteSpace: 'nowrap', marginTop: '6px' }}>
-                {formatFullDateTime(latestRecord?.create_at)}
-              </div>
-            </div>
-            <div style={{ padding: '10px', background: '#f1f5f9', borderRadius: '4px', color: '#475569' }}>
-              <Clock size={22} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 主體區塊：最新點名捕捉影像 (左側) 與 即時通報紀錄簿 (右側) - 支援 RWD 自適應堆疊 */}
+      {/* 主體區塊：最新點名捕捉影像 (左側) 與 即時通報紀錄簿 (右側) - 支援 RWD 自適應堆疊 (移至上方) */}
       <div className="dashboard-main-grid">
         {/* 最新點名捕捉影像卡片 */}
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
@@ -739,9 +679,9 @@ const Dashboard = () => {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Camera size={22} color="var(--accent-primary)" />
-              <h2 style={{ fontSize: '1.2rem', margin: 0 }}>最新點名捕捉影像</h2>
+              <h2 style={{ fontSize: '1.2rem', margin: 0, color: 'var(--text-primary)' }}>最新點名捕捉影像</h2>
               {isMobile && (
-                <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.15)', color: '#38bdf8', fontWeight: 600 }}>
+                <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '10px', background: 'var(--accent-light)', color: 'var(--accent-primary)', fontWeight: 600 }}>
                   最後通報相片
                 </span>
               )}
@@ -749,7 +689,7 @@ const Dashboard = () => {
 
             {/* 即時鏡頭 / 最後通報 切換 Tab (僅電腦端可切換即時相機，手機端鎖定通報相片) */}
             {!isMobile && (
-              <div style={{ display: 'flex', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+              <div style={{ display: 'flex', gap: '6px', background: 'var(--accent-light)', padding: '4px', borderRadius: '6px', border: '1px solid var(--glass-border)' }}>
                 <button
                   onClick={() => setPreviewTab('live')}
                   style={{
@@ -759,15 +699,15 @@ const Dashboard = () => {
                     fontWeight: 600,
                     cursor: 'pointer',
                     background: previewTab === 'live' ? '#ffffff' : 'transparent',
-                    color: previewTab === 'live' ? '#0f172a' : 'var(--text-secondary)',
-                    border: previewTab === 'live' ? '1px solid #cbd5e1' : '1px solid transparent',
+                    color: previewTab === 'live' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    border: previewTab === 'live' ? '1px solid var(--glass-border)' : '1px solid transparent',
                     boxShadow: 'none',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
                   }}
                 >
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cameraActive ? '#059669' : '#dc2626' }} />
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cameraActive ? '#15803d' : '#b91c1c' }} />
                   即時鏡頭 (Live)
                 </button>
 
@@ -780,9 +720,9 @@ const Dashboard = () => {
                     fontWeight: 600,
                     cursor: 'pointer',
                     background: previewTab === 'latest' ? '#ffffff' : 'transparent',
-                    color: previewTab === 'latest' ? '#0f172a' : 'var(--text-secondary)',
+                    color: previewTab === 'latest' ? 'var(--text-primary)' : 'var(--text-secondary)',
                     boxShadow: 'none',
-                    border: previewTab === 'latest' ? '1px solid #cbd5e1' : '1px solid transparent',
+                    border: previewTab === 'latest' ? '1px solid var(--glass-border)' : '1px solid transparent',
                   }}
                 >
                   最後通報相片
@@ -832,52 +772,93 @@ const Dashboard = () => {
 
               {!cameraActive && (
                 <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ padding: '16px', background: 'rgba(239, 68, 68, 0.15)', borderRadius: '50%', color: '#ef4444' }}>
+                  <div style={{ padding: '16px', background: 'rgba(185, 28, 28, 0.15)', borderRadius: '50%', color: '#b91c1c' }}>
                     <AlertTriangle size={36} />
                   </div>
-                  <h4 style={{ color: '#ef4444', margin: '4px 0 0 0' }}>尚未啟動相機鏡頭</h4>
+                  <h4 style={{ color: '#b91c1c', margin: '4px 0 0 0' }}>尚未啟動相機鏡頭</h4>
                   <p style={{ margin: 0, fontSize: '0.85rem' }}>{cameraError || '請選擇鏡頭或授權攝影機存取以開啟即時預覽。'}</p>
                 </div>
               )}
             </div>
 
-            {/* TEAM_008: 最後通報相片區塊 (切換為 latest 時顯示) */}
+            {/* TEAM_008: 最後通報相片區塊 (等比滿幅放大展示，出缺席標籤沉底對齊) */}
             <div style={{ position: 'relative', width: '100%', height: '100%', display: previewTab === 'latest' ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center' }}>
               {latestRecord ? (
-                <div key={latestRecord.id} className="animate-fade-in" style={{ textAlign: 'center', padding: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', boxSizing: 'border-box' }}>
-                  <div style={{ position: 'relative', display: 'inline-block', cursor: 'pointer' }} onClick={() => setSelectedRecord(latestRecord)}>
+                <div
+                  key={latestRecord.id}
+                  className="animate-fade-in"
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'relative',
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => setSelectedRecord(latestRecord)}
+                    title="點擊放大檢視清晰相片"
+                  >
                     <img
                       src={latestRecord.file_url}
                       alt={latestRecord.message}
-                      style={{ maxWidth: '380px', maxHeight: '280px', borderRadius: '12px', border: '2.5px solid var(--success)', objectFit: 'contain', background: 'rgba(255,255,255,0.05)' }}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        maxWidth: '100%',
+                        maxHeight: '100%',
+                        objectFit: 'contain',
+                        display: 'block',
+                      }}
                     />
-                    <div style={{ position: 'absolute', top: '-6px', left: '-6px', width: '20px', height: '20px', borderTop: '3.5px solid var(--success)', borderLeft: '3.5px solid var(--success)', borderRadius: '6px 0 0 0' }} />
-                    <div style={{ position: 'absolute', bottom: '-6px', right: '-6px', width: '20px', height: '20px', borderBottom: '3.5px solid var(--success)', borderRight: '3.5px solid var(--success)', borderRadius: '0 0 6px 0' }} />
                   </div>
 
-                  {/* 中間文字區域：只顯示訊息與未到幾員 */}
-                  <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                    <h4 style={{ fontSize: '1.2rem', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
-                      <GraduationCap size={20} color="var(--accent-primary)" />
-                      {latestRecord.message}
-                    </h4>
-
-                    {/* 未到/缺席與實到人數標籤 */}
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '2px' }}>
-                      {latestVacantSeatIds.length > 0 ? (
-                        <span style={{ fontSize: '0.85rem', padding: '3px 12px', borderRadius: '12px', background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid #fecaca', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <UserX size={14} /> 未到: {latestVacantSeatIds.join(', ')} (共 {latestVacantSeatIds.length} 席)
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: '0.85rem', padding: '3px 12px', borderRadius: '12px', background: 'var(--success-bg)', color: 'var(--success)', border: '1px solid #a7f3d0', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <UserCheck size={14} /> 全員在座 (共 {currentTotalSeats} 席)
-                        </span>
-                      )}
-
-                      <span style={{ fontSize: '0.85rem', padding: '3px 12px', borderRadius: '12px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', fontWeight: 600 }}>
-                        在座率: {currentAttendanceRate} ({currentOccupiedCount}/{currentTotalSeats} 席)
+                  {/* 浮動沉底狀態資訊列 (截圖 2 紅筆標記：向沉底對齊，不遮擋相片中央學生主體) */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: '14px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      display: 'flex',
+                      gap: '8px',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexWrap: 'wrap',
+                      background: 'rgba(26, 22, 19, 0.88)',
+                      padding: '6px 14px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      boxShadow: 'none',
+                      zIndex: 10,
+                      pointerEvents: 'none',
+                      maxWidth: '92%',
+                    }}
+                  >
+                    {latestVacantSeatIds.length > 0 ? (
+                      <span style={{ fontSize: '0.82rem', padding: '2px 10px', borderRadius: '4px', background: '#b91c1c', color: '#ffffff', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <UserX size={13} /> 未到: {latestVacantSeatIds.join(', ')} (共 {latestVacantSeatIds.length} 席)
                       </span>
-                    </div>
+                    ) : (
+                      <span style={{ fontSize: '0.82rem', padding: '2px 10px', borderRadius: '4px', background: '#15803d', color: '#ffffff', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <UserCheck size={13} /> 全員在座 (共 {currentTotalSeats} 席)
+                      </span>
+                    )}
+
+                    <span style={{ fontSize: '0.82rem', padding: '2px 10px', borderRadius: '4px', background: 'var(--accent-primary)', color: '#ffffff', fontWeight: 600 }}>
+                      在座率: {currentAttendanceRate} ({currentOccupiedCount}/{currentTotalSeats} 席)
+                    </span>
                   </div>
                 </div>
               ) : (
@@ -892,7 +873,7 @@ const Dashboard = () => {
           {/* 底部控制器 */}
           <div style={{ marginTop: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
             {!isMobile && previewTab === 'live' ? (
-              // 電腦即時鏡頭模式：顯示相機裝置切換（Webcam / Ameba）與「立即記錄點名」按鈕 (無相機時禁用)
+              // 電腦即時鏡頭模式：顯示相機裝置切換（Webcam / Ameba）與「立即記錄點名」按鈕
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', flex: '1 1 auto' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: '1 1 auto', minWidth: '180px' }}>
@@ -904,7 +885,7 @@ const Dashboard = () => {
                         setSelectedDeviceId(nextId);
                         startCamera(nextId);
                       }}
-                      style={{ padding: '7px 12px', borderRadius: '8px', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', fontSize: '0.82rem', width: '100%', maxWidth: '280px', outline: 'none' }}
+                      style={{ padding: '7px 12px', borderRadius: '6px', background: '#ffffff', color: 'var(--text-primary)', border: '1px solid var(--glass-border)', fontSize: '0.82rem', width: '100%', maxWidth: '280px', outline: 'none' }}
                     >
                       {devices.map((d) => (
                         <option key={d.id || d.deviceId} value={d.id || d.deviceId}>
@@ -914,7 +895,7 @@ const Dashboard = () => {
                     </select>
                   </div>
 
-                  {/* TEAM_008: 新增重啟/重新整理相機按鈕 */}
+                  {/* TEAM_008: 重啟/重新整理相機按鈕 */}
                   <button
                     onClick={() => startCamera(selectedDeviceId)}
                     title="重新載入相機串流"
@@ -922,7 +903,7 @@ const Dashboard = () => {
                       padding: '7px 12px',
                       borderRadius: '4px',
                       background: '#ffffff',
-                      color: '#0f172a',
+                      color: 'var(--text-primary)',
                       border: '1px solid var(--glass-border)',
                       fontSize: '0.8rem',
                       fontWeight: 600,
@@ -943,10 +924,10 @@ const Dashboard = () => {
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                     padding: '9px 20px', borderRadius: '6px',
-                    background: cameraActive && !isSending ? '#0f172a' : '#e2e8f0',
+                    background: cameraActive && !isSending ? 'var(--accent-primary)' : '#e6e2d8',
                     color: cameraActive && !isSending ? '#fff' : '#94a3b8',
                     fontWeight: 600, fontSize: '0.88rem',
-                    border: cameraActive && !isSending ? '1px solid #0f172a' : '1px solid #e2e8f0',
+                    border: cameraActive && !isSending ? '1px solid var(--accent-primary)' : '1px solid #e6e2d8',
                     cursor: isSending || !cameraActive ? 'not-allowed' : 'pointer',
                     boxShadow: 'none',
                     transition: 'background 0.15s ease',
@@ -955,10 +936,10 @@ const Dashboard = () => {
                     opacity: cameraActive && !isSending ? 1 : 0.7,
                   }}
                   onMouseOver={(e) => {
-                    if (cameraActive && !isSending) e.currentTarget.style.background = '#334155';
+                    if (cameraActive && !isSending) e.currentTarget.style.background = 'var(--accent-hover)';
                   }}
                   onMouseOut={(e) => {
-                    if (cameraActive && !isSending) e.currentTarget.style.background = '#0f172a';
+                    if (cameraActive && !isSending) e.currentTarget.style.background = 'var(--accent-primary)';
                   }}
                 >
                   <Camera size={16} />
@@ -973,7 +954,7 @@ const Dashboard = () => {
               // 最後通報相片模式：左下角寫「最後紀錄：時間」，右下角為「觀看大圖」按鈕
               <>
                 <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                  <Clock size={15} color="#0f172a" style={{ flexShrink: 0 }} />
+                  <Clock size={15} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
                   <span>
                     {latestRecord
                       ? `最後紀錄：${formatFullDateTime(latestRecord.create_at)}`
@@ -986,14 +967,14 @@ const Dashboard = () => {
                     onClick={() => setSelectedRecord(latestRecord)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: '6px',
-                      padding: '8px 18px', background: '#0f172a',
+                      padding: '8px 18px', background: 'var(--accent-primary)',
                       color: 'white', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600,
-                      border: '1px solid #0f172a', cursor: 'pointer', marginLeft: 'auto',
+                      border: '1px solid var(--accent-primary)', cursor: 'pointer', marginLeft: 'auto',
                       boxShadow: 'none',
                       transition: 'background 0.15s ease',
                     }}
-                    onMouseOver={(e) => (e.currentTarget.style.background = '#334155')}
-                    onMouseOut={(e) => (e.currentTarget.style.background = '#0f172a')}
+                    onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+                    onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
                   >
                     <Eye size={15} /> 觀看大圖
                   </button>
@@ -1007,7 +988,7 @@ const Dashboard = () => {
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
             <Activity size={22} color="var(--accent-primary)" />
-            <h2 style={{ fontSize: '1.2rem' }}>即時通報紀錄簿</h2>
+            <h2 style={{ fontSize: '1.2rem', color: 'var(--text-primary)' }}>即時通報紀錄簿</h2>
           </div>
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '460px' }}>
@@ -1034,17 +1015,17 @@ const Dashboard = () => {
                     cursor: 'pointer', transition: 'background 0.15s ease',
                   }}
                   onClick={() => setSelectedRecord(rec)}
-                  onMouseOver={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                  onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-light)')}
                   onMouseOut={(e) => (e.currentTarget.style.background = '#ffffff')}
                 >
                   <img
                     src={rec.file_url}
                     alt={rec.message}
-                    style={{ width: '44px', height: '44px', borderRadius: '4px', objectFit: 'cover', background: '#0f172a' }}
+                    style={{ width: '44px', height: '44px', borderRadius: '4px', objectFit: 'cover', background: '#1a1613' }}
                   />
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <GraduationCap size={16} color="var(--accent-primary)" />
                       {rec.message}
                     </div>
@@ -1052,11 +1033,11 @@ const Dashboard = () => {
                     {/* 缺席座號提示 */}
                     <div style={{ fontSize: '0.78rem', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                       {recVacantSeats.length > 0 ? (
-                        <span style={{ color: '#ef4444', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <span style={{ color: 'var(--danger)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
                           <UserX size={13} /> 未到: {recVacantSeats.join(', ')} ({recVacantSeats.length} 席)
                         </span>
                       ) : (
-                        <span style={{ color: '#10b981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <span style={{ color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
                           <UserCheck size={13} /> 全員在座
                         </span>
                       )}
@@ -1068,7 +1049,7 @@ const Dashboard = () => {
                     </div>
                   </div>
 
-                  <div style={{ color: recVacantSeats.length > 0 ? '#ef4444' : 'var(--success)' }}>
+                  <div style={{ color: recVacantSeats.length > 0 ? 'var(--danger)' : 'var(--success)' }}>
                     {recVacantSeats.length > 0 ? <AlertCircle size={20} /> : <CheckCircle size={20} />}
                   </div>
                 </div>
@@ -1080,6 +1061,66 @@ const Dashboard = () => {
                 尚無通報紀錄
               </div>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* 統計卡片自適應網格 - 移至下方 */}
+      <div className="stat-cards-grid">
+        <div className="glass-panel stat-card" style={{ borderTop: '4px solid var(--accent-primary)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div className="stat-title">應到座位總數</div>
+              <div className="stat-value">{currentTotalSeats} <span style={{ fontSize: '1rem', fontWeight: 'normal', color: 'var(--text-secondary)' }}>席</span></div>
+            </div>
+            <div style={{ padding: '10px', background: 'var(--accent-light)', borderRadius: '4px', color: 'var(--accent-primary)' }}>
+              <LayoutGrid size={22} />
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-panel stat-card" style={{ borderTop: '4px solid var(--success)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div className="stat-title">實到在座率</div>
+              <div className="stat-value" style={{ color: currentOccupiedCount > 0 ? 'var(--success)' : 'var(--text-secondary)' }}>
+                {currentAttendanceRate}
+                <span style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-secondary)', marginLeft: '8px' }}>
+                  ({currentOccupiedCount}/{currentTotalSeats} 席)
+                </span>
+              </div>
+            </div>
+            <div style={{ padding: '10px', background: 'var(--success-bg)', borderRadius: '4px', color: 'var(--success)' }}>
+              <UserCheck size={22} />
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-panel stat-card" style={{ borderTop: '4px solid var(--danger)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div className="stat-title">未到/缺席人數</div>
+              <div className="stat-value" style={{ color: currentVacantCount > 0 ? 'var(--danger)' : 'var(--text-secondary)' }}>
+                {currentVacantCount} <span style={{ fontSize: '1rem', fontWeight: 'normal', color: 'var(--text-secondary)' }}>席</span>
+              </div>
+            </div>
+            <div style={{ padding: '10px', background: 'var(--danger-bg)', borderRadius: '4px', color: 'var(--danger)' }}>
+              <UserX size={22} />
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-panel stat-card" style={{ borderTop: '4px solid #7d7268' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div className="stat-title">最後點名時間</div>
+              <div className="stat-value" style={{ fontSize: '1.05rem', color: 'var(--text-primary)', fontWeight: 700, whiteSpace: 'nowrap', marginTop: '6px' }}>
+                {formatFullDateTime(latestRecord?.create_at)}
+              </div>
+            </div>
+            <div style={{ padding: '10px', background: 'var(--accent-light)', borderRadius: '4px', color: 'var(--accent-primary)' }}>
+              <Clock size={22} />
+            </div>
           </div>
         </div>
       </div>

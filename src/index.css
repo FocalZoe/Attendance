@@ -1,21 +1,22 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --bg-color: #f8fafc; /* slate-50 純淨極簡淺灰底 */
-  --bg-secondary: #ffffff; /* 純白卡片背景 */
-  --text-primary: #0f172a; /* slate-900 高對比主文字 */
-  --text-secondary: #64748b; /* slate-500 清晰輔助文字 */
-  --accent-primary: #0f172a; /* 極簡深色純黑主色，無 AI 漸層感 */
-  --accent-hover: #334155; /* 深灰懸停色 */
-  --brand-blue: #2563eb; /* 經典純科技藍 (無漸層) */
-  --success: #059669; /* emerald-600 翡翠在座綠 */
-  --success-bg: #ecfdf5; /* emerald-50 淺綠狀態底 */
-  --warning: #d97706; /* amber-600 提醒琥珀黃 */
-  --danger: #dc2626; /* red-600 珊瑚缺席紅 */
-  --danger-bg: #fef2f2; /* red-50 淺紅狀態底 */
+  --bg-color: #f7f5f0; /* 溫潤暖米白底色，極致溫和高質感 */
+  --bg-secondary: #ffffff; /* 純白卡片面板 */
+  --text-primary: #2d241e; /* 深烘焙暖咖啡黑字，溫和高對比清晰好讀 */
+  --text-secondary: #7d7268; /* 暖調拿鐵中灰，柔和次要說明文字 */
+  --accent-primary: #5c3a21; /* 經典醇厚深咖啡色主題色，沉穩優雅非純黑 */
+  --accent-hover: #452a16; /* 深濃縮咖啡色懸停 */
+  --accent-light: #f5ede6; /* 淺燕麥拿鐵底色，用於狀態標籤與柔和飾底 */
+  --brand-blue: #2563eb; /* 經典純科技藍 */
+  --success: #15803d; /* 沉穩在座綠 */
+  --success-bg: #f0fdf4; /* 淺綠狀態底 */
+  --warning: #b45309; /* 提醒琥珀黃 */
+  --danger: #b91c1c; /* 沉穩缺席紅 */
+  --danger-bg: #fef2f2; /* 淺紅狀態底 */
   
   --glass-bg: #ffffff; /* 100% 不透明純白卡片面板 */
-  --glass-border: #e2e8f0; /* slate-200 乾淨邊框線條 */
+  --glass-border: #e6e2d8; /* 溫暖米灰乾淨細線條 (1px) */
   --glass-shadow: none; /* 極致扁平化：完全無陰影 */
 }
 
@@ -52,7 +53,7 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #dcd7ce;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -110,6 +111,7 @@ body {
   grid-template-columns: 3fr 2fr;
   gap: 24px;
   min-height: 560px;
+  margin-bottom: 24px;
 }
 
 /* 統計卡片自適應網格 */
@@ -120,7 +122,7 @@ body {
   margin-bottom: 24px;
 }
 
-/* 視訊畫面自適應容器 (維持純黑高對比以利 AI 坐姿標記，外框純線條無陰影) */
+/* 視訊畫面自適應容器 (維持暖深黑褐高對比以利 AI 坐姿標記，外框純線條無陰影) */
 .camera-preview-container {
   height: 440px;
   min-height: 440px;
@@ -128,7 +130,7 @@ body {
   position: relative;
   border-radius: 6px;
   overflow: hidden;
-  background: #0f172a;
+  background: #1a1613;
   border: 1px solid var(--glass-border);
   display: flex;
   align-items: center;

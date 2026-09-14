@@ -1,8 +1,6 @@
 // TEAM_007: API 網址統一配置模組 (api.js)
 // 確保所有前端請求 (發送通報、查詢歷史、WebSocket) 100% 指向同一個真實伺服器與資料庫！
 
-const DEFAULT_REMOTE_BACKEND = 'https://attendance-backend-p1pj.onrender.com';
-
 /**
  * 取得 HTTP API 基礎網址
  */
@@ -11,7 +9,7 @@ export const getApiBaseUrl = () => {
   if (envUrl) {
     return envUrl.replace(/\/+$/, '');
   }
-  return DEFAULT_REMOTE_BACKEND;
+  return '';
 };
 
 /**

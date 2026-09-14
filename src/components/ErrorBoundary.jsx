@@ -215,9 +215,9 @@ export class ErrorBoundary extends React.Component {
                   flex: '1 1 140px',
                   padding: '10px 18px',
                   borderRadius: '6px',
-                  background: '#0f172a',
+                  background: 'var(--accent-primary, #5c3a21)',
                   color: '#fff',
-                  border: '1px solid #0f172a',
+                  border: '1px solid var(--accent-primary, #5c3a21)',
                   fontWeight: 600,
                   fontSize: '0.88rem',
                   cursor: 'pointer',
@@ -228,8 +228,8 @@ export class ErrorBoundary extends React.Component {
                   boxShadow: 'none',
                   transition: 'background 0.15s ease',
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.background = '#334155')}
-                onMouseOut={(e) => (e.currentTarget.style.background = '#0f172a')}
+                onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover, #452a16)')}
+                onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary, #5c3a21)')}
               >
                 <RefreshCw size={15} /> 重新載入系統
               </button>
