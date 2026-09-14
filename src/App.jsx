@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, LayoutDashboard, History, Settings, LogIn, School } from 'lucide-react';
+import { BrowserRouter as Router, Routes, Route, NavLink, useNavigate } from 'react-router-dom';
+import { Menu, LayoutDashboard, History, LogIn, School } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import HistoryPage from './pages/History';
@@ -10,25 +10,21 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { getAuthSession } from './services/authService';
 import './App.css';
 
-// 內部 App 核心內容，置於 Router 內部以存取 navigate
-function AppContent() {
+/**
+ * 前台考勤系統專用版面架構 (包含前台 Sidebar 與主內容區)
+ */
+function ClientLayout() {
   const navigate = useNavigate();
-  const location = useLocation();
-
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [session, setSession] = useState(getAuthSession());
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [loginTab, setLoginTab] = useState('class');
 
   useEffect(() => {
     const handleAuthChange = () => {
-      const current = getAuthSession();
-      setSession(current);
+      setSession(getAuthSession());
     };
 
-    const handleOpenLogin = (e) => {
-      const tab = e?.detail?.tab || 'class';
-      setLoginTab(tab);
+    const handleOpenLogin = () => {
       setIsLoginModalOpen(true);
     };
 
@@ -41,24 +37,14 @@ function AppContent() {
     };
   }, []);
 
-  const handleOpenLoginModal = (tab = 'class') => {
-    setLoginTab(tab);
-    setIsLoginModalOpen(true);
-  };
-
   const handleLoginSuccess = (userSession) => {
     setSession(userSession);
     setIsLoginModalOpen(false);
-    if (userSession.role === 'admin') {
-      navigate('/management');
-    } else if (userSession.role === 'class') {
-      navigate('/');
-    }
+    navigate('/');
   };
 
-  const isGuest = !session;
   const isClass = session?.role === 'class';
-  const isAdmin = session?.role === 'admin';
+  const isGuest = !isClass;
 
   return (
     <div className="layout-container">
@@ -105,7 +91,7 @@ function AppContent() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {isGuest && (
             <button
-              onClick={() => handleOpenLoginModal('class')}
+              onClick={() => setIsLoginModalOpen(true)}
               style={{
                 fontSize: '0.72rem',
                 padding: '4px 8px',
@@ -117,29 +103,28 @@ function AppContent() {
                 cursor: 'pointer',
               }}
             >
-              登入
+              班級登入
             </button>
           )}
-          {session && (
-            <div style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '4px', background: isClass ? '#e0f2fe' : '#fdf4ff', color: isClass ? '#0284c7' : '#9333ea', border: '1px solid var(--glass-border)', fontWeight: 600 }}>
-              {isClass ? (session.name || session.id) : '管理者'}
+          {isClass && (
+            <div style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '4px', background: '#e0f2fe', color: '#0284c7', border: '1px solid var(--glass-border)', fontWeight: 600 }}>
+              {session.name || session.id}
             </div>
           )}
         </div>
       </header>
 
-      {/* 側邊欄 (桌機固定，手機滑出抽屜) */}
+      {/* 前台側邊欄 (桌機固定，手機滑出抽屜) */}
       <Sidebar
         isMobileOpen={isMobileSidebarOpen}
         onClose={() => setIsMobileSidebarOpen(false)}
-        onOpenLogin={(tab) => handleOpenLoginModal(tab)}
+        onOpenLogin={() => setIsLoginModalOpen(true)}
       />
 
-      {/* 主視窗內容 */}
+      {/* 前台主視窗內容 */}
       <main className="main-content">
         <Routes>
-          <Route path="/" element={<Dashboard onOpenLogin={() => handleOpenLoginModal('class')} />} />
-          <Route path="/management" element={<Management />} />
+          <Route path="/" element={<Dashboard onOpenLogin={() => setIsLoginModalOpen(true)} />} />
           <Route path="/history" element={<HistoryPage />} />
         </Routes>
       </main>
@@ -156,16 +141,6 @@ function AppContent() {
           </NavLink>
         )}
 
-        {isAdmin && (
-          <NavLink
-            to="/management"
-            className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
-          >
-            <Settings size={20} />
-            <span>班級管理</span>
-          </NavLink>
-        )}
-
         <NavLink
           to="/history"
           className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
@@ -176,7 +151,7 @@ function AppContent() {
 
         {isGuest && (
           <button
-            onClick={() => handleOpenLoginModal('class')}
+            onClick={() => setIsLoginModalOpen(true)}
             className="mobile-nav-item"
             style={{
               background: 'none',
@@ -186,17 +161,17 @@ function AppContent() {
             }}
           >
             <LogIn size={20} />
-            <span>登入帳號</span>
+            <span>班級登入</span>
           </button>
         )}
       </nav>
 
-      {/* 登入彈窗 */}
+      {/* 班級登入彈窗 */}
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
         onLoginSuccess={handleLoginSuccess}
-        initialTab={loginTab}
+        initialTab="class"
       />
     </div>
   );
@@ -206,7 +181,12 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <AppContent />
+        <Routes>
+          {/* 獨立單獨管理網頁，完全不套用前台 Sidebar 與外層框架 */}
+          <Route path="/management" element={<Management />} />
+          {/* 前台點名系統其他所有頁面 */}
+          <Route path="/*" element={<ClientLayout />} />
+        </Routes>
       </Router>
     </ErrorBoundary>
   );

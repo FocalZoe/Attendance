@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, History, Settings, LogIn, LogOut, User, School, X } from 'lucide-react';
+import { LayoutDashboard, History, LogIn, LogOut, School, X } from 'lucide-react';
 import { getAuthSession, clearAuthSession } from '../services/authService';
 
 const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
@@ -21,18 +21,17 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
     navigate('/history');
   };
 
-  const handleOpenLogin = (tab) => {
+  const handleOpenLogin = () => {
     if (onClose) onClose();
     if (onOpenLogin) {
-      onOpenLogin(tab);
+      onOpenLogin('class');
     } else {
-      window.dispatchEvent(new CustomEvent('auth:open-login', { detail: { tab } }));
+      window.dispatchEvent(new CustomEvent('auth:open-login', { detail: { tab: 'class' } }));
     }
   };
 
-  const isGuest = !session;
   const isClass = session?.role === 'class';
-  const isAdmin = session?.role === 'admin';
+  const isGuest = !isClass;
 
   return (
     <>
@@ -86,7 +85,7 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
                 班級自動化點名系統
               </h2>
               <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                {isClass ? `班級專區 · ${session.name || session.id}` : isAdmin ? '系統最高權限管理' : '校園訪客瀏覽模式'}
+                {isClass ? `班級專區 · ${session.name || session.id}` : '校園訪客瀏覽模式'}
               </span>
             </div>
           </div>
@@ -129,19 +128,7 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
             </NavLink>
           )}
 
-          {/* 管理者專屬：班級空間管理（管理者只有登入獨立管理頁面而已） */}
-          {isAdmin && (
-            <NavLink
-              to="/management"
-              onClick={() => onClose && onClose()}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-            >
-              <Settings size={19} />
-              班級空間管理
-            </NavLink>
-          )}
-
-          {/* 所有角色皆可見：課堂歷史紀錄簿 */}
+          {/* 所有訪客與班級皆可見：課堂歷史紀錄簿 */}
           <NavLink
             to="/history"
             onClick={() => onClose && onClose()}
@@ -152,7 +139,7 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
           </NavLink>
         </nav>
 
-        {/* 底部帳號狀態與切換區塊 */}
+        {/* 底部帳號狀態區塊 */}
         <div style={{
           borderTop: '1px solid var(--glass-border)',
           paddingTop: '16px',
@@ -163,10 +150,10 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
           {isGuest && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ fontSize: '0.75rem', color: '#64748b', paddingLeft: '4px' }}>
-                當前為訪客模式（僅供查閱歷史）
+                當前為訪客模式（僅供查閱紀錄）
               </div>
               <button
-                onClick={() => handleOpenLogin('class')}
+                onClick={handleOpenLogin}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -185,27 +172,6 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
               >
                 <LogIn size={16} />
                 班級帳號登入
-              </button>
-
-              <button
-                onClick={() => handleOpenLogin('admin')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  padding: '7px 12px',
-                  borderRadius: '6px',
-                  background: '#f1f5f9',
-                  color: '#334155',
-                  border: '1px solid #cbd5e1',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                <Settings size={15} />
-                管理者後台登入
               </button>
             </div>
           )}
@@ -262,60 +228,6 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
               >
                 <LogOut size={14} />
                 班級登出
-              </button>
-            </div>
-          )}
-
-          {isAdmin && (
-            <div style={{
-              background: '#fdf4ff',
-              border: '1px solid #f0abfc',
-              borderRadius: '8px',
-              padding: '12px',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                <div style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  background: '#fae8ff',
-                  color: '#a21caf',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                  <User size={16} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 800, fontSize: '0.88rem', color: '#86198f' }}>
-                    系統管理者
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: '#a21caf' }}>
-                    帳號：admin (最高管理權限)
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={handleLogout}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  padding: '6px 10px',
-                  borderRadius: '4px',
-                  background: '#ffffff',
-                  border: '1px solid #f0abfc',
-                  color: '#9333ea',
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                <LogOut size={14} />
-                管理者登出
               </button>
             </div>
           )}
