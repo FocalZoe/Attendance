@@ -5,7 +5,7 @@
 // 3. 最後通報相片中間顯示訊息與未到人數（不顯示時間），左下角清楚呈現「最後紀錄：時間」。
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, CheckCircle, Activity, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, RefreshCw, Eye, AlertTriangle, Timer, Smartphone, Bell } from 'lucide-react';
+import { Camera, CheckCircle, Activity, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, RefreshCw, Eye, AlertTriangle, Timer, Smartphone } from 'lucide-react';
 import { ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision';
 import { fetchHistoryRecords, sendTelemetry, connectWebSocket } from '../services/api';
 import { getSavedSeatsConfig, formatFullPeriodMessage, matchPersonsToSeats, SeatTemporalTracker, switchActiveClassLayout } from '../services/seatOccupancyService';
@@ -17,6 +17,7 @@ import ScheduleModal from '../components/ScheduleModal';
 import ImageModal from '../components/ImageModal';
 import ErrorBoundary from '../components/ErrorBoundary';
 import LoginModal from '../components/LoginModal';
+import Toast from '../components/Toast';
 
 let detectorInstance = null;
 let detectorLoadingPromise = null;
@@ -606,34 +607,13 @@ const Dashboard = ({ onOpenLogin }) => {
     <div className="animate-fade-in">
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      {/* 自動點名成功即時通知 Banner (純色扁平微圓角，無陰影) */}
+      {/* 自動點名成功即時通知 Toast (Portal 浮動通知，零版面推擠) */}
       {autoRollcallToast && (
-        <div
-          style={{
-            background: '#059669',
-            color: '#fff',
-            padding: '12px 18px',
-            borderRadius: '6px',
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            border: '1px solid #047857',
-            boxShadow: 'none',
-            animation: 'fadeIn 0.25s ease-out',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}>
-            <Bell size={18} />
-            <span>[{autoRollcallToast.time}] <strong>{autoRollcallToast.period}</strong> 定時自動點名通報已成功執行並儲存！</span>
-          </div>
-          <button
-            onClick={() => setAutoRollcallToast(null)}
-            style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', opacity: 0.8, fontSize: '1rem' }}
-          >
-            ✕
-          </button>
-        </div>
+        <Toast
+          message={`[${autoRollcallToast.time}] ${autoRollcallToast.period} 定時自動點名通報已成功執行並儲存！`}
+          type="success"
+          onClose={() => setAutoRollcallToast(null)}
+        />
       )}
 
       <header className="page-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
@@ -644,21 +624,21 @@ const Dashboard = ({ onOpenLogin }) => {
           <p style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span>即時鏡頭智慧點名與缺席座號追蹤 (當前課堂：<strong style={{ color: 'var(--accent-primary)' }}>{currentPeriodTitle}</strong>)</span>
             {isMobile && (
-              <span style={{ fontSize: '0.75rem', padding: '3px 10px', borderRadius: '12px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ fontSize: '0.75rem', padding: '3px 10px', borderRadius: '12px', background: 'var(--bg-subtle)', color: 'var(--accent-primary)', border: '1px solid var(--border-color)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 <Smartphone size={13} /> 巡堂查驗模式 (唯讀)
               </span>
             )}
           </p>
         </div>
 
-        {/* 電腦端具備完整管理權限；手機端只能檢視，隱藏設定按鈕 */}
+        {/* 電腦端具備完整點名權限；手機端只能檢視，隱藏設定按鈕 */}
         {!isMobile && (
           <div className="header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* 班級專屬多座位佈局快捷切換下拉選單 */}
+            {/* 班級專屬多座位佈局快捷切換下拉選單 (核心課堂配置) */}
             {session?.user?.seat_layout && Object.keys(session.user.seat_layout).length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '4px 10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                <LayoutGrid size={15} color="var(--accent-primary)" />
-                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#334155' }}>佈局：</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-subtle)', padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                <LayoutGrid size={16} color="var(--accent-primary)" />
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>佈局：</span>
                 <select
                   value={seatConfig.layout_key || session.user.active_layout_key || 'layout1'}
                   onChange={async (e) => {
@@ -666,10 +646,20 @@ const Dashboard = ({ onOpenLogin }) => {
                     await switchActiveClassLayout(nextKey);
                     setSeatConfig(getSavedSeatsConfig());
                   }}
-                  style={{ padding: '3px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.82rem', background: '#ffffff', outline: 'none', cursor: 'pointer' }}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border-dark)',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    background: '#ffffff',
+                    color: 'var(--text-primary)',
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
                 >
                   {Object.entries(session.user.seat_layout).map(([k, l]) => (
-                    <option key={k} value={k}>{l.name || k}</option>
+                    <option key={k} value={k}>{l.name || k} ({Array.isArray(l.seats) ? l.seats.length : 0} 席)</option>
                   ))}
                 </select>
               </div>
@@ -682,9 +672,9 @@ const Dashboard = ({ onOpenLogin }) => {
                 display: 'flex', alignItems: 'center', gap: '8px',
                 background: scheduleConfig.enabled ? '#ecfdf5' : '#ffffff',
                 color: scheduleConfig.enabled ? '#059669' : 'var(--text-secondary)',
-                border: `1px solid ${scheduleConfig.enabled ? '#a7f3d0' : 'var(--glass-border)'}`,
-                padding: '9px 16px', borderRadius: '6px',
-                fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer',
+                border: `1px solid ${scheduleConfig.enabled ? '#a7f3d0' : 'var(--border-color)'}`,
+                padding: '8px 16px', borderRadius: '6px',
+                fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer',
                 boxShadow: 'none',
                 transition: 'background 0.15s ease',
               }}
@@ -695,24 +685,6 @@ const Dashboard = ({ onOpenLogin }) => {
               {scheduleConfig.enabled
                 ? `自動點名 (${scheduleConfig.schedules.filter((s) => s.enabled).length} 個時段)`
                 : '自動點名 (已暫停)'}
-            </button>
-
-            {/* 座位劃位設定按鈕 */}
-            <button
-              onClick={() => setIsSeatEditorOpen(true)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                background: 'var(--accent-primary)',
-                color: 'white', border: '1px solid var(--accent-primary)', padding: '9px 18px', borderRadius: '6px',
-                fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer',
-                boxShadow: 'none',
-                transition: 'background 0.15s ease',
-              }}
-              onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
-              onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
-            >
-              <Settings size={16} />
-              課堂與座位設置 ({seatConfig.seats.length} 席 · {seatConfig.current_period || '第 1 節'})
             </button>
           </div>
         )}
@@ -1191,7 +1163,7 @@ const Dashboard = ({ onOpenLogin }) => {
           </div>
         </div>
 
-        <div className="glass-panel stat-card" style={{ borderTop: '4px solid var(--brand-primary)' }}>
+        <div className="glass-panel stat-card" style={{ borderTop: '4px solid var(--accent-primary)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div className="stat-title">最後點名時間</div>
@@ -1199,7 +1171,7 @@ const Dashboard = ({ onOpenLogin }) => {
                 {formatFullDateTime(latestRecord?.create_at)}
               </div>
             </div>
-            <div style={{ padding: '10px', background: 'var(--brand-light)', borderRadius: '4px', color: 'var(--brand-primary)' }}>
+            <div style={{ padding: '10px', background: 'var(--accent-light)', borderRadius: '4px', color: 'var(--accent-primary)' }}>
               <Clock size={22} />
             </div>
           </div>

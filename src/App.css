@@ -1,8 +1,9 @@
 /* ==============================================================================
    班級自動化點名系統 - 組件與視圖統一樣式 (App.css)
+   米白咖啡色系 (Warm Cream & Rich Coffee)
    ============================================================================== */
 
-/* 側邊欄選單項目 */
+/* 側邊欄導覽選單項目 */
 .nav-item {
   display: flex;
   align-items: center;
@@ -18,8 +19,8 @@
 }
 
 .nav-item:hover {
-  background: var(--bg-subtle);
-  color: var(--text-primary);
+  background: var(--accent-light);
+  color: var(--accent-primary);
 }
 
 .nav-item.active {
@@ -63,7 +64,7 @@
   text-align: left;
   padding: 14px 16px;
   color: var(--text-secondary);
-  background: var(--bg-subtle);
+  background: #fbf9f5;
   font-weight: 700;
   font-size: 0.82rem;
   border-bottom: 1px solid var(--border-color);
@@ -72,7 +73,7 @@
 .history-table td {
   padding: 14px 16px;
   color: var(--text-primary);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid #f5ede6;
   font-size: 0.88rem;
 }
 
@@ -81,10 +82,10 @@
 }
 
 .history-table tbody tr:hover {
-  background: var(--bg-subtle);
+  background: #fbf9f5;
 }
 
-/* 考勤狀態標籤 (統一翠綠與深紅) */
+/* 考勤狀態標籤 */
 .status-badge {
   padding: 4px 10px;
   border-radius: var(--radius-sm);
@@ -111,7 +112,7 @@
 .responsive-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.55);
+  background: rgba(45, 36, 30, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -127,7 +128,7 @@
   background: #ffffff;
   color: var(--text-primary);
   border: 1px solid var(--border-color);
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+  box-shadow: none;
 }
 
 /* 劃位編輯器主畫布與側欄響應式 */

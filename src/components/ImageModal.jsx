@@ -248,11 +248,11 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
 
         {/* 右側：標註過濾工具列與關閉按鈕 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f1f5f9', padding: '3px 6px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--bg-subtle)', padding: '3px 6px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
             <button
               onClick={() => setViewMode('all')}
               style={{
-                padding: '4px 8px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
+                padding: '4px 8px', borderRadius: '4px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
                 background: viewMode === 'all' ? 'var(--accent-primary)' : 'transparent',
                 color: viewMode === 'all' ? '#fff' : 'var(--text-secondary)', border: 'none',
               }}
@@ -263,7 +263,7 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
             <button
               onClick={() => setViewMode('vacant')}
               style={{
-                padding: '4px 8px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
+                padding: '4px 8px', borderRadius: '4px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
                 background: viewMode === 'vacant' ? 'var(--danger-bg)' : 'transparent',
                 color: viewMode === 'vacant' ? 'var(--danger)' : 'var(--text-secondary)', border: 'none',
               }}
@@ -274,7 +274,7 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
             <button
               onClick={() => setViewMode('occupied')}
               style={{
-                padding: '4px 8px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
+                padding: '4px 8px', borderRadius: '4px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
                 background: viewMode === 'occupied' ? 'var(--success-bg)' : 'transparent',
                 color: viewMode === 'occupied' ? 'var(--success)' : 'var(--text-secondary)', border: 'none',
               }}
@@ -285,9 +285,9 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
             <button
               onClick={() => setViewMode(viewMode === 'raw' ? 'all' : 'raw')}
               style={{
-                padding: '4px 8px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
+                padding: '4px 8px', borderRadius: '4px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: '3px',
-                background: viewMode === 'raw' ? 'var(--bg-subtle)' : 'transparent',
+                background: viewMode === 'raw' ? '#ffffff' : 'transparent',
                 color: viewMode === 'raw' ? 'var(--text-primary)' : 'var(--text-secondary)', border: 'none',
               }}
             >
@@ -299,7 +299,7 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
           <button
             onClick={onClose}
             style={{
-              background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#0f172a',
+              background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', color: 'var(--text-primary)',
               borderRadius: '4px', width: '32px', height: '32px',
               display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
             }}
@@ -334,8 +334,8 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
             maxHeight: '84vh',
             borderRadius: '8px',
             overflow: 'hidden',
-            border: '1px solid #334155',
-            background: '#020617',
+            border: '1px solid var(--border-color)',
+            background: '#1a1613',
           }}
         >
           <img
@@ -420,13 +420,13 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
                   width: `${sp.width}%`,
                   height: `${sp.height}%`,
                   border: isSelected 
-                    ? '3.5px solid #3b82f6' 
-                    : isOcc ? '2.5px solid #10b981' : '2px dashed #ef4444',
+                    ? '3px solid var(--accent-primary)' 
+                    : isOcc ? '2.5px solid var(--success)' : '2px dashed var(--danger)',
                   background: isSelected
-                    ? 'rgba(59, 130, 246, 0.35)'
-                    : isOcc ? 'rgba(16, 185, 129, 0.22)' : 'rgba(239, 68, 68, 0.18)',
-                  boxShadow: isSelected ? '0 0 12px #3b82f6' : 'none',
-                  borderRadius: '8px',
+                    ? 'rgba(92, 58, 33, 0.35)'
+                    : isOcc ? 'rgba(21, 128, 61, 0.2)' : 'rgba(185, 28, 28, 0.18)',
+                  boxShadow: isSelected ? '0 0 12px rgba(92, 58, 33, 0.4)' : 'none',
+                  borderRadius: '6px',
                   boxSizing: 'border-box',
                   pointerEvents: 'auto',
                   cursor: 'pointer',
@@ -436,10 +436,10 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
                 title={`點擊查看座號 ${st.seat_id} 今日出缺席狀態`}
               >
                 {/* 四角 L 型邊框 */}
-                <div style={{ position: 'absolute', top: 0, left: 0, width: '8px', height: '8px', borderTop: `2.5px solid ${isSelected ? '#3b82f6' : isOcc ? '#10b981' : '#ef4444'}`, borderLeft: `2.5px solid ${isSelected ? '#3b82f6' : isOcc ? '#10b981' : '#ef4444'}` }} />
-                <div style={{ position: 'absolute', top: 0, right: 0, width: '8px', height: '8px', borderTop: `2.5px solid ${isSelected ? '#3b82f6' : isOcc ? '#10b981' : '#ef4444'}`, borderRight: `2.5px solid ${isSelected ? '#3b82f6' : isOcc ? '#10b981' : '#ef4444'}` }} />
-                <div style={{ position: 'absolute', bottom: 0, left: 0, width: '8px', height: '8px', borderBottom: `2.5px solid ${isSelected ? '#3b82f6' : isOcc ? '#10b981' : '#ef4444'}`, borderLeft: `2.5px solid ${isSelected ? '#3b82f6' : isOcc ? '#10b981' : '#ef4444'}` }} />
-                <div style={{ position: 'absolute', bottom: 0, right: 0, width: '8px', height: '8px', borderBottom: `2.5px solid ${isSelected ? '#3b82f6' : isOcc ? '#10b981' : '#ef4444'}`, borderRight: `2.5px solid ${isSelected ? '#3b82f6' : isOcc ? '#10b981' : '#ef4444'}` }} />
+                <div style={{ position: 'absolute', top: 0, left: 0, width: '8px', height: '8px', borderTop: `2.5px solid ${isSelected ? 'var(--accent-primary)' : isOcc ? 'var(--success)' : 'var(--danger)'}`, borderLeft: `2.5px solid ${isSelected ? 'var(--accent-primary)' : isOcc ? 'var(--success)' : 'var(--danger)'}` }} />
+                <div style={{ position: 'absolute', top: 0, right: 0, width: '8px', height: '8px', borderTop: `2.5px solid ${isSelected ? 'var(--accent-primary)' : isOcc ? 'var(--success)' : 'var(--danger)'}`, borderRight: `2.5px solid ${isSelected ? 'var(--accent-primary)' : isOcc ? 'var(--success)' : 'var(--danger)'}` }} />
+                <div style={{ position: 'absolute', bottom: 0, left: 0, width: '8px', height: '8px', borderBottom: `2.5px solid ${isSelected ? 'var(--accent-primary)' : isOcc ? 'var(--success)' : 'var(--danger)'}`, borderLeft: `2.5px solid ${isSelected ? 'var(--accent-primary)' : isOcc ? 'var(--success)' : 'var(--danger)'}` }} />
+                <div style={{ position: 'absolute', bottom: 0, right: 0, width: '8px', height: '8px', borderBottom: `2.5px solid ${isSelected ? 'var(--accent-primary)' : isOcc ? 'var(--success)' : 'var(--danger)'}`, borderRight: `2.5px solid ${isSelected ? 'var(--accent-primary)' : isOcc ? 'var(--success)' : 'var(--danger)'}` }} />
 
                 {/* 座號狀態標籤 */}
                 <div
@@ -448,14 +448,14 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
                     top: sp.y > 8 ? '-22px' : '4px',
                     left: '4px',
                     background: isSelected 
-                      ? '#2563eb' 
-                      : isOcc ? 'rgba(16, 185, 129, 0.95)' : 'rgba(239, 68, 68, 0.95)',
+                      ? 'var(--accent-primary)' 
+                      : isOcc ? 'rgba(21, 128, 61, 0.95)' : 'rgba(185, 28, 28, 0.95)',
                     color: '#ffffff',
-                    border: `1px solid ${isSelected ? '#3b82f6' : isOcc ? '#10b981' : '#ef4444'}`,
+                    border: `1px solid ${isSelected ? 'var(--accent-primary)' : isOcc ? 'var(--success)' : 'var(--danger)'}`,
                     padding: '2px 6px',
-                    borderRadius: '4px',
+                    borderRadius: '3px',
                     fontSize: '0.72rem',
-                    fontWeight: 'bold',
+                    fontWeight: 700,
                     whiteSpace: 'nowrap',
                   }}
                 >
@@ -472,7 +472,7 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
             width: '320px',
             background: '#ffffff',
             borderRadius: '8px',
-            border: '1px solid var(--glass-border)',
+            border: '1px solid var(--border-color)',
             padding: '18px',
             display: 'flex',
             flexDirection: 'column',
@@ -481,12 +481,12 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
             boxSizing: 'border-box',
           }}
         >
-          <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-            <h3 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <GraduationCap size={18} color="var(--accent-primary)" />
               座號今日出勤明細
             </h3>
-            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
               點選左側照片上的座位框框即時連動
             </span>
           </div>
@@ -494,9 +494,9 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
           {selectedSeatObj ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {/* 選取之座位標題與當前狀態 */}
-              <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <div style={{ background: 'var(--bg-subtle)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                  <span style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                     座號 #{selectedSeatObj.seat_id}
                   </span>
                   <span style={{
@@ -504,14 +504,14 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
                     fontWeight: 700,
                     padding: '3px 8px',
                     borderRadius: '4px',
-                    background: selectedSeatObj.status === 'OCCUPIED' ? '#ecfdf5' : '#fef2f2',
-                    color: selectedSeatObj.status === 'OCCUPIED' ? '#059669' : '#dc2626',
-                    border: `1px solid ${selectedSeatObj.status === 'OCCUPIED' ? '#a7f3d0' : '#fecaca'}`,
+                    background: selectedSeatObj.status === 'OCCUPIED' ? 'var(--success-bg)' : 'var(--danger-bg)',
+                    color: selectedSeatObj.status === 'OCCUPIED' ? 'var(--success)' : 'var(--danger)',
+                    border: `1px solid ${selectedSeatObj.status === 'OCCUPIED' ? 'var(--success-border)' : 'var(--danger-border)'}`,
                   }}>
                     {selectedSeatObj.status === 'OCCUPIED' ? '本節在座出席' : '本節缺席未到'}
                   </span>
                 </div>
-                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                   {selectedSeatObj.name || `第 ${selectedSeatObj.seat_id} 號座位`}
                 </div>
               </div>
@@ -519,25 +519,25 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
               {/* 今日出席率統計指標卡 */}
               {todayStats && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  <div style={{ background: '#eff6ff', padding: '10px', borderRadius: '6px', border: '1px solid #bfdbfe', textAlign: 'center' }}>
-                    <span style={{ fontSize: '0.72rem', color: '#1e40af', display: 'block', fontWeight: 600 }}>今日出席率</span>
+                  <div style={{ background: 'var(--bg-subtle)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--accent-primary)', display: 'block', fontWeight: 600 }}>今日出席率</span>
                     <strong style={{ fontSize: '1.25rem', color: 'var(--accent-primary)' }}>{todayStats.rate}%</strong>
                   </div>
-                  <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                    <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block', fontWeight: 600 }}>出席 / 總節次</span>
-                    <strong style={{ fontSize: '1.15rem', color: '#0f172a' }}>{todayStats.attended} / {todayStats.totalPeriods}</strong>
+                  <div style={{ background: 'var(--bg-subtle)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>出席 / 總節次</span>
+                    <strong style={{ fontSize: '1.15rem', color: 'var(--text-primary)' }}>{todayStats.attended} / {todayStats.totalPeriods}</strong>
                   </div>
                 </div>
               )}
 
               {/* 今日各節次出缺席歷程時間軸 */}
               <div>
-                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
                   📅 今日歷次點名記錄 ({todayRecordsTimeline.length} 次)
                 </div>
 
                 {todayRecordsTimeline.length === 0 ? (
-                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', textAlign: 'center', padding: '16px' }}>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '16px' }}>
                     查無今日其他節次紀錄
                   </div>
                 ) : (
@@ -553,16 +553,16 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
                             alignItems: 'center',
                             padding: '8px 10px',
                             borderRadius: '6px',
-                            background: item.isCurrentSnapshot ? '#eff6ff' : '#f8fafc',
-                            border: item.isCurrentSnapshot ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
+                            background: item.isCurrentSnapshot ? 'var(--accent-light)' : 'var(--bg-subtle)',
+                            border: item.isCurrentSnapshot ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
                             fontSize: '0.78rem',
                           }}
                         >
                           <div>
-                            <span style={{ fontWeight: 600, color: '#0f172a' }}>{item.period}</span>
-                            <span style={{ fontSize: '0.72rem', color: '#64748b', marginLeft: '6px' }}>{item.time}</span>
+                            <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{item.period}</span>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginLeft: '6px' }}>{item.time}</span>
                             {item.isCurrentSnapshot && (
-                              <span style={{ fontSize: '0.68rem', background: '#3b82f6', color: '#ffffff', padding: '1px 4px', borderRadius: '3px', marginLeft: '6px' }}>
+                              <span style={{ fontSize: '0.68rem', background: 'var(--accent-primary)', color: '#ffffff', padding: '1px 4px', borderRadius: '3px', marginLeft: '6px', fontWeight: 600 }}>
                                 本相片
                               </span>
                             )}
@@ -572,8 +572,8 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
                             fontWeight: 700,
                             padding: '2px 6px',
                             borderRadius: '4px',
-                            background: isOcc ? '#ecfdf5' : '#fef2f2',
-                            color: isOcc ? '#059669' : '#dc2626',
+                            background: isOcc ? 'var(--success-bg)' : 'var(--danger-bg)',
+                            color: isOcc ? 'var(--success)' : 'var(--danger)',
                           }}>
                             {isOcc ? '在座' : '缺席'}
                           </span>

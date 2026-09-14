@@ -130,7 +130,7 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
         inset: 0,
         width: '100vw',
         height: '100vh',
-        background: 'rgba(15, 23, 42, 0.45)',
+        background: 'rgba(45, 36, 30, 0.45)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -149,23 +149,23 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
           overflowY: 'auto',
           background: '#ffffff',
           borderRadius: '6px',
-          color: '#0f172a',
+          color: 'var(--text-primary)',
           padding: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
           boxShadow: 'none',
-          border: '1px solid var(--glass-border)',
+          border: '1px solid var(--border-color)',
         }}
       >
         {/* Header 標題區 */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ padding: '8px', background: '#f1f5f9', borderRadius: '4px', color: 'var(--accent-primary)' }}>
+            <div style={{ padding: '8px', background: 'var(--bg-subtle)', borderRadius: '4px', color: 'var(--accent-primary)' }}>
               <Clock size={22} />
             </div>
             <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-primary)' }}>
                 定時自動點名排程管理
               </h2>
               <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
@@ -241,10 +241,10 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
         <form
           onSubmit={handleAddSchedule}
           style={{
-            background: '#f8fafc',
+            background: 'var(--bg-subtle)',
             padding: '16px',
-            borderRadius: '12px',
-            border: '1px solid var(--glass-border)',
+            borderRadius: '6px',
+            border: '1px solid var(--border-color)',
             display: 'flex',
             flexDirection: 'column',
             gap: '12px',
@@ -266,8 +266,8 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                     padding: '7px 10px',
                     borderRadius: '6px',
                     background: '#ffffff',
-                    border: '1px solid #cbd5e1',
-                    color: '#0f172a',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-primary)',
                     fontSize: '0.92rem',
                     fontWeight: 700,
                     fontFamily: 'monospace',
@@ -283,7 +283,7 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                   ))}
                 </select>
 
-                <span style={{ fontWeight: 700, color: '#94a3b8', fontSize: '1rem' }}>:</span>
+                <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: '1rem' }}>:</span>
 
                 <select
                   value={selectedMinute}
@@ -292,8 +292,8 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                     padding: '7px 10px',
                     borderRadius: '6px',
                     background: '#ffffff',
-                    border: '1px solid #cbd5e1',
-                    color: '#0f172a',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-primary)',
                     fontSize: '0.92rem',
                     fontWeight: 700,
                     fontFamily: 'monospace',
@@ -321,8 +321,8 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                   padding: '7px 10px',
                   borderRadius: '6px',
                   background: '#ffffff',
-                  border: '1px solid #cbd5e1',
-                  color: '#0f172a',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--text-primary)',
                   fontSize: '0.85rem',
                   outline: 'none',
                 }}
@@ -348,8 +348,8 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                     padding: '7px 10px',
                     borderRadius: '6px',
                     background: '#ffffff',
-                    border: '1px solid #cbd5e1',
-                    color: '#0f172a',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-primary)',
                     fontSize: '0.85rem',
                     outline: 'none',
                   }}
@@ -384,8 +384,8 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
         </form>
 
         {/* 排程清單操作列 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
-          <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+          <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Calendar size={16} color="var(--accent-primary)" />
             已排定時程清單 ({config.schedules.length} 個時段)
           </div>
@@ -394,9 +394,9 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
               onClick={handleLoadDefaults}
               style={{
                 padding: '4px 10px',
-                background: '#f1f5f9',
-                color: '#0f172a',
-                border: '1px solid #cbd5e1',
+                background: 'var(--bg-subtle)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-color)',
                 borderRadius: '6px',
                 fontSize: '0.78rem',
                 cursor: 'pointer',
@@ -444,8 +444,8 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '10px 14px',
-                  background: item.enabled ? '#ffffff' : '#f8fafc',
-                  border: `1px solid ${item.enabled ? '#cbd5e1' : '#e2e8f0'}`,
+                  background: item.enabled ? '#ffffff' : 'var(--bg-subtle)',
+                  border: `1px solid ${item.enabled ? 'var(--border-dark)' : 'var(--border-color)'}`,
                   borderRadius: '4px',
                   opacity: item.enabled ? 1 : 0.65,
                   boxShadow: 'none',
@@ -459,16 +459,16 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                       fontWeight: 700,
                       fontFamily: 'monospace',
                       color: item.enabled ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                      background: '#f1f5f9',
+                      background: 'var(--bg-subtle)',
                       padding: '4px 10px',
                       borderRadius: '6px',
-                      border: '1px solid #cbd5e1',
+                      border: '1px solid var(--border-color)',
                     }}
                   >
                     {item.time}
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#0f172a' }}>{item.period}</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>{item.period}</div>
                     <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
                       自動點名通報：{item.enabled ? '🟢 啟用中' : '⚪ 已停用'}
                     </div>
@@ -484,9 +484,9 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
                       fontSize: '0.78rem',
                       fontWeight: 600,
                       cursor: 'pointer',
-                      background: item.enabled ? '#ecfdf5' : '#f1f5f9',
-                      color: item.enabled ? '#059669' : '#64748b',
-                      border: item.enabled ? '1px solid #a7f3d0' : '1px solid #cbd5e1',
+                      background: item.enabled ? '#ecfdf5' : 'var(--bg-subtle)',
+                      color: item.enabled ? '#059669' : 'var(--text-secondary)',
+                      border: item.enabled ? '1px solid #a7f3d0' : '1px solid var(--border-color)',
                     }}
                   >
                     {item.enabled ? '已啟用' : '已停用'}
@@ -514,7 +514,7 @@ export const ScheduleModal = ({ isOpen, onClose, onConfigChange }) => {
         </div>
 
         {/* Footer 操作區 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '14px' }}>
           <div>
             {savedNotice && (
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#059669', fontSize: '0.85rem', fontWeight: 600 }}>

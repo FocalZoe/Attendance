@@ -1,15 +1,15 @@
 // ==============================================================================
-// 班級自動化點名系統 - 雙層身分登入彈窗元件 (LoginModal.jsx)
-// 支援「班級登入」(解鎖儀表板與CSV匯出) 與「管理者登入」(admin / admin，進入管理頁面)
+// 班級自動化點名系統 - 班級專屬登入彈窗元件 (LoginModal.jsx)
+// 前台純粹僅供「班級帳號登入」(管理者一律透過獨立 /management 頁面管理)
+// 溫潤米白咖啡色系 (Warm Cream & Rich Coffee)，純淨扁平無冷色干擾
 // ==============================================================================
 
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
-import { X, Lock, User, Key, School, ShieldCheck, AlertCircle, ArrowRight } from 'lucide-react';
-import { loginClass, loginAdmin } from '../services/authService';
+import { X, User, Key, School, AlertCircle, ArrowRight } from 'lucide-react';
+import { loginClass } from '../services/authService';
 
 export const LoginModal = ({ isOpen, onClose, onSuccess }) => {
-  const [tab, setTab] = useState('class'); // 'class' | 'admin'
   const [account, setAccount] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -23,22 +23,12 @@ export const LoginModal = ({ isOpen, onClose, onSuccess }) => {
     setLoading(true);
 
     try {
-      if (tab === 'class') {
-        const res = await loginClass(account, password);
-        if (res.success) {
-          if (onSuccess) onSuccess('class', res.user);
-          onClose();
-        } else {
-          setErrorMsg(res.message || '登入失敗，請檢查帳號密碼');
-        }
+      const res = await loginClass(account, password);
+      if (res.success) {
+        if (onSuccess) onSuccess('class', res.user);
+        onClose();
       } else {
-        const res = await loginAdmin(account, password);
-        if (res.success) {
-          if (onSuccess) onSuccess('admin');
-          onClose();
-        } else {
-          setErrorMsg(res.message || '管理者帳號或密碼錯誤 (預設為 admin / admin)');
-        }
+        setErrorMsg(res.message || '登入失敗，請檢查班級帳號與密碼');
       }
     } catch (err) {
       setErrorMsg(err.message || '系統連線異常，請稍後再試');
@@ -55,8 +45,8 @@ export const LoginModal = ({ isOpen, onClose, onSuccess }) => {
         inset: 0,
         width: '100vw',
         height: '100vh',
-        background: 'rgba(15, 23, 42, 0.65)',
-        backdropFilter: 'blur(4px)',
+        background: 'rgba(45, 36, 30, 0.45)',
+        backdropFilter: 'blur(3px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -69,28 +59,28 @@ export const LoginModal = ({ isOpen, onClose, onSuccess }) => {
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
-          maxWidth: '420px',
+          maxWidth: '400px',
           background: '#ffffff',
-          borderRadius: '12px',
-          border: '1px solid var(--glass-border)',
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+          borderRadius: '10px',
+          border: '1px solid var(--border-color)',
+          boxShadow: '0 12px 32px -4px rgba(45, 36, 30, 0.12)',
           overflow: 'hidden',
         }}
       >
         {/* 頂部標頭 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #f1f5f9' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-              <Lock size={16} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
+              <School size={18} />
             </div>
-            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
-              系統身分登入
+            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+              班級帳號登入
             </h3>
           </div>
           <button
             onClick={onClose}
             style={{
-              background: '#f1f5f9',
+              background: 'var(--bg-subtle)',
               border: 'none',
               borderRadius: '4px',
               width: '28px',
@@ -99,86 +89,25 @@ export const LoginModal = ({ isOpen, onClose, onSuccess }) => {
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              color: '#64748b',
+              color: 'var(--text-secondary)',
             }}
           >
             <X size={16} />
           </button>
         </div>
 
-        {/* Tab 切換 */}
-        <div style={{ display: 'flex', padding: '6px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-          <button
-            type="button"
-            onClick={() => {
-              setTab('class');
-              setErrorMsg('');
-              setAccount('');
-              setPassword('');
-            }}
-            style={{
-              flex: 1,
-              padding: '8px',
-              borderRadius: '6px',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              border: 'none',
-              background: tab === 'class' ? '#ffffff' : 'transparent',
-              color: tab === 'class' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              boxShadow: tab === 'class' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <School size={16} /> 班級登入
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setTab('admin');
-              setErrorMsg('');
-              setAccount('');
-              setPassword('');
-            }}
-            style={{
-              flex: 1,
-              padding: '8px',
-              borderRadius: '6px',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              border: 'none',
-              background: tab === 'admin' ? '#ffffff' : 'transparent',
-              color: tab === 'admin' ? '#0f172a' : 'var(--text-secondary)',
-              boxShadow: tab === 'admin' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <ShieldCheck size={16} /> 管理者登入
-          </button>
-        </div>
-
         {/* 表單內容 */}
-        <form onSubmit={handleSubmit} style={{ padding: '20px' }}>
+        <form onSubmit={handleSubmit} style={{ padding: '22px 20px' }}>
           {errorMsg && (
-            <div style={{ marginBottom: '16px', padding: '10px 12px', borderRadius: '6px', background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ marginBottom: '16px', padding: '10px 12px', borderRadius: '6px', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', color: 'var(--danger)', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <AlertCircle size={16} style={{ flexShrink: 0 }} />
               <span>{errorMsg}</span>
             </div>
           )}
 
-          <div style={{ marginBottom: '14px' }}>
-            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-              {tab === 'class' ? '班級帳號代碼' : '管理者帳號'}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
+              班級帳號代碼
             </label>
             <div style={{ position: 'relative' }}>
               <input
@@ -186,25 +115,25 @@ export const LoginModal = ({ isOpen, onClose, onSuccess }) => {
                 required
                 value={account}
                 onChange={(e) => setAccount(e.target.value)}
-                placeholder={tab === 'class' ? '請輸入班級帳號代碼' : 'admin'}
+                placeholder="例如：301 或 訊三甲代碼"
                 style={{
                   width: '100%',
                   padding: '9px 12px 9px 36px',
                   borderRadius: '6px',
-                  border: '1px solid #cbd5e1',
+                  border: '1px solid var(--border-dark)',
                   background: '#ffffff',
-                  color: '#0f172a',
+                  color: 'var(--text-primary)',
                   fontSize: '0.88rem',
                   outline: 'none',
                   boxSizing: 'border-box',
                 }}
               />
-              <User size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+              <User size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
             </div>
           </div>
 
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+          <div style={{ marginBottom: '22px' }}>
+            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
               登入密碼
             </label>
             <div style={{ position: 'relative' }}>
@@ -213,26 +142,21 @@ export const LoginModal = ({ isOpen, onClose, onSuccess }) => {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={tab === 'class' ? '請輸入密碼' : 'admin'}
+                placeholder="請輸入班級密碼"
                 style={{
                   width: '100%',
                   padding: '9px 12px 9px 36px',
                   borderRadius: '6px',
-                  border: '1px solid #cbd5e1',
+                  border: '1px solid var(--border-dark)',
                   background: '#ffffff',
-                  color: '#0f172a',
+                  color: 'var(--text-primary)',
                   fontSize: '0.88rem',
                   outline: 'none',
                   boxSizing: 'border-box',
                 }}
               />
-              <Key size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+              <Key size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
             </div>
-            {tab === 'admin' && (
-              <span style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px', display: 'block' }}>
-                管理者預設帳號密碼：<code>admin</code> / <code>admin</code>
-              </span>
-            )}
           </div>
 
           <button
@@ -240,24 +164,26 @@ export const LoginModal = ({ isOpen, onClose, onSuccess }) => {
             disabled={loading}
             style={{
               width: '100%',
-              padding: '10px',
+              padding: '10px 14px',
               borderRadius: '6px',
-              background: tab === 'class' ? 'var(--accent-primary)' : '#0f172a',
+              background: 'var(--accent-primary)',
               color: '#ffffff',
               border: 'none',
               fontSize: '0.9rem',
-              fontWeight: 600,
+              fontWeight: 700,
               cursor: loading ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '6px',
-              transition: 'opacity 0.15s ease',
+              transition: 'background 0.15s ease',
             }}
+            onMouseOver={(e) => !loading && (e.currentTarget.style.background = 'var(--accent-hover)')}
+            onMouseOut={(e) => !loading && (e.currentTarget.style.background = 'var(--accent-primary)')}
           >
-            {loading ? '驗證連線中...' : (
+            {loading ? '驗證班級身分中...' : (
               <>
-                {tab === 'class' ? '登入班級並進入儀表板' : '登入獨立管理頁面'}
+                登入班級並進入儀表板
                 <ArrowRight size={16} />
               </>
             )}

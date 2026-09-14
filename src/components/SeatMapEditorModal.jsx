@@ -564,14 +564,14 @@ export const SeatMapEditorModal = ({
           maxHeight: '94vh',
           overflowY: 'auto',
           background: '#ffffff',
-          borderRadius: '6px',
-          color: '#0f172a',
+          borderRadius: '8px',
+          color: 'var(--text-primary)',
           padding: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '18px',
-          boxShadow: 'none',
-          border: '1px solid var(--glass-border)',
+          boxShadow: '0 12px 32px -4px rgba(45, 36, 30, 0.12)',
+          border: '1px solid var(--border-color)',
         }}
       >
         {/* Header */}
@@ -579,14 +579,14 @@ export const SeatMapEditorModal = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <LayoutGrid size={24} color="var(--accent-primary)" />
             <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-primary)' }}>
                 視覺化座位劃位與課堂設置
                 {cameraActive && videoDims.width > 0 ? (
-                  <span style={{ fontSize: '0.75rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: '4px' }}>
+                  <span style={{ fontSize: '0.75rem', background: 'var(--bg-subtle)', color: 'var(--accent-primary)', border: '1px solid var(--border-color)', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
                     鏡頭等比畫面 ({videoDims.width} × {videoDims.height})
                   </span>
                 ) : (
-                  <span style={{ fontSize: '0.75rem', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', padding: '2px 8px', borderRadius: '4px' }}>
+                  <span style={{ fontSize: '0.75rem', background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid var(--danger-border)', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
                     無相機 (禁止劃位)
                   </span>
                 )}
@@ -596,14 +596,14 @@ export const SeatMapEditorModal = ({
               </span>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-            <X size={22} />
+          <button onClick={onClose} style={{ background: 'var(--bg-subtle)', border: 'none', borderRadius: '4px', padding: '4px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+            <X size={20} />
           </button>
         </div>
 
         {/* 課堂節次設定區 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '12px 16px', borderRadius: '10px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-primary)', fontWeight: 600, fontSize: '0.9rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', padding: '12px 16px', borderRadius: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-primary)', fontWeight: 700, fontSize: '0.88rem' }}>
             <GraduationCap size={18} />
             課堂節次設定：
           </div>
@@ -617,12 +617,12 @@ export const SeatMapEditorModal = ({
                   padding: '5px 12px',
                   borderRadius: '6px',
                   fontSize: '0.8rem',
-                  fontWeight: 500,
+                  fontWeight: 600,
                   cursor: 'pointer',
                   background: period === p ? 'var(--accent-primary)' : '#ffffff',
-                  color: period === p ? '#fff' : 'var(--text-secondary)',
-                  border: period === p ? '1px solid var(--accent-primary)' : '1px solid #cbd5e1',
-                  transition: 'all 0.2s',
+                  color: period === p ? '#ffffff' : 'var(--text-secondary)',
+                  border: period === p ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                  transition: 'all 0.15s ease',
                 }}
               >
                 {p}
@@ -636,7 +636,7 @@ export const SeatMapEditorModal = ({
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
               placeholder="自訂節次名稱"
-              style={{ padding: '6px 10px', borderRadius: '6px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', fontSize: '0.82rem', width: '130px', outline: 'none' }}
+              style={{ padding: '6px 10px', borderRadius: '6px', background: '#ffffff', border: '1px solid var(--border-dark)', color: 'var(--text-primary)', fontSize: '0.82rem', width: '130px', outline: 'none' }}
             />
             <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
               (通報標題：<strong style={{ color: 'var(--accent-primary)' }}>{currentFormattedPeriod}</strong>)
@@ -645,14 +645,14 @@ export const SeatMapEditorModal = ({
         </div>
 
         {/* 快捷排版與相機設定列 (支援自訂排數與欄數) */}
-        <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap', background: '#f8fafc', padding: '12px 16px', borderRadius: '10px', justifyContent: 'space-between', border: '1px solid var(--glass-border)' }}>
+        <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap', background: 'var(--bg-subtle)', padding: '12px 16px', borderRadius: '8px', justifyContent: 'space-between', border: '1px solid var(--border-color)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
               <Grid size={16} /> 快速生成網格：
             </span>
 
             {/* 自訂排數與欄數輸入 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ffffff', padding: '4px 8px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ffffff', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-dark)' }}>
               <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>排數 (Rows)</label>
               <input
                 type="number"
@@ -660,9 +660,9 @@ export const SeatMapEditorModal = ({
                 max="20"
                 value={gridRows}
                 onChange={(e) => setGridRows(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                style={{ width: '46px', padding: '3px 6px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '4px', color: '#0f172a', fontSize: '0.82rem', textAlign: 'center', outline: 'none' }}
+                style={{ width: '46px', padding: '3px 6px', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: '4px', color: 'var(--text-primary)', fontSize: '0.82rem', textAlign: 'center', outline: 'none' }}
               />
-              <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>×</span>
+              <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>×</span>
               <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>每排席數 (Cols)</label>
               <input
                 type="number"
@@ -670,7 +670,7 @@ export const SeatMapEditorModal = ({
                 max="20"
                 value={gridCols}
                 onChange={(e) => setGridCols(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                style={{ width: '46px', padding: '3px 6px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '4px', color: '#0f172a', fontSize: '0.82rem', textAlign: 'center', outline: 'none' }}
+                style={{ width: '46px', padding: '3px 6px', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: '4px', color: 'var(--text-primary)', fontSize: '0.82rem', textAlign: 'center', outline: 'none' }}
               />
             </div>
 
@@ -680,9 +680,9 @@ export const SeatMapEditorModal = ({
               disabled={!cameraActive}
               style={{
                 padding: '6px 14px',
-                background: cameraActive ? 'var(--accent-primary)' : '#e2e8f0',
-                color: cameraActive ? '#fff' : '#94a3b8',
-                border: cameraActive ? '1px solid var(--accent-primary)' : '1px solid #cbd5e1',
+                background: cameraActive ? 'var(--accent-primary)' : 'var(--bg-subtle)',
+                color: cameraActive ? '#ffffff' : 'var(--text-secondary)',
+                border: cameraActive ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
                 borderRadius: '4px',
                 fontSize: '0.82rem',
                 fontWeight: 600,
@@ -719,9 +719,9 @@ export const SeatMapEditorModal = ({
                   disabled={!cameraActive}
                   style={{
                     padding: '4px 8px',
-                    background: cameraActive ? '#ffffff' : '#f1f5f9',
-                    color: cameraActive ? '#0f172a' : '#94a3b8',
-                    border: '1px solid #cbd5e1',
+                    background: cameraActive ? '#ffffff' : 'var(--bg-subtle)',
+                    color: cameraActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    border: '1px solid var(--border-color)',
                     borderRadius: '4px',
                     fontSize: '0.76rem',
                     cursor: cameraActive ? 'pointer' : 'not-allowed',
@@ -750,12 +750,12 @@ export const SeatMapEditorModal = ({
               position: 'relative',
               width: '100%',
               aspectRatio: `${aspectVal}`,
-              borderRadius: '12px',
+              borderRadius: '8px',
               overflow: 'hidden',
-              border: cameraActive ? '2px solid rgba(59, 130, 246, 0.4)' : '2px dashed #ef4444',
+              border: cameraActive ? '2px solid var(--accent-primary)' : '2px dashed var(--danger)',
               userSelect: 'none',
               cursor: cameraActive ? 'crosshair' : 'not-allowed',
-              background: '#090d16',
+              background: '#1a1613',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -790,8 +790,8 @@ export const SeatMapEditorModal = ({
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'rgba(15, 23, 42, 0.95)',
-                  color: '#94a3b8',
+                  background: 'rgba(45, 36, 30, 0.92)',
+                  color: 'var(--text-secondary)',
                   padding: '30px',
                   textAlign: 'center',
                   gap: '12px',
@@ -799,12 +799,12 @@ export const SeatMapEditorModal = ({
                   pointerEvents: 'auto',
                 }}
               >
-                <div style={{ padding: '16px', background: 'rgba(239, 68, 68, 0.15)', borderRadius: '50%', color: '#ef4444' }}>
+                <div style={{ padding: '16px', background: 'var(--danger-bg)', borderRadius: '50%', color: 'var(--danger)' }}>
                   <AlertTriangle size={36} />
                 </div>
                 <div>
-                  <h4 style={{ color: '#ef4444', margin: '0 0 6px 0', fontSize: '1.1rem' }}>尚未偵測到相機畫面</h4>
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: '#cbd5e1' }}>
+                  <h4 style={{ color: 'var(--danger)', margin: '0 0 6px 0', fontSize: '1.1rem' }}>尚未偵測到相機畫面</h4>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: '#e6e2d8' }}>
                     請先啟動現場相機鏡頭，系統需依據現場鏡頭等比畫面方可進行劃位。
                   </p>
                 </div>
@@ -824,10 +824,10 @@ export const SeatMapEditorModal = ({
                     }}
                     style={{
                       padding: '9px 18px',
-                      borderRadius: '8px',
-                      background: 'rgba(59, 130, 246, 0.2)',
-                      color: '#60a5fa',
-                      border: '1px solid rgba(59, 130, 246, 0.4)',
+                      borderRadius: '6px',
+                      background: 'var(--accent-primary)',
+                      color: '#ffffff',
+                      border: 'none',
                       fontWeight: 600,
                       fontSize: '0.86rem',
                       cursor: 'pointer',
@@ -857,9 +857,9 @@ export const SeatMapEditorModal = ({
                     top: `${sp.y}%`,
                     width: `${sp.width}%`,
                     height: `${sp.height}%`,
-                    border: isSelected ? '2.5px solid #38bdf8' : '2px dashed rgba(59, 130, 246, 0.85)',
-                    background: isSelected ? 'rgba(56, 189, 248, 0.3)' : 'rgba(59, 130, 246, 0.15)',
-                    borderRadius: '8px',
+                    border: isSelected ? '2.5px solid var(--accent-primary)' : '2px dashed rgba(230, 226, 216, 0.75)',
+                    background: isSelected ? 'rgba(92, 58, 33, 0.35)' : 'rgba(245, 237, 230, 0.12)',
+                    borderRadius: '6px',
                     boxSizing: 'border-box',
                     pointerEvents: cameraActive ? 'auto' : 'none',
                     cursor: cameraActive ? (isSelected ? 'move' : 'pointer') : 'default',
@@ -873,11 +873,11 @@ export const SeatMapEditorModal = ({
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pointerEvents: 'none' }}>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 'bold', background: isSelected ? '#0f172a' : '#2563eb', color: '#ffffff', padding: '2px 7px', borderRadius: '3px', boxShadow: 'none' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 'bold', background: isSelected ? 'var(--accent-primary)' : 'rgba(92, 58, 33, 0.85)', color: '#ffffff', padding: '2px 7px', borderRadius: '3px', boxShadow: 'none' }}>
                       {seat.seat_id}
                     </span>
                   </div>
-                  <span style={{ fontSize: '0.74rem', color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, pointerEvents: 'none' }}>
+                  <span style={{ fontSize: '0.74rem', color: '#f5ede6', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, pointerEvents: 'none' }}>
                     {seat.name}
                   </span>
 
@@ -894,7 +894,7 @@ export const SeatMapEditorModal = ({
                           width: '10px',
                           height: '10px',
                           background: '#fff',
-                          border: '2px solid #0f172a',
+                          border: '2px solid var(--accent-primary)',
                           borderRadius: '2px',
                           cursor: 'nwse-resize',
                           zIndex: 20,
@@ -911,7 +911,7 @@ export const SeatMapEditorModal = ({
                           width: '10px',
                           height: '10px',
                           background: '#fff',
-                          border: '2px solid #0f172a',
+                          border: '2px solid var(--accent-primary)',
                           borderRadius: '2px',
                           cursor: 'nesw-resize',
                           zIndex: 20,
@@ -928,7 +928,7 @@ export const SeatMapEditorModal = ({
                           width: '10px',
                           height: '10px',
                           background: '#fff',
-                          border: '2px solid #0f172a',
+                          border: '2px solid var(--accent-primary)',
                           borderRadius: '2px',
                           cursor: 'nesw-resize',
                           zIndex: 20,
@@ -945,7 +945,7 @@ export const SeatMapEditorModal = ({
                           width: '10px',
                           height: '10px',
                           background: '#fff',
-                          border: '2px solid #0f172a',
+                          border: '2px solid var(--accent-primary)',
                           borderRadius: '2px',
                           cursor: 'nwse-resize',
                           zIndex: 20,
@@ -978,8 +978,8 @@ export const SeatMapEditorModal = ({
           </div>
 
           {/* 右側座位屬性編輯欄 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', margin: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', background: 'var(--bg-subtle)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', margin: 0 }}>
               座位詳細資訊
             </h3>
 
@@ -993,7 +993,7 @@ export const SeatMapEditorModal = ({
                     type="text"
                     value={config.seats[selectedSeatIndex].seat_id}
                     onChange={(e) => handleUpdateSeatInfo(selectedSeatIndex, 'seat_id', e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', color: '#0f172a', fontSize: '0.85rem', outline: 'none' }}
+                    style={{ width: '100%', padding: '8px 12px', background: '#ffffff', border: '1px solid var(--border-dark)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.85rem', outline: 'none' }}
                   />
                 </div>
 
@@ -1005,19 +1005,19 @@ export const SeatMapEditorModal = ({
                     type="text"
                     value={config.seats[selectedSeatIndex].name}
                     onChange={(e) => handleUpdateSeatInfo(selectedSeatIndex, 'name', e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', color: '#0f172a', fontSize: '0.85rem', outline: 'none' }}
+                    style={{ width: '100%', padding: '8px 12px', background: '#ffffff', border: '1px solid var(--border-dark)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.85rem', outline: 'none' }}
                   />
                 </div>
 
-                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '10px', borderRadius: '8px', fontSize: '0.78rem', color: '#1e40af' }}>
-                  <div style={{ fontWeight: 600, color: 'var(--accent-primary)', marginBottom: '4px' }}>💡 調整提示：</div>
+                <div style={{ background: '#ffffff', border: '1px solid var(--border-color)', padding: '10px', borderRadius: '6px', fontSize: '0.78rem', color: 'var(--text-primary)' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '4px' }}>💡 調整提示：</div>
                   <div>• 拖曳框框內部可平移位置</div>
                   <div>• 拖曳四角圓點可自訂大小</div>
                 </div>
 
                 <button
                   onClick={() => handleDeleteSeat(selectedSeatIndex)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', marginTop: '6px', fontWeight: 500 }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid var(--danger-border)', borderRadius: '6px', cursor: 'pointer', marginTop: '6px', fontWeight: 600 }}
                 >
                   <Trash2 size={16} /> 刪除此座位
                 </button>
@@ -1038,10 +1038,10 @@ export const SeatMapEditorModal = ({
         </div>
 
         {/* Footer 操作按鈕 (相機選單移至左側，落實截圖紅線指示) */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '16px', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '16px', flexWrap: 'wrap', gap: '12px' }}>
           {/* 左下角：相機設備切換選單與儲存提示 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '4px 10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-subtle)', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
               <Camera size={16} color="var(--accent-primary)" />
               <select
                 value={selectedDeviceId}
@@ -1054,7 +1054,7 @@ export const SeatMapEditorModal = ({
                     startCamera(nextId);
                   }
                 }}
-                style={{ padding: '4px 8px', borderRadius: '4px', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', fontSize: '0.82rem', maxWidth: '240px', outline: 'none' }}
+                style={{ padding: '4px 8px', borderRadius: '4px', background: '#ffffff', color: 'var(--text-primary)', border: '1px solid var(--border-dark)', fontSize: '0.82rem', maxWidth: '240px', outline: 'none' }}
               >
                 {devices.map((d) => (
                   <option key={d.id || d.deviceId} value={d.id || d.deviceId}>
@@ -1065,7 +1065,7 @@ export const SeatMapEditorModal = ({
             </div>
 
             {savedNotice && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#059669', fontSize: '0.82rem', fontWeight: 600 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--success)', fontSize: '0.82rem', fontWeight: 600 }}>
                 <Check size={16} /> 劃位配置已儲存！
               </span>
             )}
@@ -1073,7 +1073,7 @@ export const SeatMapEditorModal = ({
 
           {/* 右下角：關閉與儲存按鈕 */}
           <div style={{ display: 'flex', gap: '12px' }}>
-            <button onClick={onClose} style={{ padding: '9px 16px', background: '#ffffff', color: 'var(--text-primary)', border: '1px solid var(--glass-border)', borderRadius: '6px', fontWeight: 500, cursor: 'pointer' }}>
+            <button onClick={onClose} style={{ padding: '9px 16px', background: '#ffffff', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>
               關閉
             </button>
             <button

@@ -1,6 +1,6 @@
 // ==============================================================================
 // 班級自動化點名系統 - 獨立管理頁面 (Management.jsx)
-// 單獨全螢幕後台網頁，不依賴前台側邊欄；管理者 (admin / admin) 於本頁面獨立登入與維護
+// 單獨全螢幕後台網頁，米白咖啡色系 (Warm Cream & Rich Coffee)，純淨典雅
 // ==============================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -16,6 +16,7 @@ import {
 } from '../services/authService';
 import { generateGridSeats } from '../services/seatOccupancyService';
 import SeatMapEditorModal from '../components/SeatMapEditorModal';
+import Toast from '../components/Toast';
 
 export const Management = () => {
   const navigate = useNavigate();
@@ -96,7 +97,7 @@ export const Management = () => {
       } else {
         setLoginError(res.message || '管理者帳號或密碼錯誤');
       }
-    } catch (err) {
+    } catch {
       setLoginError('登入發生異常，請重試');
     } finally {
       setIsLoggingIn(false);
@@ -241,14 +242,14 @@ export const Management = () => {
   };
 
   // ============================================================================
-  // 狀態 A：尚未登入管理者（獨立登入卡片介面）
+  // 狀態 A：尚未登入管理者（獨立登入卡片介面 - 溫潤米白咖啡調）
   // ============================================================================
   if (!isAdmin) {
     return (
       <div style={{
         minHeight: '100vh',
         width: '100vw',
-        background: '#f8fafc',
+        background: 'var(--bg-color)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -263,8 +264,8 @@ export const Management = () => {
           maxWidth: '440px',
           background: '#ffffff',
           borderRadius: '12px',
-          border: '1px solid #e2e8f0',
-          boxShadow: '0 4px 20px rgba(15, 23, 42, 0.06)',
+          border: '1px solid var(--border-color)',
+          boxShadow: 'none',
           padding: '36px 32px',
           boxSizing: 'border-box',
         }}>
@@ -274,20 +275,19 @@ export const Management = () => {
               width: '56px',
               height: '56px',
               borderRadius: '12px',
-              background: '#0f172a',
+              background: 'var(--accent-primary)',
               color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 16px',
-              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.15)',
             }}>
               <ShieldCheck size={28} />
             </div>
-            <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
               班級空間管理後台
             </h1>
-            <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0, lineHeight: 1.5 }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
               本頁面為單獨管理網頁，僅供系統管理者登入以維護班級名冊與座位配置
             </p>
           </div>
@@ -300,9 +300,9 @@ export const Management = () => {
               gap: '8px',
               padding: '10px 14px',
               borderRadius: '6px',
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              color: '#dc2626',
+              background: 'var(--danger-bg)',
+              border: '1px solid var(--danger-border)',
+              color: 'var(--danger)',
               fontSize: '0.85rem',
               marginBottom: '20px',
             }}>
@@ -314,11 +314,11 @@ export const Management = () => {
           {/* 登入表單 */}
           <form onSubmit={handleAdminLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
                 管理者帳號
               </label>
               <div style={{ position: 'relative' }}>
-                <User size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                <User size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
                 <input
                   type="text"
                   value={loginUsername}
@@ -329,23 +329,23 @@ export const Management = () => {
                     width: '100%',
                     padding: '10px 12px 10px 38px',
                     borderRadius: '6px',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--border-dark)',
                     fontSize: '0.9rem',
                     outline: 'none',
                     boxSizing: 'border-box',
                     background: '#ffffff',
-                    color: '#0f172a',
+                    color: 'var(--text-primary)',
                   }}
                 />
               </div>
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
                 管理者密碼
               </label>
               <div style={{ position: 'relative' }}>
-                <Lock size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                <Lock size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
                 <input
                   type="password"
                   value={loginPassword}
@@ -356,12 +356,12 @@ export const Management = () => {
                     width: '100%',
                     padding: '10px 12px 10px 38px',
                     borderRadius: '6px',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--border-dark)',
                     fontSize: '0.9rem',
                     outline: 'none',
                     boxSizing: 'border-box',
                     background: '#ffffff',
-                    color: '#0f172a',
+                    color: 'var(--text-primary)',
                   }}
                 />
               </div>
@@ -375,7 +375,7 @@ export const Management = () => {
                 width: '100%',
                 padding: '11px',
                 borderRadius: '6px',
-                background: '#0f172a',
+                background: 'var(--accent-primary)',
                 color: '#ffffff',
                 border: 'none',
                 fontWeight: 700,
@@ -385,9 +385,11 @@ export const Management = () => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                transition: 'opacity 0.15s ease',
+                transition: 'background 0.15s ease',
                 opacity: isLoggingIn ? 0.7 : 1,
               }}
+              onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+              onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
             >
               <ShieldCheck size={18} />
               {isLoggingIn ? '登入驗證中...' : '登入管理後台'}
@@ -395,13 +397,13 @@ export const Management = () => {
           </form>
 
           {/* 返回前台連結 */}
-          <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>
+          <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border-color)', textAlign: 'center' }}>
             <button
               onClick={() => navigate('/history')}
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#64748b',
+                color: 'var(--text-secondary)',
                 fontSize: '0.82rem',
                 cursor: 'pointer',
                 display: 'inline-flex',
@@ -420,13 +422,13 @@ export const Management = () => {
   }
 
   // ============================================================================
-  // 狀態 B：已登入管理者（獨立全螢幕管理後台網頁）
+  // 狀態 B：已登入管理者（獨立全螢幕管理後台網頁 - 溫潤米白咖啡調）
   // ============================================================================
   return (
     <div style={{
       minHeight: '100vh',
       width: '100vw',
-      background: '#f8fafc',
+      background: 'var(--bg-color)',
       display: 'flex',
       flexDirection: 'column',
       boxSizing: 'border-box',
@@ -436,7 +438,7 @@ export const Management = () => {
       <header style={{
         height: '64px',
         background: '#ffffff',
-        borderBottom: '1px solid #e2e8f0',
+        borderBottom: '1px solid var(--border-color)',
         padding: '0 28px',
         display: 'flex',
         alignItems: 'center',
@@ -451,7 +453,7 @@ export const Management = () => {
             width: '36px',
             height: '36px',
             borderRadius: '8px',
-            background: '#0f172a',
+            background: 'var(--accent-primary)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -460,9 +462,9 @@ export const Management = () => {
             <School size={20} />
           </div>
           <div>
-            <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0f172a', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-primary)', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
               班級自動化點名系統
-              <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '4px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', fontWeight: 600 }}>
+              <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '4px', background: 'var(--accent-light)', color: 'var(--accent-primary)', border: '1px solid var(--border-color)', fontWeight: 600 }}>
                 獨立管理後台
               </span>
             </div>
@@ -471,9 +473,9 @@ export const Management = () => {
 
         {/* 右側操作：身分資訊、返回前台、登出 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: '#475569', background: '#f8fafc', padding: '6px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-            <ShieldCheck size={16} color="#0284c7" />
-            <span>目前身分：<strong>系統管理者 (admin)</strong></span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-secondary)', background: 'var(--accent-light)', padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+            <ShieldCheck size={16} color="var(--accent-primary)" />
+            <span>目前身分：<strong style={{ color: 'var(--accent-primary)' }}>系統管理者 (admin)</strong></span>
           </div>
 
           <button
@@ -485,12 +487,15 @@ export const Management = () => {
               padding: '7px 14px',
               borderRadius: '6px',
               background: '#ffffff',
-              border: '1px solid #cbd5e1',
-              color: '#334155',
+              border: '1px solid var(--border-dark)',
+              color: 'var(--text-primary)',
               fontSize: '0.82rem',
               fontWeight: 600,
               cursor: 'pointer',
+              transition: 'background 0.15s ease',
             }}
+            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--bg-subtle)')}
+            onMouseOut={(e) => (e.currentTarget.style.background = '#ffffff')}
           >
             <ExternalLink size={14} />
             查看前台考勤紀錄
@@ -504,9 +509,9 @@ export const Management = () => {
               gap: '6px',
               padding: '7px 14px',
               borderRadius: '6px',
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              color: '#dc2626',
+              background: 'var(--danger-bg)',
+              border: '1px solid var(--danger-border)',
+              color: 'var(--danger)',
               fontSize: '0.82rem',
               fontWeight: 600,
               cursor: 'pointer',
@@ -520,52 +525,21 @@ export const Management = () => {
 
       {/* 獨立後台內容區 (全寬居中佈局，寬敞明瞭) */}
       <main style={{ flex: 1, padding: '28px', maxWidth: '1440px', width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
-        {/* 操作成功 / 失敗 Banner */}
+        {/* 操作成功 / 失敗 Toast (Portal 浮動通知，零版面推擠) */}
         {actionSuccess && (
-          <div style={{
-            background: '#ecfdf5',
-            color: '#065f46',
-            border: '1px solid #a7f3d0',
-            padding: '12px 18px',
-            borderRadius: '6px',
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '0.9rem',
-            fontWeight: 600,
-          }}>
-            <CheckCircle size={18} />
-            <span>{actionSuccess}</span>
-          </div>
+          <Toast message={actionSuccess} type="success" onClose={() => setActionSuccess('')} />
         )}
-
         {actionError && (
-          <div style={{
-            background: '#fef2f2',
-            color: '#991b1b',
-            border: '1px solid #fecaca',
-            padding: '12px 18px',
-            borderRadius: '6px',
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '0.9rem',
-            fontWeight: 600,
-          }}>
-            <AlertCircle size={18} />
-            <span>{actionError}</span>
-          </div>
+          <Toast message={actionError} type="error" onClose={() => setActionError('')} />
         )}
 
         {/* 頂部標題與按鈕操作列 */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
               班級與座位空間管理
             </h1>
-            <p style={{ color: '#64748b', margin: '6px 0 0', fontSize: '0.88rem' }}>
+            <p style={{ color: 'var(--text-secondary)', margin: '6px 0 0', fontSize: '0.88rem' }}>
               管理校內各班級帳號、學生總人數設定，以及為各班劃設專屬的多組命名座位佈局
             </p>
           </div>
@@ -576,10 +550,12 @@ export const Management = () => {
               disabled={loading}
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px',
-                background: '#ffffff', color: '#0f172a',
-                border: '1px solid #cbd5e1', padding: '8px 14px',
+                background: '#ffffff', color: 'var(--text-primary)',
+                border: '1px solid var(--border-color)', padding: '8px 14px',
                 borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
               }}
+              onMouseOver={(e) => (e.currentTarget.style.background = 'var(--bg-subtle)')}
+              onMouseOut={(e) => (e.currentTarget.style.background = '#ffffff')}
             >
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> 重新整理名冊
             </button>
@@ -588,11 +564,13 @@ export const Management = () => {
               onClick={() => setIsAddClassModalOpen(true)}
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px',
-                background: '#0f172a', color: '#ffffff',
+                background: 'var(--accent-primary)', color: '#ffffff',
                 border: 'none', padding: '8px 18px',
                 borderRadius: '6px', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer',
-                boxShadow: '0 2px 6px rgba(15, 23, 42, 0.15)',
+                transition: 'background 0.15s ease',
               }}
+              onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+              onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
             >
               <Plus size={16} /> 新增班級
             </button>
@@ -605,24 +583,24 @@ export const Management = () => {
           <div style={{
             background: '#ffffff',
             borderRadius: '10px',
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--border-color)',
             padding: '20px',
             display: 'flex',
             flexDirection: 'column',
             gap: '12px',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+              <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
                 班級名冊 ({classes.length})
               </h2>
             </div>
 
             {loading ? (
-              <div style={{ textAlign: 'center', padding: '40px 0', color: '#64748b' }}>
+              <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>
                 載入班級中...
               </div>
             ) : classes.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 10px', color: '#64748b' }}>
+              <div style={{ textAlign: 'center', padding: '40px 10px', color: 'var(--text-secondary)' }}>
                 <School size={36} style={{ opacity: 0.3, margin: '0 auto 12px' }} />
                 <p style={{ margin: 0, fontSize: '0.85rem' }}>目前尚未建立任何班級</p>
                 <button
@@ -630,7 +608,7 @@ export const Management = () => {
                   style={{
                     marginTop: '12px',
                     padding: '6px 14px',
-                    background: '#2563eb',
+                    background: 'var(--accent-primary)',
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: '4px',
@@ -638,6 +616,8 @@ export const Management = () => {
                     fontWeight: 600,
                     cursor: 'pointer',
                   }}
+                  onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+                  onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
                 >
                   立即建立第一個班級
                 </button>
@@ -654,21 +634,21 @@ export const Management = () => {
                       style={{
                         padding: '12px 14px',
                         borderRadius: '8px',
-                        border: `1px solid ${isSelected ? '#2563eb' : '#e2e8f0'}`,
-                        background: isSelected ? '#f0f9ff' : '#ffffff',
+                        border: `1px solid ${isSelected ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                        background: isSelected ? 'var(--accent-light)' : '#ffffff',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-                        <span style={{ fontWeight: 700, fontSize: '0.92rem', color: isSelected ? '#0369a1' : '#0f172a' }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.92rem', color: isSelected ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
                           {cls.class_name || cls.account}
                         </span>
-                        <span style={{ fontSize: '0.72rem', padding: '2px 6px', borderRadius: '4px', background: isSelected ? '#bae6fd' : '#f1f5f9', color: isSelected ? '#2563eb' : '#64748b', fontWeight: 600 }}>
+                        <span style={{ fontSize: '0.72rem', padding: '2px 6px', borderRadius: '4px', background: isSelected ? '#e8dfd5' : 'var(--bg-subtle)', color: 'var(--accent-primary)', fontWeight: 600 }}>
                           {cls.student_count || 0} 人
                         </span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#64748b' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                         <span>帳號：{cls.account}</span>
                         <span>{layoutCount} 組佈局</span>
                       </div>
@@ -683,11 +663,11 @@ export const Management = () => {
           {currentClass ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {/* 卡片 1: 班級基本資訊維護 (含學生總人數) */}
-              <div style={{ background: '#ffffff', borderRadius: '10px', border: '1px solid #e2e8f0', padding: '24px' }}>
+              <div style={{ background: '#ffffff', borderRadius: '10px', border: '1px solid var(--border-color)', padding: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Edit2 size={18} color="#2563eb" />
-                    <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+                    <Edit2 size={18} color="var(--accent-primary)" />
+                    <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
                       班級基本資料維護
                     </h2>
                   </div>
@@ -696,8 +676,8 @@ export const Management = () => {
                     onClick={() => handleDeleteClass(currentClass.id, currentClass.class_name)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: '6px',
-                      padding: '6px 12px', background: '#fee2e2', color: '#dc2626',
-                      border: '1px solid #fecaca', borderRadius: '6px',
+                      padding: '6px 12px', background: 'var(--danger-bg)', color: 'var(--danger)',
+                      border: '1px solid var(--danger-border)', borderRadius: '6px',
                       fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
                     }}
                   >
@@ -707,19 +687,19 @@ export const Management = () => {
 
                 <form onSubmit={handleUpdateClass} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', alignItems: 'flex-end' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
                       班級代號 / 登入帳號 (固定)
                     </label>
                     <input
                       type="text"
                       value={currentClass.account}
                       disabled
-                      style={{ width: '100%', padding: '9px 12px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', color: '#64748b', fontSize: '0.88rem' }}
+                      style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-secondary)', fontSize: '0.88rem' }}
                     />
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
                       班級名稱
                     </label>
                     <input
@@ -730,12 +710,12 @@ export const Management = () => {
                         setClasses((prev) => prev.map((c) => (c.id === currentClass.id ? { ...c, class_name: val } : c)));
                       }}
                       required
-                      style={{ width: '100%', padding: '9px 12px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', color: '#0f172a', fontSize: '0.88rem', outline: 'none' }}
+                      style={{ width: '100%', padding: '9px 12px', background: '#ffffff', border: '1px solid var(--border-dark)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.88rem', outline: 'none' }}
                     />
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
                       班級學生總人數 (應到人數)
                     </label>
                     <input
@@ -748,7 +728,7 @@ export const Management = () => {
                         setClasses((prev) => prev.map((c) => (c.id === currentClass.id ? { ...c, student_count: val } : c)));
                       }}
                       required
-                      style={{ width: '100%', padding: '9px 12px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', color: '#0f172a', fontSize: '0.88rem', outline: 'none' }}
+                      style={{ width: '100%', padding: '9px 12px', background: '#ffffff', border: '1px solid var(--border-dark)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.88rem', outline: 'none' }}
                     />
                   </div>
 
@@ -756,10 +736,13 @@ export const Management = () => {
                     <button
                       type="submit"
                       style={{
-                        width: '100%', padding: '10px 16px', background: '#2563eb', color: '#ffffff',
+                        width: '100%', padding: '10px 16px', background: 'var(--accent-primary)', color: '#ffffff',
                         border: 'none', borderRadius: '6px', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                        transition: 'background 0.15s ease',
                       }}
+                      onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+                      onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
                     >
                       <Save size={16} /> 儲存修改
                     </button>
@@ -768,14 +751,14 @@ export const Management = () => {
               </div>
 
               {/* 卡片 2: 多組命名座位佈局管理與劃位設定 */}
-              <div style={{ background: '#ffffff', borderRadius: '10px', border: '1px solid #e2e8f0', padding: '24px' }}>
+              <div style={{ background: '#ffffff', borderRadius: '10px', border: '1px solid var(--border-color)', padding: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
-                    <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <LayoutGrid size={20} color="#2563eb" />
+                    <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <LayoutGrid size={20} color="var(--accent-primary)" />
                       座位劃位佈局 ({currentClass.seat_layout ? Object.keys(currentClass.seat_layout).length : 0} 組)
                     </h2>
-                    <p style={{ color: '#64748b', fontSize: '0.82rem', margin: '4px 0 0' }}>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '4px 0 0' }}>
                       可為該班級建立多組專屬座位配置（如「一般上課」、「分組討論」、「期末測驗」），前台儀表板可隨時切換
                     </p>
                   </div>
@@ -784,8 +767,8 @@ export const Management = () => {
                     onClick={() => setIsAddLayoutOpen(true)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: '6px',
-                      padding: '7px 14px', background: '#f0fdf4', color: '#15803d',
-                      border: '1px solid #bbf7d0', borderRadius: '6px',
+                      padding: '7px 14px', background: 'var(--accent-light)', color: 'var(--accent-primary)',
+                      border: '1px solid var(--border-color)', borderRadius: '6px',
                       fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer',
                     }}
                   >
@@ -803,10 +786,10 @@ export const Management = () => {
                       <div
                         key={layoutKey}
                         style={{
-                          border: `1px solid ${isActive ? '#2563eb' : '#e2e8f0'}`,
+                          border: `1px solid ${isActive ? 'var(--accent-primary)' : 'var(--border-color)'}`,
                           borderRadius: '8px',
                           padding: '16px',
-                          background: isActive ? '#f8fafc' : '#ffffff',
+                          background: isActive ? 'var(--accent-light)' : '#ffffff',
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'space-between',
@@ -815,23 +798,23 @@ export const Management = () => {
                       >
                         <div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a' }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
                               {layoutData.name || layoutKey}
                             </div>
                             {isActive && (
-                              <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '10px', background: '#e0f2fe', color: '#2563eb', fontWeight: 700 }}>
+                              <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '10px', background: '#e8dfd5', color: 'var(--accent-primary)', fontWeight: 700 }}>
                                 預設啟用
                               </span>
                             )}
                           </div>
 
-                          <div style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', gap: '12px' }}>
-                            <span>座位數：<strong>{seats.length}</strong> 席</span>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', gap: '12px' }}>
+                            <span>座位數：<strong style={{ color: 'var(--text-primary)' }}>{seats.length}</strong> 席</span>
                             <span>網格：{layoutData.gridRows || 4} × {layoutData.gridCols || 5}</span>
                           </div>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+                        <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
                           <button
                             onClick={() => {
                               setEditingLayoutKey(layoutKey);
@@ -840,9 +823,12 @@ export const Management = () => {
                             style={{
                               flex: 1,
                               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                              padding: '7px', background: '#2563eb', color: '#ffffff',
+                              padding: '7px', background: 'var(--accent-primary)', color: '#ffffff',
                               border: 'none', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                              transition: 'background 0.15s ease',
                             }}
+                            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+                            onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
                           >
                             <Settings size={14} /> 編輯劃位 (視覺化)
                           </button>
@@ -854,8 +840,8 @@ export const Management = () => {
                                 await loadClasses();
                               }}
                               style={{
-                                padding: '7px 10px', background: '#ffffff', color: '#475569',
-                                border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer',
+                                padding: '7px 10px', background: '#ffffff', color: 'var(--text-secondary)',
+                                border: '1px solid var(--border-color)', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer',
                               }}
                               title="設為前台預設啟用"
                             >
@@ -866,8 +852,8 @@ export const Management = () => {
                           <button
                             onClick={() => handleDeleteLayout(layoutKey, layoutData.name || layoutKey)}
                             style={{
-                              padding: '7px 10px', background: '#ffffff', color: '#dc2626',
-                              border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.8rem', cursor: 'pointer',
+                              padding: '7px 10px', background: '#ffffff', color: 'var(--danger)',
+                              border: '1px solid var(--border-color)', borderRadius: '4px', fontSize: '0.8rem', cursor: 'pointer',
                             }}
                             title="刪除此佈局"
                           >
@@ -881,7 +867,7 @@ export const Management = () => {
               </div>
             </div>
           ) : (
-            <div style={{ background: '#ffffff', borderRadius: '10px', border: '1px solid #e2e8f0', padding: '60px 20px', textAlign: 'center', color: '#64748b' }}>
+            <div style={{ background: '#ffffff', borderRadius: '10px', border: '1px solid var(--border-color)', padding: '60px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
               請由左側選擇班級以檢視詳細資料與座位佈局
             </div>
           )}
@@ -891,17 +877,17 @@ export const Management = () => {
       {/* 新增班級彈窗 Modal */}
       {isAddClassModalOpen && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.5)',
+          position: 'fixed', inset: 0, background: 'rgba(45, 36, 30, 0.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px',
         }}>
-          <div style={{ background: '#ffffff', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '440px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0 0 16px', color: '#0f172a' }}>
+          <div style={{ background: '#ffffff', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '440px', border: '1px solid var(--border-color)' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0 0 16px', color: 'var(--text-primary)' }}>
               ➕ 新增班級
             </h3>
 
             <form onSubmit={handleCreateClass} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
                   班級代號 (登入帳號，例如 301)
                 </label>
                 <input
@@ -910,12 +896,12 @@ export const Management = () => {
                   onChange={(e) => setNewAccount(e.target.value)}
                   placeholder="301"
                   required
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem', outline: 'none' }}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--border-dark)', borderRadius: '6px', fontSize: '0.9rem', outline: 'none', background: '#ffffff', color: 'var(--text-primary)' }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
                   班級名稱 (例如 三年一班)
                 </label>
                 <input
@@ -924,12 +910,12 @@ export const Management = () => {
                   onChange={(e) => setNewClassName(e.target.value)}
                   placeholder="三年一班"
                   required
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem', outline: 'none' }}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--border-dark)', borderRadius: '6px', fontSize: '0.9rem', outline: 'none', background: '#ffffff', color: 'var(--text-primary)' }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
                   班級學生總人數 (應到人數)
                 </label>
                 <input
@@ -939,12 +925,12 @@ export const Management = () => {
                   value={newStudentCount}
                   onChange={(e) => setNewStudentCount(parseInt(e.target.value, 10) || 38)}
                   required
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem', outline: 'none' }}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--border-dark)', borderRadius: '6px', fontSize: '0.9rem', outline: 'none', background: '#ffffff', color: 'var(--text-primary)' }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
                   初始密碼
                 </label>
                 <input
@@ -952,7 +938,7 @@ export const Management = () => {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem', outline: 'none' }}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--border-dark)', borderRadius: '6px', fontSize: '0.9rem', outline: 'none', background: '#ffffff', color: 'var(--text-primary)' }}
                 />
               </div>
 
@@ -960,13 +946,15 @@ export const Management = () => {
                 <button
                   type="button"
                   onClick={() => setIsAddClassModalOpen(false)}
-                  style={{ flex: 1, padding: '9px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', color: '#475569', fontWeight: 600, cursor: 'pointer' }}
+                  style={{ flex: 1, padding: '9px', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-secondary)', fontWeight: 600, cursor: 'pointer' }}
                 >
                   取消
                 </button>
                 <button
                   type="submit"
-                  style={{ flex: 1, padding: '9px', background: '#0284c7', border: 'none', borderRadius: '6px', color: '#ffffff', fontWeight: 600, cursor: 'pointer' }}
+                  style={{ flex: 1, padding: '9px', background: 'var(--accent-primary)', border: 'none', borderRadius: '6px', color: '#ffffff', fontWeight: 600, cursor: 'pointer', transition: 'background 0.15s' }}
+                  onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+                  onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
                 >
                   確認建立
                 </button>
@@ -979,17 +967,17 @@ export const Management = () => {
       {/* 新增佈局彈窗 Modal */}
       {isAddLayoutOpen && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.5)',
+          position: 'fixed', inset: 0, background: 'rgba(45, 36, 30, 0.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px',
         }}>
-          <div style={{ background: '#ffffff', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '420px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 16px', color: '#0f172a' }}>
+          <div style={{ background: '#ffffff', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '420px', border: '1px solid var(--border-color)' }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 16px', color: 'var(--text-primary)' }}>
               ➕ 新增座位佈局
             </h3>
 
             <form onSubmit={handleAddLayout} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
                   佈局名稱 (例如 期中考排列)
                 </label>
                 <input
@@ -997,13 +985,13 @@ export const Management = () => {
                   value={newLayoutName}
                   onChange={(e) => setNewLayoutName(e.target.value)}
                   required
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem', outline: 'none' }}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--border-dark)', borderRadius: '6px', fontSize: '0.9rem', outline: 'none', background: '#ffffff', color: 'var(--text-primary)' }}
                 />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
                     預設排數 (橫向)
                   </label>
                   <input
@@ -1012,11 +1000,11 @@ export const Management = () => {
                     max="10"
                     value={newLayoutRows}
                     onChange={(e) => setNewLayoutRows(parseInt(e.target.value, 10) || 4)}
-                    style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem', outline: 'none' }}
+                    style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--border-dark)', borderRadius: '6px', fontSize: '0.9rem', outline: 'none', background: '#ffffff', color: 'var(--text-primary)' }}
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
                     預設列數 (縱向)
                   </label>
                   <input
@@ -1025,7 +1013,7 @@ export const Management = () => {
                     max="12"
                     value={newLayoutCols}
                     onChange={(e) => setNewLayoutCols(parseInt(e.target.value, 10) || 5)}
-                    style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem', outline: 'none' }}
+                    style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--border-dark)', borderRadius: '6px', fontSize: '0.9rem', outline: 'none', background: '#ffffff', color: 'var(--text-primary)' }}
                   />
                 </div>
               </div>
@@ -1034,13 +1022,15 @@ export const Management = () => {
                 <button
                   type="button"
                   onClick={() => setIsAddLayoutOpen(false)}
-                  style={{ flex: 1, padding: '9px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', color: '#475569', fontWeight: 600, cursor: 'pointer' }}
+                  style={{ flex: 1, padding: '9px', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-secondary)', fontWeight: 600, cursor: 'pointer' }}
                 >
                   取消
                 </button>
                 <button
                   type="submit"
-                  style={{ flex: 1, padding: '9px', background: '#15803d', border: 'none', borderRadius: '6px', color: '#ffffff', fontWeight: 600, cursor: 'pointer' }}
+                  style={{ flex: 1, padding: '9px', background: 'var(--accent-primary)', border: 'none', borderRadius: '6px', color: '#ffffff', fontWeight: 600, cursor: 'pointer', transition: 'background 0.15s' }}
+                  onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+                  onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
                 >
                   建立佈局
                 </button>
@@ -1050,7 +1040,7 @@ export const Management = () => {
         </div>
       )}
 
-      {/* 視覺化劃位彈窗 (調用 SeatMapEditorModal，傳入當前選中佈局) */}
+      {/* 視覺化劃位彈窗 */}
       {isSeatEditorOpen && currentClass && editingLayoutKey && (
         <SeatMapEditorModal
           isOpen={isSeatEditorOpen}

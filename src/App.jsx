@@ -54,9 +54,9 @@ function ClientLayout() {
           <button
             onClick={() => setIsMobileSidebarOpen(true)}
             style={{
-              background: '#f1f5f9',
-              color: '#0f172a',
-              border: '1px solid var(--glass-border)',
+              background: 'var(--bg-subtle)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-color)',
               padding: '6px 8px',
               borderRadius: '4px',
               display: 'flex',
@@ -74,7 +74,7 @@ function ClientLayout() {
               width: '28px',
               height: '28px',
               borderRadius: '6px',
-              background: '#0f172a',
+              background: 'var(--accent-primary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -82,7 +82,7 @@ function ClientLayout() {
             }}>
               <School size={16} />
             </div>
-            <span style={{ fontWeight: 800, fontSize: '0.95rem', letterSpacing: '-0.02em', color: '#0f172a' }}>
+            <span style={{ fontWeight: 800, fontSize: '0.95rem', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
               班級自動化點名系統
             </span>
           </div>
@@ -107,7 +107,7 @@ function ClientLayout() {
             </button>
           )}
           {isClass && (
-            <div style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '4px', background: 'var(--brand-light)', color: 'var(--brand-primary)', border: '1px solid var(--border-color)', fontWeight: 600 }}>
+            <div style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '4px', background: 'var(--bg-subtle)', color: 'var(--accent-primary)', border: '1px solid var(--border-color)', fontWeight: 600 }}>
               {session.name || session.id}
             </div>
           )}

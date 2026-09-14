@@ -42,7 +42,7 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(15, 23, 42, 0.45)',
+            background: 'rgba(45, 36, 30, 0.45)',
             zIndex: 90,
           }}
           className="mobile-only"
@@ -55,7 +55,7 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
           width: '260px',
           height: '100vh',
           padding: '24px',
-          borderRight: '1px solid var(--glass-border)',
+          borderRight: '1px solid var(--border-color)',
           background: '#ffffff',
           display: 'flex',
           flexDirection: 'column',
@@ -71,12 +71,12 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
               width: '40px',
               height: '40px',
               borderRadius: '8px',
-              background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+              background: 'var(--accent-primary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'white',
-              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.15)'
+              color: '#ffffff',
+              boxShadow: 'none',
             }}>
               <School size={22} />
             </div>
@@ -85,7 +85,7 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
                 班級自動化點名系統
               </h2>
               <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                {isClass ? `班級專區 · ${session.name || session.id}` : '校園訪客瀏覽模式'}
+                {isClass ? `班級專區 · ${session.name || session.account || '在線'}` : '校園訪客瀏覽模式'}
               </span>
             </div>
           </div>
@@ -96,7 +96,7 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
             className="mobile-only"
             style={{
               background: 'var(--bg-color)',
-              border: '1px solid var(--glass-border)',
+              border: '1px solid var(--border-color)',
               color: 'var(--text-secondary)',
               padding: '6px',
               borderRadius: '4px',
@@ -141,7 +141,7 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
 
         {/* 底部帳號狀態區塊 */}
         <div style={{
-          borderTop: '1px solid var(--glass-border)',
+          borderTop: '1px solid var(--border-color)',
           paddingTop: '16px',
           display: 'flex',
           flexDirection: 'column',
@@ -149,7 +149,7 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
         }}>
           {isGuest && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ fontSize: '0.75rem', color: '#64748b', paddingLeft: '4px' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', paddingLeft: '4px' }}>
                 當前為訪客模式（僅供查閱紀錄）
               </div>
               <button
@@ -180,32 +180,34 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
 
           {isClass && (
             <div style={{
-              background: '#f8fafc',
+              background: 'var(--bg-subtle)',
               border: '1px solid var(--border-color)',
               borderRadius: '8px',
               padding: '12px',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                 <div style={{
-                  width: '28px',
-                  height: '28px',
+                  width: '32px',
+                  height: '32px',
                   borderRadius: '50%',
-                  background: 'var(--brand-light)',
-                  color: 'var(--brand-primary)',
+                  background: 'var(--accent-light)',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--accent-primary)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontWeight: 700,
-                  fontSize: '0.8rem',
+                  fontWeight: 800,
+                  fontSize: '0.88rem',
+                  flexShrink: 0,
                 }}>
                   {session.name ? session.name.charAt(0) : '班'}
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {session.name || session.id}
+                <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {session.name || session.account || '班級'}
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                    帳號：{session.id} · {session.studentCount ? `${session.studentCount}人` : '人數未定'}
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
+                    代碼：{session.account || (session.id && session.id.length < 16 ? session.id : '已驗證')} · {session.studentCount ? `${session.studentCount}人` : '人數未定'}
                   </div>
                 </div>
               </div>
@@ -218,7 +220,7 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '6px',
-                  padding: '6px 10px',
+                  padding: '7px 10px',
                   borderRadius: '4px',
                   background: 'var(--danger-bg)',
                   border: '1px solid var(--danger-border)',
@@ -226,6 +228,7 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
                   fontSize: '0.78rem',
                   fontWeight: 600,
                   cursor: 'pointer',
+                  transition: 'background 0.15s ease',
                 }}
               >
                 <LogOut size={14} />

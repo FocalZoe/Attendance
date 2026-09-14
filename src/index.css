@@ -1,52 +1,52 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 /* ==============================================================================
-   班級自動化點名系統 - 全域統一色彩與設計體系 (Design Tokens)
-   風格定位：現代極致扁平化、純淨 Slate 冷灰 + 智慧湛藍 (Precision Slate & Royal Blue)
-   徹底去除雜亂土褐色、暖發黃米色與多色衝突，全站 100% 統一視覺
+   班級自動化點名系統 - 全站統一樣式規範 (Warm Cream & Rich Coffee)
+   風格定義：溫潤暖米白底色 + 經典醇厚深咖啡色 (Warm Cream #f7f5f0 & Rich Coffee #5c3a21)
+   嚴格杜絕冷灰與冷科技藍，全站 100% 統一米白咖啡調
    ============================================================================== */
 
 :root {
-  /* 背景層次 */
-  --bg-color: #f8fafc;        /* Slate-50: 乾淨純粹的現代背景底色 */
-  --bg-card: #ffffff;         /* 純白卡片面板 */
-  --bg-subtle: #f1f5f9;       /* Slate-100: 柔和次級背景、表頭、滑過底色 */
-  --bg-muted: #e2e8f0;        /* Slate-200: 灰階標籤底色 */
+  /* 背景層次 (溫潤暖米白) */
+  --bg-color: #f7f5f0;        /* 溫潤暖米白底色，溫和高雅 */
+  --bg-card: #ffffff;         /* 純白面板卡片 */
+  --bg-subtle: #f5ede6;       /* 淺燕麥拿鐵底色，表頭、標籤底、滑過底 */
+  --bg-muted: #ebe4d8;        /* 米灰底色 */
 
-  /* 文字階層 (深邃銳利、極致易讀) */
-  --text-primary: #0f172a;    /* Slate-900: 高對比深邃字體色 */
-  --text-secondary: #475569;  /* Slate-600: 清晰次級說明文字 */
-  --text-muted: #94a3b8;      /* Slate-400: 輔助提示文字 */
+  /* 文字階層 (深烘焙暖咖黑字，溫和高對比清晰好讀) */
+  --text-primary: #2d241e;    /* 深烘焙咖啡黑字 */
+  --text-secondary: #7d7268;  /* 暖調拿鐵中灰，次要說明文字 */
+  --text-muted: #a3998f;      /* 拿鐵淺灰，輔助資訊 */
 
-  /* 主題主要動作色 (Primary Solid) */
-  --accent-primary: #0f172a;  /* Slate-900: 穩健沉著的主操作按鈕與側邊欄啟動色 */
-  --accent-hover: #1e293b;    /* Slate-800: 主操作懸停 */
-  --accent-light: #f1f5f9;    /* Slate-100: 柔和按鈕底色 */
+  /* 核心主色調 (經典醇厚深咖啡色) */
+  --accent-primary: #5c3a21;  /* 經典醇厚深咖啡色主題色 */
+  --accent-hover: #452a16;    /* 深濃縮咖啡色懸停 */
+  --accent-light: #f5ede6;    /* 淺燕麥拿鐵底色 */
 
-  /* 核心互動品牌藍 (Brand / Interactive Blue) */
-  --brand-primary: #2563eb;   /* Blue-600: 重點操作、視覺焦點 */
-  --brand-hover: #1d4ed8;     /* Blue-700: 互動懸停 */
-  --brand-light: #eff6ff;     /* Blue-50: 淺藍底色 */
-  --brand-border: #bfdbfe;    /* Blue-200: 淺藍邊框 */
+  /* 品牌色系 (完全統一對齊深咖啡色) */
+  --brand-primary: #5c3a21;   /* 深咖啡主要品牌色 */
+  --brand-hover: #452a16;     /* 品牌色懸停 */
+  --brand-light: #f5ede6;     /* 淺拿鐵底色 */
+  --brand-border: #dfd7cc;    /* 拿鐵細邊框 */
 
-  /* 語意狀態色彩 (考勤在座/缺席/提醒) */
-  --success: #059669;         /* Emerald-600: 在座出席綠 */
-  --success-bg: #ecfdf5;      /* Emerald-50: 淺綠狀態底 */
-  --success-border: #a7f3d0;  /* Emerald-200: 綠色細邊框 */
+  /* 語意狀態色彩 (與米白咖啡調和的自然色調) */
+  --success: #15803d;         /* 沉穩在座綠 */
+  --success-bg: #f0fdf4;      /* 淺綠狀態底 */
+  --success-border: #bbf7d0;  /* 綠色細邊框 */
 
-  --danger: #dc2626;          /* Red-600: 缺席未到紅 */
-  --danger-bg: #fef2f2;       /* Red-50: 淺紅狀態底 */
-  --danger-border: #fecaca;   /* Red-200: 紅色細邊框 */
+  --danger: #b91c1c;          /* 沉穩缺席紅 */
+  --danger-bg: #fef2f2;       /* 淺紅狀態底 */
+  --danger-border: #fecaca;   /* 紅色細邊框 */
 
-  --warning: #d97706;         /* Amber-600: 排程與提醒琥珀金 */
-  --warning-bg: #fffbeb;      /* Amber-50: 淺琥珀底 */
-  --warning-border: #fde68a;  /* Amber-200: 琥珀細邊框 */
+  --warning: #b45309;         /* 提醒琥珀金 */
+  --warning-bg: #fffbeb;      /* 淺琥珀底 */
+  --warning-border: #fde68a;  /* 琥珀細邊框 */
 
-  /* 邊框規範 (1px 純淨俐落無陰影) */
-  --border-color: #e2e8f0;    /* Slate-200: 標準線條 */
-  --border-dark: #cbd5e1;     /* Slate-300: 輸入框與焦點線條 */
+  /* 邊框規範 (1px 溫潤米灰純色線條，完全無陰影) */
+  --border-color: #e6e2d8;    /* 溫暖米灰細線 */
+  --border-dark: #d5cebf;     /* 中米灰線條 */
   --glass-bg: #ffffff;
-  --glass-border: #e2e8f0;
+  --glass-border: #e6e2d8;
   --glass-shadow: none;       /* 極致扁平化：0 陰影 */
 
   /* 微圓角規範 */
@@ -70,7 +70,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* 純淨扁平卡片 utility */
+/* 溫潤扁平卡片 utility */
 .glass-panel {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -79,7 +79,7 @@ body {
   transition: border-color 0.15s ease;
 }
 
-/* 精緻現代滾動條 */
+/* 溫和米灰滾動條 */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -88,14 +88,14 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #dcd7ce;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--text-secondary);
 }
 
-/* 動畫效果 (輕微精緻) */
+/* 動畫效果 */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(2px); }
   to { opacity: 1; transform: translateY(0); }
@@ -148,7 +148,7 @@ body {
   margin-bottom: 24px;
 }
 
-/* 視訊畫面自適應容器 (深色高對比以利 AI 坐姿標記，純線條無陰影) */
+/* 視訊畫面自適應容器 (維持暖深黑褐高對比，利於 AI 坐姿標記，外框溫潤米灰無陰影) */
 .camera-preview-container {
   height: 440px;
   min-height: 440px;
@@ -156,7 +156,7 @@ body {
   position: relative;
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: #090d16;
+  background: #1a1613;
   border: 1px solid var(--border-color);
   display: flex;
   align-items: center;
@@ -208,9 +208,9 @@ body {
 }
 
 .mobile-nav-item.active {
-  color: var(--text-primary);
+  color: var(--accent-primary);
   background: var(--bg-subtle);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 @media (max-width: 1024px) {

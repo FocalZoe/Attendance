@@ -249,7 +249,7 @@ const History = () => {
                   position: 'relative',
                   width: '100%',
                   height: '190px',
-                  background: '#090d16',
+                  background: '#1a1613',
                   cursor: 'pointer',
                   overflow: 'hidden',
                 }}
@@ -261,13 +261,13 @@ const History = () => {
                 />
 
                 <div style={{
-                  position: 'absolute', inset: 0, background: 'rgba(15, 23, 42, 0.45)', opacity: 0,
+                  position: 'absolute', inset: 0, background: 'rgba(45, 36, 30, 0.45)', opacity: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'opacity 0.2s',
                 }}
                 onMouseOver={e => e.currentTarget.style.opacity = '1'}
                 onMouseOut={e => e.currentTarget.style.opacity = '0'}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fff', background: 'rgba(15, 23, 42, 0.85)', padding: '6px 14px', borderRadius: '4px', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fff', background: 'rgba(45, 36, 30, 0.85)', padding: '6px 14px', borderRadius: '4px', fontSize: '0.85rem' }}>
                     <Eye size={16} /> 觀看大圖
                   </div>
                 </div>
@@ -332,7 +332,7 @@ const History = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '10px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-color)', paddingTop: '10px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <Calendar size={14} /> {new Date(rec.create_at).toLocaleString('zh-TW')}
                   </span>
@@ -352,17 +352,17 @@ const History = () => {
               className="glass-panel"
               style={{
                 height: '300px',
-                borderRadius: '16px',
+                borderRadius: '6px',
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
                 opacity: 0.8,
               }}
             >
-              <div style={{ width: '100%', height: '190px', background: '#e2e8f0' }} />
+              <div style={{ width: '100%', height: '190px', background: 'var(--border-color)' }} />
               <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ width: '60%', height: '18px', background: '#f1f5f9', borderRadius: '4px' }} />
-                <div style={{ width: '40%', height: '14px', background: '#f8fafc', borderRadius: '4px' }} />
+                <div style={{ width: '60%', height: '18px', background: 'var(--bg-subtle)', borderRadius: '4px' }} />
+                <div style={{ width: '40%', height: '14px', background: 'var(--bg-subtle)', borderRadius: '4px' }} />
               </div>
             </div>
           ))}
