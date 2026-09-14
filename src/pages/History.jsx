@@ -152,12 +152,12 @@ const History = () => {
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
               background: '#ffffff', color: 'var(--text-primary)',
-              border: '1px solid var(--glass-border)', padding: '9px 16px',
+              border: '1px solid var(--border-color)', padding: '9px 16px',
               borderRadius: '6px', fontWeight: 600, cursor: 'pointer',
               boxShadow: 'none',
               transition: 'background 0.15s ease',
             }}
-            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-light)')}
+            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--bg-subtle)')}
             onMouseOut={(e) => (e.currentTarget.style.background = '#ffffff')}
           >
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
@@ -170,13 +170,13 @@ const History = () => {
               onClick={handleExportCSV}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                background: 'var(--accent-primary)', color: 'white',
-                border: '1px solid var(--accent-primary)', padding: '9px 18px', borderRadius: '6px', fontWeight: 600,
+                background: 'var(--brand-primary)', color: '#ffffff',
+                border: '1px solid var(--brand-primary)', padding: '9px 18px', borderRadius: '6px', fontWeight: 600,
                 cursor: 'pointer', boxShadow: 'none',
                 transition: 'background 0.15s ease',
               }}
-              onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
-              onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
+              onMouseOver={(e) => (e.currentTarget.style.background = 'var(--brand-hover)')}
+              onMouseOut={(e) => (e.currentTarget.style.background = 'var(--brand-primary)')}
             >
               <Download size={16} />
               匯出課堂出席報表
@@ -196,24 +196,14 @@ const History = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
               width: '100%', padding: '12px 16px 12px 46px',
-              background: '#ffffff', border: '1px solid var(--glass-border)',
+              background: '#ffffff', border: '1px solid var(--border-color)',
               borderRadius: '6px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.9rem',
-              boxSizing: 'border-box',
-              transition: 'all 0.2s',
-            }}
-            onFocus={(e) => {
-              e.target.style.background = '#ffffff';
-              e.target.style.borderColor = 'var(--accent-primary)';
-            }}
-            onBlur={(e) => {
-              e.target.style.background = '#f8fafc';
-              e.target.style.borderColor = 'var(--glass-border)';
             }}
           />
         </div>
 
-        <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-          共符合 <strong style={{ color: 'var(--accent-primary)', fontSize: '1.05rem' }}>{filteredRecords.length}</strong> 筆課堂點名紀錄
+        <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 500 }}>
+          共找到 <strong>{filteredRecords.length}</strong> 筆課堂點名紀錄
         </div>
       </div>
 
@@ -238,18 +228,18 @@ const History = () => {
               key={rec.id}
               className="glass-panel"
               style={{
-                overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
-                borderRadius: '6px',
-                boxShadow: 'none',
+                overflow: 'hidden',
+                background: '#ffffff',
+                border: '1px solid var(--border-color)',
                 transition: 'border-color 0.15s ease',
               }}
               onMouseOver={e => {
-                e.currentTarget.style.borderColor = '#94a3b8';
+                e.currentTarget.style.borderColor = 'var(--brand-primary)';
               }}
               onMouseOut={e => {
-                e.currentTarget.style.borderColor = 'var(--glass-border)';
+                e.currentTarget.style.borderColor = 'var(--border-color)';
               }}
             >
               {/* 照片預覽容器 */}
@@ -259,7 +249,7 @@ const History = () => {
                   position: 'relative',
                   width: '100%',
                   height: '190px',
-                  background: '#1a1613',
+                  background: '#090d16',
                   cursor: 'pointer',
                   overflow: 'hidden',
                 }}
@@ -271,13 +261,13 @@ const History = () => {
                 />
 
                 <div style={{
-                  position: 'absolute', inset: 0, background: 'rgba(26, 22, 19, 0.4)', opacity: 0,
+                  position: 'absolute', inset: 0, background: 'rgba(15, 23, 42, 0.45)', opacity: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'opacity 0.2s',
                 }}
                 onMouseOver={e => e.currentTarget.style.opacity = '1'}
                 onMouseOut={e => e.currentTarget.style.opacity = '0'}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fff', background: 'rgba(26, 22, 19, 0.85)', padding: '6px 14px', borderRadius: '4px', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fff', background: 'rgba(15, 23, 42, 0.85)', padding: '6px 14px', borderRadius: '4px', fontSize: '0.85rem' }}>
                     <Eye size={16} /> 觀看大圖
                   </div>
                 </div>

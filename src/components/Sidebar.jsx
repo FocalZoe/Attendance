@@ -161,14 +161,16 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
                   gap: '8px',
                   padding: '9px 12px',
                   borderRadius: '6px',
-                  background: '#0284c7',
+                  background: 'var(--accent-primary)',
                   color: '#ffffff',
                   border: 'none',
                   fontSize: '0.85rem',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  transition: 'background 0.2s',
+                  transition: 'background 0.15s ease',
                 }}
+                onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+                onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
               >
                 <LogIn size={16} />
                 班級帳號登入
@@ -179,7 +181,7 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
           {isClass && (
             <div style={{
               background: '#f8fafc',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--border-color)',
               borderRadius: '8px',
               padding: '12px',
             }}>
@@ -188,8 +190,8 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
                   width: '28px',
                   height: '28px',
                   borderRadius: '50%',
-                  background: '#e0f2fe',
-                  color: '#0284c7',
+                  background: 'var(--brand-light)',
+                  color: 'var(--brand-primary)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -218,9 +220,9 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
                   gap: '6px',
                   padding: '6px 10px',
                   borderRadius: '4px',
-                  background: '#ffffff',
-                  border: '1px solid #cbd5e1',
-                  color: '#dc2626',
+                  background: 'var(--danger-bg)',
+                  border: '1px solid var(--danger-border)',
+                  color: 'var(--danger)',
                   fontSize: '0.78rem',
                   fontWeight: 600,
                   cursor: 'pointer',

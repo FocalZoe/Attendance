@@ -96,7 +96,7 @@ function ClientLayout() {
                 fontSize: '0.72rem',
                 padding: '4px 8px',
                 borderRadius: '4px',
-                background: '#0284c7',
+                background: 'var(--accent-primary)',
                 color: '#ffffff',
                 border: 'none',
                 fontWeight: 600,
@@ -107,7 +107,7 @@ function ClientLayout() {
             </button>
           )}
           {isClass && (
-            <div style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '4px', background: '#e0f2fe', color: '#0284c7', border: '1px solid var(--glass-border)', fontWeight: 600 }}>
+            <div style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '4px', background: 'var(--brand-light)', color: 'var(--brand-primary)', border: '1px solid var(--border-color)', fontWeight: 600 }}>
               {session.name || session.id}
             </div>
           )}

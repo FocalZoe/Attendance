@@ -264,8 +264,8 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
               onClick={() => setViewMode('vacant')}
               style={{
                 padding: '4px 8px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
-                background: viewMode === 'vacant' ? '#fee2e2' : 'transparent',
-                color: viewMode === 'vacant' ? '#dc2626' : 'var(--text-secondary)', border: 'none',
+                background: viewMode === 'vacant' ? 'var(--danger-bg)' : 'transparent',
+                color: viewMode === 'vacant' ? 'var(--danger)' : 'var(--text-secondary)', border: 'none',
               }}
             >
               僅未到 ({vacantSeats.length})
@@ -275,8 +275,8 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
               onClick={() => setViewMode('occupied')}
               style={{
                 padding: '4px 8px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
-                background: viewMode === 'occupied' ? '#d1fae5' : 'transparent',
-                color: viewMode === 'occupied' ? '#059669' : 'var(--text-secondary)', border: 'none',
+                background: viewMode === 'occupied' ? 'var(--success-bg)' : 'transparent',
+                color: viewMode === 'occupied' ? 'var(--success)' : 'var(--text-secondary)', border: 'none',
               }}
             >
               僅在座 ({occupiedSeats.length})
@@ -287,8 +287,8 @@ export const ImageModal = ({ record, imageUrl, title, allRecords = [], onClose }
               style={{
                 padding: '4px 8px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: '3px',
-                background: viewMode === 'raw' ? '#e2e8f0' : 'transparent',
-                color: viewMode === 'raw' ? '#0f172a' : 'var(--text-secondary)', border: 'none',
+                background: viewMode === 'raw' ? 'var(--bg-subtle)' : 'transparent',
+                color: viewMode === 'raw' ? 'var(--text-primary)' : 'var(--text-secondary)', border: 'none',
               }}
             >
               {viewMode === 'raw' ? <EyeOff size={13} /> : <Eye size={13} />}

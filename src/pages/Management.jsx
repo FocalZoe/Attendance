@@ -630,7 +630,7 @@ export const Management = () => {
                   style={{
                     marginTop: '12px',
                     padding: '6px 14px',
-                    background: '#0284c7',
+                    background: '#2563eb',
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: '4px',
@@ -654,7 +654,7 @@ export const Management = () => {
                       style={{
                         padding: '12px 14px',
                         borderRadius: '8px',
-                        border: `1px solid ${isSelected ? '#0284c7' : '#e2e8f0'}`,
+                        border: `1px solid ${isSelected ? '#2563eb' : '#e2e8f0'}`,
                         background: isSelected ? '#f0f9ff' : '#ffffff',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease',
@@ -664,7 +664,7 @@ export const Management = () => {
                         <span style={{ fontWeight: 700, fontSize: '0.92rem', color: isSelected ? '#0369a1' : '#0f172a' }}>
                           {cls.class_name || cls.account}
                         </span>
-                        <span style={{ fontSize: '0.72rem', padding: '2px 6px', borderRadius: '4px', background: isSelected ? '#bae6fd' : '#f1f5f9', color: isSelected ? '#0284c7' : '#64748b', fontWeight: 600 }}>
+                        <span style={{ fontSize: '0.72rem', padding: '2px 6px', borderRadius: '4px', background: isSelected ? '#bae6fd' : '#f1f5f9', color: isSelected ? '#2563eb' : '#64748b', fontWeight: 600 }}>
                           {cls.student_count || 0} 人
                         </span>
                       </div>
@@ -686,7 +686,7 @@ export const Management = () => {
               <div style={{ background: '#ffffff', borderRadius: '10px', border: '1px solid #e2e8f0', padding: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Edit2 size={18} color="#0284c7" />
+                    <Edit2 size={18} color="#2563eb" />
                     <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
                       班級基本資料維護
                     </h2>
@@ -756,7 +756,7 @@ export const Management = () => {
                     <button
                       type="submit"
                       style={{
-                        width: '100%', padding: '10px 16px', background: '#0284c7', color: '#ffffff',
+                        width: '100%', padding: '10px 16px', background: '#2563eb', color: '#ffffff',
                         border: 'none', borderRadius: '6px', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                       }}
@@ -772,7 +772,7 @@ export const Management = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
                     <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <LayoutGrid size={20} color="#0284c7" />
+                      <LayoutGrid size={20} color="#2563eb" />
                       座位劃位佈局 ({currentClass.seat_layout ? Object.keys(currentClass.seat_layout).length : 0} 組)
                     </h2>
                     <p style={{ color: '#64748b', fontSize: '0.82rem', margin: '4px 0 0' }}>
@@ -803,7 +803,7 @@ export const Management = () => {
                       <div
                         key={layoutKey}
                         style={{
-                          border: `1px solid ${isActive ? '#0284c7' : '#e2e8f0'}`,
+                          border: `1px solid ${isActive ? '#2563eb' : '#e2e8f0'}`,
                           borderRadius: '8px',
                           padding: '16px',
                           background: isActive ? '#f8fafc' : '#ffffff',
@@ -819,7 +819,7 @@ export const Management = () => {
                               {layoutData.name || layoutKey}
                             </div>
                             {isActive && (
-                              <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '10px', background: '#e0f2fe', color: '#0284c7', fontWeight: 700 }}>
+                              <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '10px', background: '#e0f2fe', color: '#2563eb', fontWeight: 700 }}>
                                 預設啟用
                               </span>
                             )}
@@ -840,7 +840,7 @@ export const Management = () => {
                             style={{
                               flex: 1,
                               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                              padding: '7px', background: '#0284c7', color: '#ffffff',
+                              padding: '7px', background: '#2563eb', color: '#ffffff',
                               border: 'none', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
                             }}
                           >

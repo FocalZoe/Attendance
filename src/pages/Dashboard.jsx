@@ -562,14 +562,14 @@ const Dashboard = ({ onOpenLogin }) => {
   if (!isClassLoggedIn) {
     return (
       <div className="animate-fade-in" style={{ padding: '40px 20px', maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
-        <div style={{ width: '64px', height: '64px', borderRadius: '12px', background: '#eff6ff', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+        <div style={{ width: '64px', height: '64px', borderRadius: '12px', background: 'var(--brand-light)', color: 'var(--brand-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
           <GraduationCap size={32} />
         </div>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a', marginBottom: '10px' }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px' }}>
           歡迎使用 班級自動化點名系統
         </h2>
         <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '24px' }}>
-          您目前處於訪客模式。即時儀表板與相機邊緣考勤功能需登入班級帳號方可啟用。若您為管理者，可由側欄登入管理頁面。
+          您目前處於訪客模式。即時儀表板與相機邊緣考勤功能需登入班級帳號方可啟用。若欲查閱歷次課堂點名照片與出席紀錄，請點選左側「課堂歷史紀錄簿」。
         </p>
         <button
           onClick={() => (onOpenLogin ? onOpenLogin() : setIsLoginModalOpen(true))}
@@ -582,7 +582,10 @@ const Dashboard = ({ onOpenLogin }) => {
             fontSize: '0.95rem',
             fontWeight: 600,
             cursor: 'pointer',
+            transition: 'background 0.15s ease',
           }}
+          onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+          onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
         >
           🔐 立即登入班級帳號
         </button>
@@ -723,28 +726,28 @@ const Dashboard = ({ onOpenLogin }) => {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '8px',
-            background: 'var(--accent-light)',
-            border: '1px solid #dcd7ce',
-            color: 'var(--accent-primary)',
-            padding: '5px 12px',
-            borderRadius: '4px',
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--border-color)',
+            color: 'var(--text-primary)',
+            padding: '6px 14px',
+            borderRadius: '6px',
             fontSize: '0.82rem',
             marginBottom: '18px',
             cursor: isMobile ? 'default' : 'pointer',
-            transition: 'background 0.15s ease',
+            transition: 'all 0.15s ease',
             maxWidth: '100%',
             boxSizing: 'border-box',
           }}
           onMouseOver={(e) => {
-            if (!isMobile) e.currentTarget.style.background = '#ede2d5';
+            if (!isMobile) e.currentTarget.style.background = '#e2e8f0';
           }}
           onMouseOut={(e) => {
-            if (!isMobile) e.currentTarget.style.background = 'var(--accent-light)';
+            if (!isMobile) e.currentTarget.style.background = 'var(--bg-subtle)';
           }}
         >
-          <Timer size={15} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
+          <Timer size={15} color="var(--brand-primary)" style={{ flexShrink: 0 }} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            定時排程：下一次自動點名將於 <strong>{nextUpcoming.formattedText}</strong> 自動執行
+            定時排程：下一次自動點名將於 <strong style={{ color: 'var(--brand-primary)' }}>{nextUpcoming.formattedText}</strong> 自動執行
           </span>
         </div>
       )}
@@ -1002,10 +1005,10 @@ const Dashboard = ({ onOpenLogin }) => {
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                     padding: '9px 20px', borderRadius: '6px',
-                    background: cameraActive && !isSending ? 'var(--accent-primary)' : '#e6e2d8',
+                    background: cameraActive && !isSending ? 'var(--accent-primary)' : '#e2e8f0',
                     color: cameraActive && !isSending ? '#fff' : '#94a3b8',
                     fontWeight: 600, fontSize: '0.88rem',
-                    border: cameraActive && !isSending ? '1px solid var(--accent-primary)' : '1px solid #e6e2d8',
+                    border: cameraActive && !isSending ? '1px solid var(--accent-primary)' : '1px solid #cbd5e1',
                     cursor: isSending || !cameraActive ? 'not-allowed' : 'pointer',
                     boxShadow: 'none',
                     transition: 'background 0.15s ease',
@@ -1151,7 +1154,7 @@ const Dashboard = ({ onOpenLogin }) => {
               <div className="stat-title">應到座位總數</div>
               <div className="stat-value">{currentTotalSeats} <span style={{ fontSize: '1rem', fontWeight: 'normal', color: 'var(--text-secondary)' }}>席</span></div>
             </div>
-            <div style={{ padding: '10px', background: 'var(--accent-light)', borderRadius: '4px', color: 'var(--accent-primary)' }}>
+            <div style={{ padding: '10px', background: 'var(--bg-subtle)', borderRadius: '4px', color: 'var(--text-primary)' }}>
               <LayoutGrid size={22} />
             </div>
           </div>
@@ -1188,7 +1191,7 @@ const Dashboard = ({ onOpenLogin }) => {
           </div>
         </div>
 
-        <div className="glass-panel stat-card" style={{ borderTop: '4px solid #7d7268' }}>
+        <div className="glass-panel stat-card" style={{ borderTop: '4px solid var(--brand-primary)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div className="stat-title">最後點名時間</div>
@@ -1196,7 +1199,7 @@ const Dashboard = ({ onOpenLogin }) => {
                 {formatFullDateTime(latestRecord?.create_at)}
               </div>
             </div>
-            <div style={{ padding: '10px', background: 'var(--accent-light)', borderRadius: '4px', color: 'var(--accent-primary)' }}>
+            <div style={{ padding: '10px', background: 'var(--brand-light)', borderRadius: '4px', color: 'var(--brand-primary)' }}>
               <Clock size={22} />
             </div>
           </div>

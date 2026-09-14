@@ -1,23 +1,58 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+/* ==============================================================================
+   班級自動化點名系統 - 全域統一色彩與設計體系 (Design Tokens)
+   風格定位：現代極致扁平化、純淨 Slate 冷灰 + 智慧湛藍 (Precision Slate & Royal Blue)
+   徹底去除雜亂土褐色、暖發黃米色與多色衝突，全站 100% 統一視覺
+   ============================================================================== */
 
 :root {
-  --bg-color: #f7f5f0; /* 溫潤暖米白底色，極致溫和高質感 */
-  --bg-secondary: #ffffff; /* 純白卡片面板 */
-  --text-primary: #2d241e; /* 深烘焙暖咖啡黑字，溫和高對比清晰好讀 */
-  --text-secondary: #7d7268; /* 暖調拿鐵中灰，柔和次要說明文字 */
-  --accent-primary: #5c3a21; /* 經典醇厚深咖啡色主題色，沉穩優雅非純黑 */
-  --accent-hover: #452a16; /* 深濃縮咖啡色懸停 */
-  --accent-light: #f5ede6; /* 淺燕麥拿鐵底色，用於狀態標籤與柔和飾底 */
-  --brand-blue: #2563eb; /* 經典純科技藍 */
-  --success: #15803d; /* 沉穩在座綠 */
-  --success-bg: #f0fdf4; /* 淺綠狀態底 */
-  --warning: #b45309; /* 提醒琥珀黃 */
-  --danger: #b91c1c; /* 沉穩缺席紅 */
-  --danger-bg: #fef2f2; /* 淺紅狀態底 */
-  
-  --glass-bg: #ffffff; /* 100% 不透明純白卡片面板 */
-  --glass-border: #e6e2d8; /* 溫暖米灰乾淨細線條 (1px) */
-  --glass-shadow: none; /* 極致扁平化：完全無陰影 */
+  /* 背景層次 */
+  --bg-color: #f8fafc;        /* Slate-50: 乾淨純粹的現代背景底色 */
+  --bg-card: #ffffff;         /* 純白卡片面板 */
+  --bg-subtle: #f1f5f9;       /* Slate-100: 柔和次級背景、表頭、滑過底色 */
+  --bg-muted: #e2e8f0;        /* Slate-200: 灰階標籤底色 */
+
+  /* 文字階層 (深邃銳利、極致易讀) */
+  --text-primary: #0f172a;    /* Slate-900: 高對比深邃字體色 */
+  --text-secondary: #475569;  /* Slate-600: 清晰次級說明文字 */
+  --text-muted: #94a3b8;      /* Slate-400: 輔助提示文字 */
+
+  /* 主題主要動作色 (Primary Solid) */
+  --accent-primary: #0f172a;  /* Slate-900: 穩健沉著的主操作按鈕與側邊欄啟動色 */
+  --accent-hover: #1e293b;    /* Slate-800: 主操作懸停 */
+  --accent-light: #f1f5f9;    /* Slate-100: 柔和按鈕底色 */
+
+  /* 核心互動品牌藍 (Brand / Interactive Blue) */
+  --brand-primary: #2563eb;   /* Blue-600: 重點操作、視覺焦點 */
+  --brand-hover: #1d4ed8;     /* Blue-700: 互動懸停 */
+  --brand-light: #eff6ff;     /* Blue-50: 淺藍底色 */
+  --brand-border: #bfdbfe;    /* Blue-200: 淺藍邊框 */
+
+  /* 語意狀態色彩 (考勤在座/缺席/提醒) */
+  --success: #059669;         /* Emerald-600: 在座出席綠 */
+  --success-bg: #ecfdf5;      /* Emerald-50: 淺綠狀態底 */
+  --success-border: #a7f3d0;  /* Emerald-200: 綠色細邊框 */
+
+  --danger: #dc2626;          /* Red-600: 缺席未到紅 */
+  --danger-bg: #fef2f2;       /* Red-50: 淺紅狀態底 */
+  --danger-border: #fecaca;   /* Red-200: 紅色細邊框 */
+
+  --warning: #d97706;         /* Amber-600: 排程與提醒琥珀金 */
+  --warning-bg: #fffbeb;      /* Amber-50: 淺琥珀底 */
+  --warning-border: #fde68a;  /* Amber-200: 琥珀細邊框 */
+
+  /* 邊框規範 (1px 純淨俐落無陰影) */
+  --border-color: #e2e8f0;    /* Slate-200: 標準線條 */
+  --border-dark: #cbd5e1;     /* Slate-300: 輸入框與焦點線條 */
+  --glass-bg: #ffffff;
+  --glass-border: #e2e8f0;
+  --glass-shadow: none;       /* 極致扁平化：0 陰影 */
+
+  /* 微圓角規範 */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
 }
 
 * {
@@ -27,7 +62,7 @@
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background-color: var(--bg-color);
   color: var(--text-primary);
   min-height: 100vh;
@@ -35,16 +70,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* 極致扁平淺色卡片 utility */
+/* 純淨扁平卡片 utility */
 .glass-panel {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   box-shadow: none;
   transition: border-color 0.15s ease;
 }
 
-/* Scrollbar styling */
+/* 精緻現代滾動條 */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -53,26 +88,20 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #dcd7ce;
+  background: #cbd5e1;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+  background: #94a3b8;
 }
 
-/* Animations */
+/* 動畫效果 (輕微精緻) */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in {
-  animation: fadeIn 0.25s ease-out forwards;
-}
-
-@keyframes flash-success {
-  0% { border-color: #059669; }
-  50% { border-color: #34d399; }
-  100% { border-color: var(--glass-border); }
+  animation: fadeIn 0.2s ease-out forwards;
 }
 
 .layout-container {
@@ -94,10 +123,9 @@ body {
 }
 
 /* ==============================================================================
-   RWD 核心響應式斷點與佈局工具類
+   RWD 響應式佈局規範
    ============================================================================== */
 
-/* 桌面端與行動端顯隱控制 */
 .desktop-only {
   display: flex !important;
 }
@@ -105,7 +133,6 @@ body {
   display: none !important;
 }
 
-/* 儀表板主體網格佈局 (大螢幕雙欄 3:2，小螢幕單欄堆疊) */
 .dashboard-main-grid {
   display: grid;
   grid-template-columns: 3fr 2fr;
@@ -114,7 +141,6 @@ body {
   margin-bottom: 24px;
 }
 
-/* 統計卡片自適應網格 */
 .stat-cards-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -122,35 +148,35 @@ body {
   margin-bottom: 24px;
 }
 
-/* 視訊畫面自適應容器 (維持暖深黑褐高對比以利 AI 坐姿標記，外框純線條無陰影) */
+/* 視訊畫面自適應容器 (深色高對比以利 AI 坐姿標記，純線條無陰影) */
 .camera-preview-container {
   height: 440px;
   min-height: 440px;
   max-height: 440px;
   position: relative;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   overflow: hidden;
-  background: #1a1613;
-  border: 1px solid var(--glass-border);
+  background: #090d16;
+  border: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* 行動端頂部 App 欄位 (100% 不透明純色、無模糊、無陰影) */
+/* 行動端頂部 Bar */
 .mobile-topbar {
   display: none;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
   background: #ffffff;
-  border-bottom: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--border-color);
   position: sticky;
   top: 0;
   z-index: 40;
 }
 
-/* 行動端底部快捷導覽列 (100% 不透明純色、無模糊、無陰影) */
+/* 行動端底部快捷導覽列 */
 .mobile-bottom-nav {
   display: none;
   position: fixed;
@@ -159,7 +185,7 @@ body {
   right: 0;
   height: 64px;
   background: #ffffff;
-  border-top: 1px solid var(--glass-border);
+  border-top: 1px solid var(--border-color);
   z-index: 50;
   justify-content: space-around;
   align-items: center;
@@ -177,17 +203,16 @@ body {
   font-size: 0.75rem;
   font-weight: 500;
   padding: 6px 16px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: all 0.15s ease;
 }
 
 .mobile-nav-item.active {
   color: var(--text-primary);
-  background: #f1f5f9;
+  background: var(--bg-subtle);
   font-weight: 600;
 }
 
-/* 平板斷點 (< 1024px) */
 @media (max-width: 1024px) {
   .dashboard-main-grid {
     grid-template-columns: 1fr;
@@ -200,7 +225,6 @@ body {
   }
 }
 
-/* 手機與窄螢幕斷點 (< 768px) */
 @media (max-width: 768px) {
   .desktop-only {
     display: none !important;
@@ -214,14 +238,13 @@ body {
     height: 100vh;
   }
 
-  /* 側邊欄在手機端轉為滑出式抽屜 (純線條，無陰影) */
   .sidebar-container {
     position: fixed !important;
     top: 0;
     bottom: 0;
     left: 0;
     transform: translateX(-100%);
-    border-right: 1px solid var(--glass-border);
+    border-right: 1px solid var(--border-color);
     z-index: 100;
   }
 
@@ -242,7 +265,6 @@ body {
     overflow-x: hidden;
   }
 
-  /* 統計卡片在手機端變為 2 欄，資訊更緊湊 */
   .stat-cards-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
@@ -262,14 +284,12 @@ body {
     font-size: 1.4rem !important;
   }
 
-  /* 相機視訊在手機端流體適應 */
   .camera-preview-container {
     height: clamp(230px, 52vw, 320px);
     min-height: 230px;
     max-height: 320px;
   }
 
-  /* 標題與操作按鈕在手機端自適應 */
   .page-header {
     flex-direction: column !important;
     align-items: flex-start !important;
@@ -291,7 +311,6 @@ body {
   }
 }
 
-/* 超窄手機斷點 (< 420px) */
 @media (max-width: 420px) {
   .stat-cards-grid {
     grid-template-columns: 1fr;
@@ -300,8 +319,9 @@ body {
 }
 
 h1, h2, h3 {
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.02em;
+  color: var(--text-primary);
 }
 
 button {
