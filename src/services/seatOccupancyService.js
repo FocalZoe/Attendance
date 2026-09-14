@@ -1,12 +1,45 @@
 // TEAM_008: 座位配置與高精度在座佔用判定服務模組 (seatOccupancyService.js)
 // 核心升級：
-// 1. 人員中心點 (Centroid & Head Core) 錨定：人員頭部/上半身核心必須實質落在座位區域內。
-// 2. 一人一座物理唯一性匹配 (Greedy Fit)：排除一人多佔相鄰座位的假陽性。
-// 3. 排除邊緣擦碰：嚴格過濾邊角路過或擦過的誤判。
+// 1. 支援班級帳號多座位佈局 (layout1, layout2...) 動態一鍵載入與即時同步。
+// 2. 人員中心點 (Centroid & Head Core) 錨定：人員頭部/上半身核心必須實質落在座位區域內。
+// 3. 一人一座物理唯一性匹配 (Greedy Fit)：排除一人多佔相鄰座位的假陽性。
+// 4. 排除邊緣擦碰：嚴格過濾邊角路過或擦過的誤判。
+
+import { getAuthSession, updateClassInfo } from './authService.js';
 
 const LOCAL_STORAGE_KEY = 'attendance_seat_config_v2';
 
+/**
+ * 取得當前生效之座位配置 (優先從登入班級的 active layout 載入)
+ * @returns {Object} { base_width, base_height, current_period, seats, layout_name, layout_key }
+ */
 export const getSavedSeatsConfig = () => {
+  // 1. 優先檢查是否登入班級帳號
+  const session = getAuthSession();
+  if (session?.role === 'class' && session.user?.seat_layout) {
+    const layouts = session.user.seat_layout || {};
+    const activeKey = session.user.active_layout_key || Object.keys(layouts)[0] || 'layout1';
+    const activeLayout = layouts[activeKey];
+
+    if (activeLayout) {
+      const seats = Array.isArray(activeLayout.seats) && activeLayout.seats.length > 0
+        ? activeLayout.seats
+        : generateGridSeats(activeLayout.gridRows || 4, activeLayout.gridCols || 5, activeLayout.base_width || 640, activeLayout.base_height || 480);
+
+      return {
+        base_width: activeLayout.base_width || 640,
+        base_height: activeLayout.base_height || 480,
+        current_period: '第 1 節',
+        layout_name: activeLayout.name || '課堂佈局',
+        layout_key: activeKey,
+        gridRows: activeLayout.gridRows || 4,
+        gridCols: activeLayout.gridCols || 5,
+        seats,
+      };
+    }
+  }
+
+  // 2. 本機 localStorage 快取備援
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (raw) {
@@ -19,29 +52,73 @@ export const getSavedSeatsConfig = () => {
     console.warn('[SeatOccupancyService] 讀取座位配置失敗:', e);
   }
 
-  // 預設 3x3 網格
+  // 3. 預設 4x5 網格
   return {
     base_width: 640,
     base_height: 480,
     current_period: '第 1 節',
-    seats: generateGridSeats(3, 3, 640, 480),
+    layout_name: '預設課堂佈局',
+    layout_key: 'layout1',
+    gridRows: 4,
+    gridCols: 5,
+    seats: generateGridSeats(4, 5, 640, 480),
   };
 };
 
-export const saveSeatsConfig = (config) => {
+/**
+ * 儲存座位配置 (同步更新至登入班級之雲端資料庫)
+ * @param {Object} config 
+ * @param {string} [targetLayoutKey]
+ */
+export const saveSeatsConfig = async (config, targetLayoutKey = null) => {
   try {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(config));
   } catch (e) {
-    console.error('[SeatOccupancyService] 儲存座位配置失敗:', e);
+    console.error('[SeatOccupancyService] 儲存座位配置至 localStorage 失敗:', e);
+  }
+
+  // 若登入班級帳號，同步寫入 Supabase 資料庫該班級的 seat_layout
+  const session = getAuthSession();
+  if (session?.role === 'class' && session.user?.id) {
+    const currentLayouts = { ...(session.user.seat_layout || {}) };
+    const layoutKey = targetLayoutKey || config.layout_key || session.user.active_layout_key || 'layout1';
+    
+    currentLayouts[layoutKey] = {
+      name: config.layout_name || currentLayouts[layoutKey]?.name || '課堂佈局',
+      gridRows: config.gridRows || 4,
+      gridCols: config.gridCols || 5,
+      base_width: config.base_width || 640,
+      base_height: config.base_height || 480,
+      seats: config.seats || [],
+    };
+
+    await updateClassInfo(session.user.id, {
+      seat_layout: currentLayouts,
+      active_layout_key: layoutKey,
+    });
   }
 };
 
-export const formatFullPeriodMessage = (periodName) => {
+/**
+ * 班級切換啟用之座位佈局鍵名
+ * @param {string} layoutKey 
+ */
+export const switchActiveClassLayout = async (layoutKey) => {
+  const session = getAuthSession();
+  if (session?.role === 'class' && session.user?.id) {
+    await updateClassInfo(session.user.id, {
+      active_layout_key: layoutKey,
+    });
+  }
+};
+
+export const formatFullPeriodMessage = (periodName, className = '') => {
   const now = new Date();
   const month = now.getMonth() + 1;
   const day = now.getDate();
   const cleanPeriod = (periodName || '第 1 節').trim();
-  return `${month}月${day}日 ${cleanPeriod}`;
+  const prefix = className ? `${className.trim()} · ` : '';
+  return `${prefix}${month}月${day}日 ${cleanPeriod}`;
 };
 
 export const generateGridSeats = (rows = 3, cols = 3, width = 640, height = 480) => {

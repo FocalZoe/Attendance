@@ -8,13 +8,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Camera, CheckCircle, Activity, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, RefreshCw, Eye, AlertTriangle, Timer, Smartphone, Bell } from 'lucide-react';
 import { ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision';
 import { fetchHistoryRecords, sendTelemetry, connectWebSocket } from '../services/api';
-import { getSavedSeatsConfig, formatFullPeriodMessage, matchPersonsToSeats, SeatTemporalTracker } from '../services/seatOccupancyService';
+import { getSavedSeatsConfig, formatFullPeriodMessage, matchPersonsToSeats, SeatTemporalTracker, switchActiveClassLayout } from '../services/seatOccupancyService';
 import { getSavedSchedulesConfig, checkScheduleTrigger, getNextUpcomingSchedule } from '../services/scheduleService';
 import { isMobileDevice, getDesktopCameraSources, acquireCameraStream } from '../services/cameraDeviceService';
+import { getAuthSession } from '../services/authService';
 import SeatMapEditorModal from '../components/SeatMapEditorModal';
 import ScheduleModal from '../components/ScheduleModal';
 import ImageModal from '../components/ImageModal';
 import ErrorBoundary from '../components/ErrorBoundary';
+import LoginModal from '../components/LoginModal';
 
 let detectorInstance = null;
 let detectorLoadingPromise = null;
@@ -48,7 +50,7 @@ const getSharedPersonDetector = async () => {
   return detectorLoadingPromise;
 };
 
-const Dashboard = () => {
+const Dashboard = ({ onOpenLogin }) => {
   // 智慧偵測當前終端是否為行動裝置
   const [isMobile] = useState(isMobileDevice());
 
@@ -60,6 +62,17 @@ const Dashboard = () => {
   const [autoRollcallToast, setAutoRollcallToast] = useState(null);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [seatConfig, setSeatConfig] = useState(getSavedSeatsConfig());
+  const [session, setSession] = useState(getAuthSession());
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  useEffect(() => {
+    const handleAuthChange = () => {
+      setSession(getAuthSession());
+      setSeatConfig(getSavedSeatsConfig());
+    };
+    window.addEventListener('auth:session-changed', handleAuthChange);
+    return () => window.removeEventListener('auth:session-changed', handleAuthChange);
+  }, []);
 
   // 排程執行防重複觸發 Ref
   const lastTriggeredKeyRef = useRef(null);
@@ -445,7 +458,6 @@ const Dashboard = () => {
 
       const currentConfig = getSavedSeatsConfig();
       const currentPeriodName = targetPeriodName || currentConfig.current_period || '第 1 節';
-      const formattedMessage = formatFullPeriodMessage(currentPeriodName);
 
       const vHeight = video.videoHeight || 480;
       const detectedPersonsPayload = (lastDetectionsRef.current || [])
@@ -472,11 +484,14 @@ const Dashboard = () => {
 
       // 使用統一 API 模組發送當下劃位
       const result = await sendTelemetry({
-        message: formattedMessage,
+        message: formatFullPeriodMessage(currentPeriodName, session?.user?.class_name),
         file: base64Data,
         timestamp: new Date().toISOString(),
         detected_persons: detectedPersonsPayload,
-        seats: currentConfig.seats,
+        seats: seatConfig.seats,
+        class_id: session?.user?.id || null,
+        class_name: session?.user?.class_name || null,
+        layout_name: seatConfig.layout_name || null,
       });
 
       console.log(`[Dashboard ${isAuto ? 'Auto-Schedule' : 'Manual'}] 點名通報成功，Database 回傳紀錄:`, result);
@@ -539,8 +554,50 @@ const Dashboard = () => {
   const latestStatuses = Array.isArray(latestAiAnalysis?.seat_statuses) ? latestAiAnalysis.seat_statuses : [];
   const latestVacantSeatIds = latestStatuses.filter((s) => s.status === 'VACANT').map((s) => s.seat_id);
 
-  const currentPeriodTitle = formatFullPeriodMessage(seatConfig.current_period);
+  const currentPeriodTitle = formatFullPeriodMessage(seatConfig.current_period, session?.user?.class_name);
   const nextUpcoming = getNextUpcomingSchedule(scheduleConfig);
+
+  // 訪客模式未登入防護
+  const isClassLoggedIn = session?.role === 'class';
+  if (!isClassLoggedIn) {
+    return (
+      <div className="animate-fade-in" style={{ padding: '40px 20px', maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
+        <div style={{ width: '64px', height: '64px', borderRadius: '12px', background: '#eff6ff', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+          <GraduationCap size={32} />
+        </div>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a', marginBottom: '10px' }}>
+          歡迎使用 班級自動化點名系統
+        </h2>
+        <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '24px' }}>
+          您目前處於訪客模式。即時儀表板與相機邊緣考勤功能需登入班級帳號方可啟用。若您為管理者，可由側欄登入管理頁面。
+        </p>
+        <button
+          onClick={() => (onOpenLogin ? onOpenLogin() : setIsLoginModalOpen(true))}
+          style={{
+            padding: '10px 24px',
+            borderRadius: '6px',
+            background: 'var(--accent-primary)',
+            color: '#ffffff',
+            border: 'none',
+            fontSize: '0.95rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          🔐 立即登入班級帳號
+        </button>
+
+        <LoginModal
+          isOpen={isLoginModalOpen}
+          onClose={() => setIsLoginModalOpen(false)}
+          onSuccess={(role, user) => {
+            setSession(getAuthSession());
+            setSeatConfig(getSavedSeatsConfig());
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -593,7 +650,28 @@ const Dashboard = () => {
 
         {/* 電腦端具備完整管理權限；手機端只能檢視，隱藏設定按鈕 */}
         {!isMobile && (
-          <div className="header-actions" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <div className="header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* 班級專屬多座位佈局快捷切換下拉選單 */}
+            {session?.user?.seat_layout && Object.keys(session.user.seat_layout).length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '4px 10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                <LayoutGrid size={15} color="var(--accent-primary)" />
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#334155' }}>佈局：</span>
+                <select
+                  value={seatConfig.layout_key || session.user.active_layout_key || 'layout1'}
+                  onChange={async (e) => {
+                    const nextKey = e.target.value;
+                    await switchActiveClassLayout(nextKey);
+                    setSeatConfig(getSavedSeatsConfig());
+                  }}
+                  style={{ padding: '3px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.82rem', background: '#ffffff', outline: 'none', cursor: 'pointer' }}
+                >
+                  {Object.entries(session.user.seat_layout).map(([k, l]) => (
+                    <option key={k} value={k}>{l.name || k}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* 定時自動點名排程按鈕 */}
             <button
               onClick={() => setIsScheduleModalOpen(true)}
@@ -616,7 +694,7 @@ const Dashboard = () => {
                 : '自動點名 (已暫停)'}
             </button>
 
-            {/* 座位劃位設定按鈕 (咖啡色實底白字，無漸層、無陰影、無漂浮) */}
+            {/* 座位劃位設定按鈕 */}
             <button
               onClick={() => setIsSeatEditorOpen(true)}
               style={{

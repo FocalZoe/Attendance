@@ -11,6 +11,7 @@ import ReactDOM from 'react-dom';
 import { X, Trash2, Grid, Save, LayoutGrid, Check, Info, Camera, GraduationCap, AlertTriangle, RefreshCw } from 'lucide-react';
 import { getSavedSeatsConfig, saveSeatsConfig, generateGridSeats, formatFullPeriodMessage } from '../services/seatOccupancyService';
 import { getDesktopCameraSources, acquireCameraStream } from '../services/cameraDeviceService';
+import { updateClassInfo } from '../services/authService';
 
 export const SeatMapEditorModal = ({
   isOpen,
@@ -20,6 +21,9 @@ export const SeatMapEditorModal = ({
   parentCameraActive = false,
   currentDeviceId = '',
   onDeviceChange = null,
+  initialClassId = null,
+  initialLayoutKey = null,
+  initialLayoutData = null,
 }) => {
   const [config, setConfig] = useState(getSavedSeatsConfig());
   const [period, setPeriod] = useState(config.current_period || '第 1 節');
@@ -154,9 +158,35 @@ export const SeatMapEditorModal = ({
       return;
     }
 
-    const saved = getSavedSeatsConfig();
-    setConfig(saved);
-    setPeriod(saved.current_period || '第 1 節');
+    if (initialLayoutData) {
+      const vW = initialLayoutData.base_width || 640;
+      const vH = initialLayoutData.base_height || 480;
+      const rows = initialLayoutData.gridRows || 4;
+      const cols = initialLayoutData.gridCols || 5;
+      const seats = Array.isArray(initialLayoutData.seats) && initialLayoutData.seats.length > 0
+        ? initialLayoutData.seats
+        : generateGridSeats(rows, cols, vW, vH);
+
+      setConfig({
+        base_width: vW,
+        base_height: vH,
+        current_period: '第 1 節',
+        layout_name: initialLayoutData.name || '課堂佈局',
+        layout_key: initialLayoutKey || 'layout1',
+        gridRows: rows,
+        gridCols: cols,
+        seats,
+      });
+      setGridRows(rows);
+      setGridCols(cols);
+    } else {
+      const saved = getSavedSeatsConfig();
+      setConfig(saved);
+      setPeriod(saved.current_period || '第 1 節');
+      if (saved.gridRows) setGridRows(saved.gridRows);
+      if (saved.gridCols) setGridCols(saved.gridCols);
+    }
+
     setSelectedSeatIndex(null);
     setSavedNotice(false);
 
@@ -468,14 +498,37 @@ export const SeatMapEditorModal = ({
   };
 
   // 儲存配置
-  const handleSave = () => {
+  const handleSave = async () => {
     const toSave = {
       ...config,
       base_width: videoDims.width || 640,
       base_height: videoDims.height || 480,
       current_period: period || '第 1 節',
+      gridRows,
+      gridCols,
+      layout_key: initialLayoutKey || config.layout_key || 'layout1',
+      layout_name: initialLayoutData?.name || config.layout_name || '課堂佈局',
     };
-    saveSeatsConfig(toSave);
+
+    if (initialClassId && initialLayoutKey) {
+      const currentLayouts = { ...(initialLayoutData ? { [initialLayoutKey]: initialLayoutData } : {}) };
+      currentLayouts[initialLayoutKey] = {
+        name: initialLayoutData?.name || config.layout_name || '課堂佈局',
+        gridRows,
+        gridCols,
+        base_width: toSave.base_width,
+        base_height: toSave.base_height,
+        seats: config.seats,
+      };
+
+      await updateClassInfo(initialClassId, {
+        seat_layout: currentLayouts,
+        active_layout_key: initialLayoutKey,
+      });
+    } else {
+      await saveSeatsConfig(toSave, initialLayoutKey);
+    }
+
     setSavedNotice(true);
     setTimeout(() => setSavedNotice(false), 2000);
     if (onSaveSuccess) onSaveSuccess(toSave);
@@ -682,30 +735,6 @@ export const SeatMapEditorModal = ({
             <button onClick={handleClearAllSeats} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 12px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 500 }}>
               <Trash2 size={13} /> 清空
             </button>
-          </div>
-
-          {/* 相機裝置切換 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Camera size={16} color="var(--accent-primary)" />
-            <select
-              value={selectedDeviceId}
-              onChange={(e) => {
-                const nextId = e.target.value;
-                setSelectedDeviceId(nextId);
-                if (onDeviceChange) {
-                  onDeviceChange(nextId);
-                } else {
-                  startCamera(nextId);
-                }
-              }}
-              style={{ padding: '5px 10px', borderRadius: '6px', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', fontSize: '0.8rem', maxWidth: '240px', outline: 'none' }}
-            >
-              {devices.map((d) => (
-                <option key={d.id || d.deviceId} value={d.id || d.deviceId}>
-                  {d.name || d.label || `相機 (${d.deviceId})`}
-                </option>
-              ))}
-            </select>
           </div>
         </div>
 
@@ -1008,15 +1037,41 @@ export const SeatMapEditorModal = ({
           </div>
         </div>
 
-        {/* Footer 操作按鈕 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-          <div>
+        {/* Footer 操作按鈕 (相機選單移至左側，落實截圖紅線指示) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '16px', flexWrap: 'wrap', gap: '12px' }}>
+          {/* 左下角：相機設備切換選單與儲存提示 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '4px 10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+              <Camera size={16} color="var(--accent-primary)" />
+              <select
+                value={selectedDeviceId}
+                onChange={(e) => {
+                  const nextId = e.target.value;
+                  setSelectedDeviceId(nextId);
+                  if (onDeviceChange) {
+                    onDeviceChange(nextId);
+                  } else {
+                    startCamera(nextId);
+                  }
+                }}
+                style={{ padding: '4px 8px', borderRadius: '4px', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', fontSize: '0.82rem', maxWidth: '240px', outline: 'none' }}
+              >
+                {devices.map((d) => (
+                  <option key={d.id || d.deviceId} value={d.id || d.deviceId}>
+                    {d.name || d.label || `相機 (${d.deviceId})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {savedNotice && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#059669', fontSize: '0.85rem', fontWeight: 600 }}>
-                <Check size={16} /> 課堂節次與座位設置已儲存！
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#059669', fontSize: '0.82rem', fontWeight: 600 }}>
+                <Check size={16} /> 劃位配置已儲存！
               </span>
             )}
           </div>
+
+          {/* 右下角：關閉與儲存按鈕 */}
           <div style={{ display: 'flex', gap: '12px' }}>
             <button onClick={onClose} style={{ padding: '9px 16px', background: '#ffffff', color: 'var(--text-primary)', border: '1px solid var(--glass-border)', borderRadius: '6px', fontWeight: 500, cursor: 'pointer' }}>
               關閉
@@ -1035,7 +1090,7 @@ export const SeatMapEditorModal = ({
               onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
               onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
             >
-              <Save size={16} /> 儲存劃位配置 ({config.seats.length} 席 · {period})
+              <Save size={16} /> 儲存劃位配置 ({config.seats.length} 席)
             </button>
           </div>
         </div>

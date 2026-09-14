@@ -1,9 +1,8 @@
 // ==============================================================================
-// ClassVision / Zoe Attendance - 裝置偵測與相機來源分流管理服務 (cameraDeviceService.js)
-// 支援判斷電腦端 (Desktop) 與手機端 (Mobile)，並分流 Webcam 與 Ameba 網路相機
+// 班級自動化點名系統 - 裝置偵測與相機來源管理服務 (cameraDeviceService.js)
+// 支援判斷電腦端 (Desktop) 與手機端 (Mobile)，嚴格枚舉真實硬體視訊裝置 (OBS/Webcam)
+// 嚴禁假資料：徹底移除任何虛擬假相機與 Canvas 模擬串流
 // ==============================================================================
-
-export const AMEBA_DEVICE_ID = 'device_ameba_network_cam';
 
 /**
  * 智慧偵測當前終端設備是否為行動裝置 (手機或平板)
@@ -38,8 +37,8 @@ export const isMobileDevice = () => {
 };
 
 /**
- * 取得電腦端可用之相機來源清單 (包含實體 Webcam 與 Ameba 網路鏡頭)
- * @returns {Promise<Array<{ id: string, type: 'webcam'|'ameba', name: string, deviceId: string }>>}
+ * 取得電腦端可用之真實相機來源清單 (100% 來自真實硬體設備，如 OBS Virtual Camera、Webcam)
+ * @returns {Promise<Array<{ id: string, name: string, deviceId: string }>>}
  */
 export const getDesktopCameraSources = async () => {
   const sources = [];
@@ -51,10 +50,9 @@ export const getDesktopCameraSources = async () => {
 
       videoInputs.forEach((d, index) => {
         const rawLabel = d.label || '';
-        const displayName = rawLabel ? `🎥 ${rawLabel}` : `🎥 Webcam 視訊鏡頭 #${index + 1}`;
+        const displayName = rawLabel ? `🎥 ${rawLabel}` : `🎥 視訊相機 #${index + 1}`;
         sources.push({
           id: d.deviceId,
-          type: 'webcam',
           name: displayName,
           deviceId: d.deviceId,
         });
@@ -64,133 +62,27 @@ export const getDesktopCameraSources = async () => {
     console.warn('[CameraDeviceService] 枚舉鏡頭裝置失敗:', err);
   }
 
-  // 若無偵測到任何實體鏡頭，提供預設 Webcam 項目
+  // 若系統尚未授權或無標籤，提供預設選項供調用 getUserMedia
   if (sources.length === 0) {
     sources.push({
       id: 'default_webcam',
-      type: 'webcam',
-      name: '🎥 預設視訊鏡頭 (Default Webcam)',
+      name: '🎥 預設視訊鏡頭 (Default Camera)',
       deviceId: '',
     });
   }
-
-  // 新增 Ameba 網路相機選項
-  sources.push({
-    id: AMEBA_DEVICE_ID,
-    type: 'ameba',
-    name: '📡 Ameba 網路相機 (Ameba IP Camera)',
-    deviceId: AMEBA_DEVICE_ID,
-  });
 
   return sources;
 };
 
 /**
- * 建立 Ameba 網路相機的虛擬模擬視訊串流 (Canvas 60fps 測試圖訊)
- * 當外部 Ameba 硬體離線或在測試環境時，可提供穩定的 1080p 課堂模擬視訊
- * @returns {MediaStream}
- */
-export const createAmebaCanvasStream = () => {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1280;
-  canvas.height = 720;
-  const ctx = canvas.getContext('2d');
-
-  let frameCount = 0;
-  const drawAmebaTestPattern = () => {
-    if (!ctx) return;
-    frameCount++;
-
-    // 背景深色漸層
-    const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    grad.addColorStop(0, '#0f172a');
-    grad.addColorStop(1, '#1e1b4b');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // 科技網格線
-    ctx.strokeStyle = 'rgba(59, 130, 246, 0.15)';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < canvas.width; x += 40) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvas.height);
-      ctx.stroke();
-    }
-    for (let y = 0; y < canvas.height; y += 40) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvas.width, y);
-      ctx.stroke();
-    }
-
-    // 動態掃描線
-    const scanY = (frameCount * 3) % canvas.height;
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, scanY);
-    ctx.lineTo(canvas.width, scanY);
-    ctx.stroke();
-
-    // 中央標題與狀態
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = 'bold 36px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('📡 AMEBA IP CAMERA STREAM', canvas.width / 2, canvas.height / 2 - 40);
-
-    ctx.fillStyle = '#10b981';
-    ctx.font = '22px monospace';
-    ctx.fillText('STATUS: ONLINE · 1280×720 @30FPS · RTSP/MJPEG', canvas.width / 2, canvas.height / 2 + 10);
-
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '16px monospace';
-    ctx.fillText(`TIME: ${new Date().toISOString()} · FRAME #${frameCount}`, canvas.width / 2, canvas.height / 2 + 50);
-
-    // 模擬在座人體方塊 (方便 MediaPipe 空間匹配測試)
-    ctx.fillStyle = 'rgba(16, 185, 129, 0.25)';
-    ctx.strokeStyle = '#10b981';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(300, 280, 200, 320);
-    ctx.fillRect(300, 280, 200, 320);
-
-    ctx.strokeRect(780, 280, 200, 320);
-    ctx.fillRect(780, 280, 200, 320);
-  };
-
-  const timer = setInterval(drawAmebaTestPattern, 33);
-  const stream = canvas.captureStream ? canvas.captureStream(30) : null;
-
-  if (stream) {
-    const origGetTracks = stream.getTracks.bind(stream);
-    const origStop = stream.getVideoTracks()[0]?.stop;
-    if (origStop) {
-      stream.getVideoTracks()[0].stop = function () {
-        clearInterval(timer);
-        origStop.call(this);
-      };
-    }
-  }
-
-  return stream;
-};
-
-/**
- * 啟動相機串流 (支援 Webcam 與 Ameba 網路相機分流)
- * @param {string} sourceId - 裝置 ID 或 AMEBA_DEVICE_ID
+ * 啟動相機串流 (100% 真實硬體攝影鏡頭，具備三層解析度降級容錯引擎)
+ * @param {string} sourceId - 裝置 ID 或 'default_webcam'
  * @returns {Promise<MediaStream>}
  */
 export const acquireCameraStream = async (sourceId) => {
-  // 1. 若選擇 Ameba 網路相機
-  if (sourceId === AMEBA_DEVICE_ID) {
-    const amebaStream = createAmebaCanvasStream();
-    if (amebaStream) return amebaStream;
-  }
-
-  // 2. 若選擇實體 Webcam (三層容錯降級)
   const isDefault = !sourceId || sourceId === 'default_webcam';
 
-  // 第一層：exact deviceId
+  // 第一層：exact deviceId (優先嘗試 1080p 高畫質)
   try {
     const constraints = {
       video: isDefault
@@ -199,8 +91,9 @@ export const acquireCameraStream = async (sourceId) => {
     };
     return await navigator.mediaDevices.getUserMedia(constraints);
   } catch (err1) {
-    console.warn('[CameraDeviceService] Exact deviceId constraint failed, fallback to soft:', err1);
-    // 第二層：soft deviceId
+    console.warn('[CameraDeviceService] 1080p exact constraint 失敗，降級至 720p soft constraint:', err1);
+    
+    // 第二層：soft deviceId (降級至 720p 寬容解析度)
     try {
       const fallbackConstraints = {
         video: isDefault
@@ -209,8 +102,9 @@ export const acquireCameraStream = async (sourceId) => {
       };
       return await navigator.mediaDevices.getUserMedia(fallbackConstraints);
     } catch (err2) {
-      console.warn('[CameraDeviceService] Soft constraint failed, fallback to generic video:', err2);
-      // 第三層：generic
+      console.warn('[CameraDeviceService] 720p soft constraint 失敗，降級至標準通用視訊:', err2);
+      
+      // 第三層：generic video: true (瀏覽器底層預設視訊)
       return await navigator.mediaDevices.getUserMedia({ video: true });
     }
   }

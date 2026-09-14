@@ -8,6 +8,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { fetchHistoryRecords, connectWebSocket } from '../services/api';
 import ImageModal from '../components/ImageModal';
 import { Search, RefreshCw, Eye, Calendar, Download, History as HistoryIcon, LayoutGrid, CheckCircle, GraduationCap, UserCheck, UserX, AlertCircle } from 'lucide-react';
+import { getAuthSession } from '../services/authService';
 
 const HISTORY_CACHE_KEY = 'attendance_history_cache_v1';
 
@@ -27,6 +28,9 @@ const History = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [session, setSession] = useState(getAuthSession());
+
+  const isLoggedIn = !!session;
 
   const loadData = async () => {
     setLoading(true);
@@ -160,21 +164,24 @@ const History = () => {
             重新整理
           </button>
 
-          <button
-            onClick={handleExportCSV}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              background: 'var(--accent-primary)', color: 'white',
-              border: '1px solid var(--accent-primary)', padding: '9px 18px', borderRadius: '6px', fontWeight: 600,
-              cursor: 'pointer', boxShadow: 'none',
-              transition: 'background 0.15s ease',
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
-            onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
-          >
-            <Download size={16} />
-            匯出課堂出席報表
-          </button>
+          {/* 未登入訪客模式下直接隱藏匯出按鈕 */}
+          {isLoggedIn && (
+            <button
+              onClick={handleExportCSV}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                background: 'var(--accent-primary)', color: 'white',
+                border: '1px solid var(--accent-primary)', padding: '9px 18px', borderRadius: '6px', fontWeight: 600,
+                cursor: 'pointer', boxShadow: 'none',
+                transition: 'background 0.15s ease',
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+              onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
+            >
+              <Download size={16} />
+              匯出課堂出席報表
+            </button>
+          )}
         </div>
       </header>
 
@@ -379,10 +386,11 @@ const History = () => {
         </div>
       )}
 
-      {/* 大圖檢視 Modal */}
+      {/* 大圖檢視 Modal (傳入 allRecords 支援座號今日出缺席查詢) */}
       <ImageModal
         record={selectedRecord}
         imageUrl={typeof selectedRecord === 'string' ? selectedRecord : selectedRecord?.file_url}
+        allRecords={records}
         onClose={() => setSelectedRecord(null)}
       />
     </div>
