@@ -487,8 +487,39 @@ export const createClassAccount = async ({ account, class_name, student_count = 
   };
 
   try {
-    const session = getAuthSession();
-    const schoolId = session?.schoolId || '00000000-0000-0000-0000-000000000000';
+    let session = getAuthSession();
+    let schoolId = session?.schoolId;
+
+    // 1. 動態向 Supabase 查驗當前登入者所屬真實 school_id，徹底防止 localStorage 殘留無效值
+    const { data: authData } = await supabaseClient.auth.getUser();
+    if (authData?.user) {
+      const { data: profile } = await supabaseClient
+        .from('user_profiles')
+        .select('school_id, role, schools(name)')
+        .eq('id', authData.user.id)
+        .single();
+
+      if (profile?.school_id) {
+        schoolId = profile.school_id;
+        if (session) {
+          session.schoolId = profile.school_id;
+          if (profile.schools?.name) session.schoolName = profile.schools.name;
+          saveAuthSession(session.role || 'admin', session.user, session);
+        }
+      }
+    }
+
+    // 2. 若仍為無效 UUID 或示範代碼，查詢第一所有效學校作為備援
+    if (!schoolId || schoolId === '00000000-0000-0000-0000-000000000000' || String(schoolId).startsWith('school_demo')) {
+      const { data: firstSchool } = await supabaseClient
+        .from('schools')
+        .select('id')
+        .limit(1)
+        .single();
+      if (firstSchool?.id) {
+        schoolId = firstSchool.id;
+      }
+    }
 
     const { data, error } = await supabaseClient
       .from('classes')

@@ -106,13 +106,55 @@ ALTER TABLE public.teacher_classes FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students FORCE ROW LEVEL SECURITY;
 
--- 7. 建立優化後的 RLS 策略 (InitPlan 最佳化，防止 SubPlan 退化)
+-- 6.1 建立 SECURITY DEFINER 輔助函式（阻斷 RLS 遞迴並保證 InitPlan 最佳化）
+CREATE OR REPLACE FUNCTION public.get_auth_school_id()
+RETURNS UUID
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    SELECT school_id FROM public.user_profiles WHERE id = (SELECT auth.uid()) LIMIT 1;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_auth_role()
+RETURNS public.app_user_role
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    SELECT role FROM public.user_profiles WHERE id = (SELECT auth.uid()) LIMIT 1;
+$$;
+
+-- 6.2 自動補齊 classes.school_id 觸發器（防止前端 session 殘留舊值或空值）
+CREATE OR REPLACE FUNCTION public.set_classes_school_id()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    IF NEW.school_id IS NULL OR NEW.school_id = '00000000-0000-0000-0000-000000000000'::uuid THEN
+        NEW.school_id := public.get_auth_school_id();
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_set_classes_school_id ON public.classes;
+CREATE TRIGGER trg_set_classes_school_id
+BEFORE INSERT ON public.classes
+FOR EACH ROW
+EXECUTE FUNCTION public.set_classes_school_id();
+
+-- 7. 建立優化後的 RLS 策略 (InitPlan 最佳化，防止 SubPlan 退化與遞迴崩潰)
 -- schools: 學校總管與所屬教師可讀取所屬學校
 DROP POLICY IF EXISTS "allow_users_read_own_school" ON public.schools;
 CREATE POLICY "allow_users_read_own_school" ON public.schools
     FOR SELECT
     USING (
-        id = (SELECT school_id FROM public.user_profiles WHERE id = (SELECT auth.uid()))
+        id = (SELECT public.get_auth_school_id())
     );
 
 -- user_profiles: 使用者可讀取自己 Profile，學校總管可讀取同校所有成員
@@ -121,20 +163,32 @@ CREATE POLICY "user_read_profiles" ON public.user_profiles
     FOR SELECT
     USING (
         id = (SELECT auth.uid()) OR
-        school_id = (
-            SELECT school_id FROM public.user_profiles 
-            WHERE id = (SELECT auth.uid()) AND role = 'school_admin'
+        (
+            (SELECT public.get_auth_role()) = 'school_admin'::public.app_user_role AND
+            school_id = (SELECT public.get_auth_school_id())
         )
     );
+
+DROP POLICY IF EXISTS "user_write_own_profile" ON public.user_profiles;
+CREATE POLICY "user_write_own_profile" ON public.user_profiles
+    FOR ALL
+    USING (id = (SELECT auth.uid()))
+    WITH CHECK (id = (SELECT auth.uid()));
 
 -- classes: 學校總管可存取同校所有班級；教師可存取指派班級
 DROP POLICY IF EXISTS "school_admin_all_classes" ON public.classes;
 CREATE POLICY "school_admin_all_classes" ON public.classes
     FOR ALL
     USING (
-        school_id = (
-            SELECT school_id FROM public.user_profiles 
-            WHERE id = (SELECT auth.uid()) AND role = 'school_admin'
+        (SELECT public.get_auth_role()) = 'school_admin'::public.app_user_role AND
+        school_id = (SELECT public.get_auth_school_id())
+    )
+    WITH CHECK (
+        (SELECT public.get_auth_role()) = 'school_admin'::public.app_user_role AND
+        (
+            school_id = (SELECT public.get_auth_school_id()) OR
+            school_id IS NULL OR
+            school_id = '00000000-0000-0000-0000-000000000000'::uuid
         )
     );
 
@@ -149,7 +203,27 @@ CREATE POLICY "teacher_read_assigned_classes" ON public.classes
         )
     );
 
--- students: 允許持有有效 magic_token 免登入讀取特定學生資訊 (家長遊客查詢)
+-- students: 允許學校管理員管理同校學生，並允許持有有效 magic_token 免登入讀取特定學生資訊
+DROP POLICY IF EXISTS "school_admin_all_students" ON public.students;
+CREATE POLICY "school_admin_all_students" ON public.students
+    FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.classes c
+            WHERE c.id = students.class_id
+              AND c.school_id = (SELECT public.get_auth_school_id())
+              AND (SELECT public.get_auth_role()) = 'school_admin'::public.app_user_role
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.classes c
+            WHERE c.id = students.class_id
+              AND c.school_id = (SELECT public.get_auth_school_id())
+              AND (SELECT public.get_auth_role()) = 'school_admin'::public.app_user_role
+        )
+    );
+
 DROP POLICY IF EXISTS "parents_token_read_student" ON public.students;
 CREATE POLICY "parents_token_read_student" ON public.students
     FOR SELECT

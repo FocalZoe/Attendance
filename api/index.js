@@ -194,21 +194,17 @@ app.post('/api/init-demo', async (req, res) => {
       adminUserId = newUser.user.id;
     }
 
-    // 3. 確保 user_profiles 存在
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', adminUserId)
-      .single();
+    // 3. 確保 user_profiles 正確綁定 school_id 與 school_admin 角色
+    const { error: profileUpsertError } = await supabase.from('user_profiles').upsert([{
+      id: adminUserId,
+      school_id: school.id,
+      role: 'school_admin',
+      name: '示範管理員',
+      email: demoEmail,
+    }]);
 
-    if (!profile) {
-      await supabase.from('user_profiles').insert([{
-        id: adminUserId,
-        school_id: school.id,
-        role: 'school_admin',
-        name: '示範管理員',
-        email: demoEmail,
-      }]);
+    if (profileUpsertError) {
+      console.error('[Vercel Init Demo Error] profile upsert error:', profileUpsertError);
     }
 
     return res.json({
