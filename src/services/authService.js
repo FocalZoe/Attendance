@@ -41,8 +41,13 @@ export const getAuthSession = () => {
   return null;
 };
 
+let sessionChangeSubscriber = null;
+export const subscribeAuthSession = (fn) => {
+  sessionChangeSubscriber = fn;
+};
+
 /**
- * 儲存本機登入會話並發送全域廣播
+ * 儲存本機登入會話並發送全域廣播與 Zustand Store 同步
  * @param {'admin'|'teacher'|'class'|'parent'} role 
  * @param {Object} user 
  * @param {Object} [extra] 
@@ -66,6 +71,9 @@ export const saveAuthSession = (role, user, extra = {}) => {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('auth:session-changed', { detail: sessionData }));
     }
+    if (sessionChangeSubscriber) {
+      sessionChangeSubscriber(sessionData);
+    }
     return sessionData;
   } catch (err) {
     console.error('[AuthService] 儲存登入會話失敗:', err);
@@ -82,6 +90,9 @@ export const logoutAuth = async () => {
     localStorage.removeItem(AUTH_STORAGE_KEY);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('auth:session-changed', { detail: null }));
+    }
+    if (sessionChangeSubscriber) {
+      sessionChangeSubscriber(null);
     }
   } catch (err) {
     console.error('[AuthService] 登出失敗:', err);

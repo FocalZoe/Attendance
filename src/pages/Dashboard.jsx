@@ -1,17 +1,39 @@
-// TEAM_008: 智慧多座位在座即時儀表板 (Dashboard.jsx)
-// 升級重點：
-// 1. 最新點名捕捉影像容器高度固定一致 (height: 440px)，切換 Tab 零跳動。
-// 2. 即時鏡頭等比例縮放相機畫面與劃位資訊，無相機時禁用點名按鈕。
-// 3. 最後通報相片中間顯示訊息與未到人數（不顯示時間），左下角清楚呈現「最後紀錄：時間」。
+// ==============================================================================
+// 智慧多座位在座即時儀表板 (Dashboard.jsx)
+// 架構升級：
+// 1. 職責分離：抽離 useCamera, useMediaPipe, useSeatAnalysis, useAutoRollcall
+// 2. 全域狀態：整合 Zustand (useAuthStore, useCameraStore, useSeatStore, useScheduleStore)
+// 3. 渲染效能：切分 CameraPreview, AttendanceRecordsList, StatCards 獨立子元件
+// ==============================================================================
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Camera, CheckCircle, Activity, Clock, LayoutGrid, Settings, AlertCircle, GraduationCap, UserCheck, UserX, RefreshCw, Eye, AlertTriangle, Timer, Smartphone } from 'lucide-react';
-import { ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { LayoutGrid, Clock, GraduationCap, Smartphone, Timer } from 'lucide-react';
 import { fetchHistoryRecords, sendTelemetry, connectWebSocket } from '../services/api';
-import { getSavedSeatsConfig, formatFullPeriodMessage, matchPersonsToSeats, SeatTemporalTracker, switchActiveClassLayout } from '../services/seatOccupancyService';
-import { getSavedSchedulesConfig, checkScheduleTrigger, getNextUpcomingSchedule } from '../services/scheduleService';
-import { isMobileDevice, getDesktopCameraSources, acquireCameraStream } from '../services/cameraDeviceService';
-import { getAuthSession } from '../services/authService';
+import {
+  formatFullPeriodMessage,
+  switchActiveClassLayout,
+  getSavedSeatsConfig,
+} from '../services/seatOccupancyService';
+import { getSavedSchedulesConfig } from '../services/scheduleService';
+
+// Zustand Stores
+import { useAuthStore } from '../store/authStore';
+import { useCameraStore } from '../store/cameraStore';
+import { useSeatStore } from '../store/seatStore';
+import { useScheduleStore } from '../store/scheduleStore';
+
+// Custom Hooks
+import { useCamera } from '../hooks/useCamera';
+import { useMediaPipe } from '../hooks/useMediaPipe';
+import { useSeatAnalysis } from '../hooks/useSeatAnalysis';
+import { useAutoRollcall } from '../hooks/useAutoRollcall';
+
+// UI Sub-components
+import CameraPreview from '../components/dashboard/CameraPreview';
+import AttendanceRecordsList from '../components/dashboard/AttendanceRecordsList';
+import StatCards from '../components/dashboard/StatCards';
+
+// Modals
 import SeatMapEditorModal from '../components/SeatMapEditorModal';
 import ScheduleModal from '../components/ScheduleModal';
 import ImageModal from '../components/ImageModal';
@@ -19,182 +41,60 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import LoginModal from '../components/LoginModal';
 import Toast from '../components/Toast';
 
-let detectorInstance = null;
-let detectorLoadingPromise = null;
-
-const getSharedPersonDetector = async () => {
-  if (detectorInstance) return detectorInstance;
-  if (!detectorLoadingPromise) {
-    detectorLoadingPromise = (async () => {
-      try {
-        const vision = await FilesetResolver.forVisionTasks(
-          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
-        );
-        const detector = await ObjectDetector.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite',
-            delegate: 'GPU',
-          },
-          runningMode: 'VIDEO',
-          scoreThreshold: 0.10,
-          maxResults: 50,
-          categoryAllowlist: ['person'],
-        });
-        detectorInstance = detector;
-        return detector;
-      } catch (err) {
-        console.warn('[Dashboard AI Engine] MediaPipe init warning:', err);
-        return null;
-      }
-    })();
-  }
-  return detectorLoadingPromise;
-};
-
 const Dashboard = ({ onOpenLogin }) => {
-  // 智慧偵測當前終端是否為行動裝置
-  const [isMobile] = useState(isMobileDevice());
+  // 全域狀態 Store 綁定
+  const { session, setSession, isLoginModalOpen, openLoginModal, closeLoginModal } = useAuthStore();
+  const {
+    previewTab,
+    setPreviewTab,
+    selectedDeviceId,
+    setSelectedDeviceId,
+  } = useCameraStore();
+  const { seatConfig, setSeatConfig, isSeatEditorOpen, setIsSeatEditorOpen } = useSeatStore();
+  const { isScheduleModalOpen, setIsScheduleModalOpen, setScheduleConfig } = useScheduleStore();
 
+  // 本地狀態
   const [records, setRecords] = useState([]);
   const [latestRecord, setLatestRecord] = useState(null);
-  const [isSeatEditorOpen, setIsSeatEditorOpen] = useState(false);
-  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-  const [scheduleConfig, setScheduleConfig] = useState(getSavedSchedulesConfig());
-  const [autoRollcallToast, setAutoRollcallToast] = useState(null);
   const [selectedRecord, setSelectedRecord] = useState(null);
-  const [seatConfig, setSeatConfig] = useState(getSavedSeatsConfig());
-  const [session, setSession] = useState(getAuthSession());
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-
-  useEffect(() => {
-    const handleAuthChange = () => {
-      setSession(getAuthSession());
-      setSeatConfig(getSavedSeatsConfig());
-    };
-    window.addEventListener('auth:session-changed', handleAuthChange);
-    return () => window.removeEventListener('auth:session-changed', handleAuthChange);
-  }, []);
-
-  // 排程執行防重複觸發 Ref
-  const lastTriggeredKeyRef = useRef(null);
+  const [autoRollcallToast, setAutoRollcallToast] = useState(null);
+  const [isSending, setIsSending] = useState(false);
   const isAutoSendingRef = useRef(false);
 
-  // 鏡頭相關 state
-  const [cameraActive, setCameraActive] = useState(false);
-  const [cameraStream, setCameraStream] = useState(null);
-  const [cameraError, setCameraError] = useState(null);
-  const [devices, setDevices] = useState([]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState('');
-  const [isSending, setIsSending] = useState(false);
-
-  // 畫面檢視模式：手機端固定為 'latest' (最後通報相片)，電腦端預設為 'live' (即時鏡頭)
-  const [previewTab, setPreviewTab] = useState(() => (isMobileDevice() ? 'latest' : 'live'));
-
+  // DOM 參照
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
-  const streamRef = useRef(null);
   const animFrameIdRef = useRef(null);
-  const lastVideoTimeRef = useRef(-1);
-  const lastDetectionsRef = useRef([]);
-  const lastDetectionTimeRef = useRef(0);
-  // TEAM_008: 記錄 MediaPipe 前次傳入時間戳，維護嚴格單調遞增
-  const lastDetectionTimestampRef = useRef(0);
-  // 跨幀時間序列遲滯防抖追蹤器 (預設 800ms 平滑緩衝，根除畫面跳爍與瞬態漏檢)
-  const seatTrackerRef = useRef(new SeatTemporalTracker({ holdOffMs: 800 }));
-  const latestSmoothedStatusesRef = useRef([]);
 
-  // 取得電腦端可用之相機裝置清單 (Webcam + Ameba 網路相機)
-  const getCameraDevices = async () => {
-    if (isMobile) return;
-    try {
-      const sources = await getDesktopCameraSources();
-      setDevices(sources);
-      if (sources.length > 0 && !selectedDeviceId) {
-        setSelectedDeviceId(sources[0].id);
-      }
-    } catch (err) {
-      console.warn('[Dashboard] Enumerate devices error:', err);
-    }
-  };
+  // 1. 相機管理 Hook
+  const {
+    isMobile,
+    devices,
+    cameraActive,
+    cameraStream,
+    cameraError,
+    startCamera,
+  } = useCamera(videoRef);
 
-  // 啟動相機 (僅電腦端執行，支援 Webcam 與 Ameba 網路相機分流)
-  const startCamera = async (deviceId) => {
-    if (isMobile) return;
-    setCameraError(null);
-    stopCamera();
+  // 2. MediaPipe AI 人員偵測 Hook
+  const { detectFrame, lastDetectionsRef } = useMediaPipe();
 
-    try {
-      const stream = await acquireCameraStream(deviceId);
-      streamRef.current = stream;
-      setCameraStream(stream);
+  // 3. 空間幾何與座位防抖追蹤 Hook
+  const {
+    processDetectedPersons,
+    scaleSeatsToClient,
+    computeSeatStatuses,
+    renderOverlay,
+  } = useSeatAnalysis(800);
 
-      // 綁定視訊軌道事件（中斷自動重連）
-      stream.getVideoTracks().forEach((track) => {
-        track.onended = () => {
-          console.warn('[Dashboard] Camera stream track ended. Auto restart...');
-          setCameraActive(false);
-          setCameraStream(null);
-          setTimeout(() => {
-            if (!isMobile) startCamera(selectedDeviceId);
-          }, 1200);
-        };
-        track.onunmute = () => {
-          if (videoRef.current && videoRef.current.paused) {
-            videoRef.current.play().catch(() => {});
-          }
-        };
-      });
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play().catch((e) => console.warn('[Dashboard] Video play warning:', e));
-      }
-
-      setCameraActive(true);
-      await getCameraDevices();
-    } catch (err) {
-      console.error('[Dashboard] Start camera error:', err);
-      setCameraError('尚未啟動相機鏡頭（相機被佔用或權限未開啟）');
-      setCameraActive(false);
-      setCameraStream(null);
-    }
-  };
-
-  const stopCamera = () => {
-    if (animFrameIdRef.current) {
-      cancelAnimationFrame(animFrameIdRef.current);
-      animFrameIdRef.current = null;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    setCameraStream(null);
-    setCameraActive(false);
-    lastDetectionsRef.current = [];
-    if (seatTrackerRef.current) {
-      seatTrackerRef.current.reset();
-    }
-  };
-
-  // 即時 AI 人員偵測與座位在座狀態計算
+  // 即時 AI 人員偵測與座位覆蓋層渲染循環 (RAF)
   useEffect(() => {
     if (!cameraActive || previewTab !== 'live') return;
 
     let active = true;
-    let personDetector = null;
 
-    getSharedPersonDetector().then((detector) => {
-      if (active) {
-        personDetector = detector;
-      }
-    });
-
-    const currentSeats = getSavedSeatsConfig();
-    setSeatConfig(currentSeats);
-
-    const renderAiOverlay = () => {
+    const renderLoop = () => {
       const overlay = overlayCanvasRef.current;
       const video = videoRef.current;
 
@@ -209,134 +109,29 @@ const Dashboard = ({ onOpenLogin }) => {
 
         const ctx = overlay.getContext('2d');
         if (ctx) {
-          ctx.clearRect(0, 0, overlay.width, overlay.height);
+          const detections = detectFrame(video);
+          const detectedPersonsInView = processDetectedPersons(
+            detections,
+            video.videoWidth,
+            video.videoHeight,
+            cWidth,
+            cHeight
+          );
 
-          const now = performance.now();
-          if (personDetector && video.currentTime !== lastVideoTimeRef.current) {
-            lastVideoTimeRef.current = video.currentTime;
-            try {
-              // TEAM_008: MediaPipe 要求傳入 timestamp 必須嚴格單調遞增 (Monotonic)
-              const safeTimestamp = Math.max(now, lastDetectionTimestampRef.current + 1);
-              lastDetectionTimestampRef.current = safeTimestamp;
+          const currentSeats = seatConfig?.seats || [];
+          const scaledSeats = scaleSeatsToClient(currentSeats, cWidth, cHeight);
+          const statuses = computeSeatStatuses(scaledSeats, detectedPersonsInView);
 
-              const results = personDetector.detectForVideo(video, safeTimestamp);
-              const newDetections = results.detections || [];
-              if (newDetections.length > 0) {
-                lastDetectionsRef.current = newDetections;
-                lastDetectionTimeRef.current = now;
-              } else if (now - lastDetectionTimeRef.current > 400) {
-                lastDetectionsRef.current = [];
-              }
-            } catch (e) {
-              console.warn('[Dashboard TEAM_008] MediaPipe detectForVideo exception safe handled:', e);
-            }
-          }
-
-          const detections = lastDetectionsRef.current;
-          const vWidth = video.videoWidth;
-          const vHeight = video.videoHeight;
-          const scaleX = cWidth / vWidth;
-          const scaleY = cHeight / vHeight;
-
-          // 1. 偵測到的人員邊框 (以 client 像素為基準，實施透視分層自適應門檻與形態防偽)
-          const detectedPersonsInView = detections
-            .filter((det) => {
-              const { originY, width, height } = det.boundingBox;
-              const score = det.categories[0]?.score || 0;
-              const yNorm = originY / (vHeight || 1);
-              const aspectRatio = height / (width || 1);
-
-              // 透視分層自適應動態門檻與坐姿形態防偽：
-              // 遠景區域 (yNorm <= 0.50，第 1、2 排)：
-              // 遠景學生下半身受課桌完全遮擋，且雙肘伏案大開寫字 (如 5 號座) 時長寬比約 0.42~0.55；
-              // 故遠景門檻設為 0.10，形態過濾設為 aspectRatio >= 0.40，確保伏案背影學生 100% 召回。
-              // 近景區域 (yNorm > 0.50，第 3、4 排)：
-              // 近景坐姿特徵清晰，維持標準嚴格門檻 0.22，形態嚴格要求 aspectRatio >= 0.60，徹底杜絕椅背外套與桌上書包雜物假陽性。
-              if (yNorm <= 0.50) {
-                return score >= 0.10 && aspectRatio >= 0.40;
-              } else {
-                return score >= 0.22 && aspectRatio >= 0.60;
-              }
-            })
-            .map((det) => {
-              const { originX, originY, width, height } = det.boundingBox;
-              return {
-                x: originX * scaleX,
-                y: originY * scaleY,
-                width: width * scaleX,
-                height: height * scaleY,
-                confidence: det.categories[0]?.score || 0.95,
-              };
-            });
-
-          // 2. 座位百分比轉為 client 像素座標 (等比例精準映射)
-          const freshConfig = getSavedSeatsConfig();
-          const scaledSeats = freshConfig.seats.map((seat) => {
-            const roi = seat.roi;
-            const xPct = typeof roi.x_pct === 'number' ? roi.x_pct : (roi.x / 640) * 100;
-            const yPct = typeof roi.y_pct === 'number' ? roi.y_pct : (roi.y / 480) * 100;
-            const wPct = typeof roi.width_pct === 'number' ? roi.width_pct : ((roi.width || 100) / 640) * 100;
-            const hPct = typeof roi.height_pct === 'number' ? roi.height_pct : ((roi.height || 80) / 480) * 100;
-
-            return {
-              ...seat,
-              roi: {
-                x: (xPct / 100) * cWidth,
-                y: (yPct / 100) * cHeight,
-                width: (wPct / 100) * cWidth,
-                height: (hPct / 100) * cHeight,
-              },
-            };
-          });
-
-          // 3. 計算即時在座狀態 (含跨幀遲滯防抖平滑)
-          const rawStatuses = matchPersonsToSeats(scaledSeats, detectedPersonsInView);
-          const statuses = seatTrackerRef.current.update(rawStatuses, now);
-          latestSmoothedStatusesRef.current = statuses;
-
-          // 4. 繪製座位標註框 (在座綠色 / 未到紅色虛線)
-          statuses.forEach((st) => {
-            const isOcc = st.status === 'OCCUPIED';
-            const { x, y, width, height } = st.roi;
-
-            ctx.fillStyle = isOcc ? 'rgba(16, 185, 129, 0.18)' : 'rgba(239, 68, 68, 0.1)';
-            ctx.fillRect(x, y, width, height);
-
-            ctx.strokeStyle = isOcc ? '#10b981' : '#ef4444';
-            ctx.lineWidth = isOcc ? 2.5 : 1.8;
-            ctx.setLineDash(isOcc ? [] : [6, 4]);
-            ctx.strokeRect(x, y, width, height);
-            ctx.setLineDash([]);
-
-            // 標籤
-            const label = isOcc ? `🟢 [${st.seat_id}] 在座` : `❌ [${st.seat_id}] 未到`;
-            ctx.font = 'bold 12px monospace';
-            const textW = ctx.measureText(label).width;
-
-            ctx.fillStyle = isOcc ? 'rgba(16, 185, 129, 0.95)' : 'rgba(239, 68, 68, 0.95)';
-            ctx.fillRect(x, y - 22 > 0 ? y - 22 : y + 4, textW + 12, 20);
-
-            ctx.fillStyle = isOcc ? '#0f172a' : '#ffffff';
-            ctx.fillText(label, x + 6, y - 22 > 0 ? y - 8 : y + 18);
-          });
-
-          // 5. 繪製人員邊框 (藍色虛線)
-          detectedPersonsInView.forEach((p) => {
-            ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([4, 4]);
-            ctx.strokeRect(p.x, p.y, p.width, p.height);
-            ctx.setLineDash([]);
-          });
+          renderOverlay(ctx, cWidth, cHeight, statuses, detectedPersonsInView);
         }
       }
 
       if (active) {
-        animFrameIdRef.current = requestAnimationFrame(renderAiOverlay);
+        animFrameIdRef.current = requestAnimationFrame(renderLoop);
       }
     };
 
-    renderAiOverlay();
+    renderLoop();
 
     return () => {
       active = false;
@@ -344,59 +139,133 @@ const Dashboard = ({ onOpenLogin }) => {
         cancelAnimationFrame(animFrameIdRef.current);
       }
     };
-  }, [cameraActive, previewTab]);
+  }, [
+    cameraActive,
+    previewTab,
+    detectFrame,
+    processDetectedPersons,
+    scaleSeatsToClient,
+    computeSeatStatuses,
+    renderOverlay,
+    seatConfig,
+  ]);
 
   // 載入歷史紀錄
-  const loadRecords = async () => {
+  const loadRecords = useCallback(async () => {
     const data = await fetchHistoryRecords({ limit: 20 });
     setRecords(data);
     if (data.length > 0) {
       setLatestRecord(data[0]);
     }
-  };
+  }, []);
 
-  // TEAM_008: 自動檢查並確保 Video srcObject 串流持續綁定與分頁喚醒重播放
-  useEffect(() => {
-    if (cameraActive && streamRef.current && videoRef.current) {
-      if (videoRef.current.srcObject !== streamRef.current) {
-        console.log('[Dashboard TEAM_008] Re-attaching streamRef to videoRef.current');
-        videoRef.current.srcObject = streamRef.current;
-      }
-      if (videoRef.current.paused) {
-        videoRef.current.play().catch(() => {});
-      }
-    }
-  }, [cameraActive, previewTab]);
-
-  // TEAM_008: 分頁恢復焦點與背景喚醒自動恢復畫面播放
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && cameraActive && streamRef.current) {
-        console.log('[Dashboard TEAM_008] Tab reactivated, ensuring camera playback...');
-        if (videoRef.current && videoRef.current.paused) {
-          videoRef.current.play().catch(() => {});
+  // 拍照並發送點名
+  const executeRollcall = useCallback(
+    async (targetPeriodName = null, isAuto = false) => {
+      if (!videoRef.current || !canvasRef.current || !cameraActive) {
+        if (isAuto) {
+          console.warn('[Dashboard AutoSchedule] 定時點名時間已到，但相機尚未啟動或處於關閉狀態。');
         }
+        return;
       }
-    };
-    const handleFocus = () => handleVisibilityChange();
+      if (isSending || isAutoSendingRef.current) return;
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
+      setIsSending(true);
+      if (isAuto) isAutoSendingRef.current = true;
 
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [cameraActive]);
+      try {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
 
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          if (!isAuto) alert('擷取畫面失敗');
+          return;
+        }
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const base64Data = canvas.toDataURL('image/jpeg', 0.92);
+
+        const currentConfig = getSavedSeatsConfig();
+        const currentPeriodName = targetPeriodName || currentConfig.current_period || '第 1 節';
+        const vHeight = video.videoHeight || 480;
+
+        const detectedPersonsPayload = (lastDetectionsRef.current || [])
+          .filter((det) => {
+            const { originY, width, height } = det.boundingBox;
+            const score = det.categories[0]?.score || 0;
+            const yNorm = originY / (vHeight || 1);
+            const aspectRatio = height / (width || 1);
+
+            if (yNorm <= 0.5) {
+              return score >= 0.1 && aspectRatio >= 0.4;
+            } else {
+              return score >= 0.22 && aspectRatio >= 0.6;
+            }
+          })
+          .map((det) => ({
+            x: Math.round(det.boundingBox.originX),
+            y: Math.round(det.boundingBox.originY),
+            width: Math.round(det.boundingBox.width),
+            height: Math.round(det.boundingBox.height),
+            confidence: det.categories[0]?.score || 0.95,
+          }));
+
+        const result = await sendTelemetry({
+          message: formatFullPeriodMessage(currentPeriodName, session?.user?.class_name),
+          file: base64Data,
+          timestamp: new Date().toISOString(),
+          detected_persons: detectedPersonsPayload,
+          seats: seatConfig.seats,
+          class_id: session?.user?.id || null,
+          class_name: session?.user?.class_name || null,
+          layout_name: seatConfig.layout_name || null,
+        });
+
+        if (result && result.record) {
+          setLatestRecord(result.record);
+          setRecords((prev) => [result.record, ...prev.filter((r) => r.id !== result.record.id)].slice(0, 20));
+        } else {
+          await loadRecords();
+        }
+
+        if (isAuto) {
+          const nowTimeStr = new Date().toLocaleTimeString('zh-TW', {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          setAutoRollcallToast({
+            period: currentPeriodName,
+            time: nowTimeStr,
+          });
+          setTimeout(() => setAutoRollcallToast(null), 6000);
+        }
+      } catch (err) {
+        console.error('[Telemetry Exception]', err);
+        if (!isAuto) {
+          alert(`通報異常: ${err?.message || '請確認伺服器連線狀態'}`);
+        }
+      } finally {
+        setIsSending(false);
+        if (isAuto) isAutoSendingRef.current = false;
+      }
+    },
+    [cameraActive, isSending, lastDetectionsRef, seatConfig, session, loadRecords]
+  );
+
+  // 4. 定時自動點名排程 Hook
+  const { scheduleConfig, nextUpcoming } = useAutoRollcall({
+    onTrigger: (period) => executeRollcall(period, true),
+    isCameraActive: cameraActive,
+  });
+
+  // 初始化與 WebSocket 訂閱
   useEffect(() => {
     loadRecords();
-    setSeatConfig(getSavedSeatsConfig());
-    if (!isMobile) {
-      startCamera(selectedDeviceId);
-    }
 
-    // 訂閱 WebSocket 即時考勤通報廣播
     const cleanupWs = connectWebSocket((event) => {
       if (event && (event.type === 'NEW_ATTENDANCE_RECORD' || event.data)) {
         const newRecord = event.data || event.record;
@@ -409,120 +278,11 @@ const Dashboard = ({ onOpenLogin }) => {
     });
 
     return () => {
-      stopCamera();
       cleanupWs();
     };
-  }, [selectedDeviceId, isMobile]);
+  }, [loadRecords]);
 
-  // 定時自動點名排程常駐監聽心跳 (每秒檢查一次)
-  useEffect(() => {
-    const checkTimer = setInterval(() => {
-      const triggerResult = checkScheduleTrigger(scheduleConfig, lastTriggeredKeyRef.current);
-      if (triggerResult && triggerResult.shouldTrigger) {
-        lastTriggeredKeyRef.current = triggerResult.triggerKey;
-        console.log(`⏰ [Dashboard] 命中定時自動點名排程: ${triggerResult.schedule.time} (${triggerResult.schedule.period})`);
-        executeRollcall(triggerResult.schedule.period, true);
-      }
-    }, 1000);
-
-    return () => clearInterval(checkTimer);
-  }, [scheduleConfig, cameraActive]);
-
-  // 拍照並發送點名 (支援手動點名與定時自動點名)
-  const executeRollcall = async (targetPeriodName = null, isAuto = false) => {
-    if (!videoRef.current || !canvasRef.current || !cameraActive) {
-      if (isAuto) {
-        console.warn('[Dashboard AutoSchedule] 定時點名時間已到，但相機尚未啟動或處於關閉狀態。');
-      }
-      return;
-    }
-    if (isSending || isAutoSendingRef.current) return;
-
-    setIsSending(true);
-    if (isAuto) isAutoSendingRef.current = true;
-
-    try {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        if (!isAuto) alert('擷取畫面失敗');
-        return;
-      }
-
-      // 純淨相片截圖 (完全依相機真實尺寸)
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const base64Data = canvas.toDataURL('image/jpeg', 0.92);
-
-      const currentConfig = getSavedSeatsConfig();
-      const currentPeriodName = targetPeriodName || currentConfig.current_period || '第 1 節';
-
-      const vHeight = video.videoHeight || 480;
-      const detectedPersonsPayload = (lastDetectionsRef.current || [])
-        .filter((det) => {
-          const { originY, width, height } = det.boundingBox;
-          const score = det.categories[0]?.score || 0;
-          const yNorm = originY / (vHeight || 1);
-          const aspectRatio = height / (width || 1);
-
-          // 透視分層自適應動態門檻與坐姿形態防偽
-          if (yNorm <= 0.50) {
-            return score >= 0.10 && aspectRatio >= 0.40;
-          } else {
-            return score >= 0.22 && aspectRatio >= 0.60;
-          }
-        })
-        .map((det) => ({
-          x: Math.round(det.boundingBox.originX),
-          y: Math.round(det.boundingBox.originY),
-          width: Math.round(det.boundingBox.width),
-          height: Math.round(det.boundingBox.height),
-          confidence: det.categories[0]?.score || 0.95,
-        }));
-
-      // 使用統一 API 模組發送當下劃位
-      const result = await sendTelemetry({
-        message: formatFullPeriodMessage(currentPeriodName, session?.user?.class_name),
-        file: base64Data,
-        timestamp: new Date().toISOString(),
-        detected_persons: detectedPersonsPayload,
-        seats: seatConfig.seats,
-        class_id: session?.user?.id || null,
-        class_name: session?.user?.class_name || null,
-        layout_name: seatConfig.layout_name || null,
-      });
-
-      console.log(`[Dashboard ${isAuto ? 'Auto-Schedule' : 'Manual'}] 點名通報成功，Database 回傳紀錄:`, result);
-
-      if (result && result.record) {
-        setLatestRecord(result.record);
-        setRecords((prev) => [result.record, ...prev.filter((r) => r.id !== result.record.id)].slice(0, 20));
-      } else {
-        await loadRecords();
-      }
-
-      if (isAuto) {
-        const nowTimeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
-        setAutoRollcallToast({
-          period: currentPeriodName,
-          time: nowTimeStr,
-        });
-        setTimeout(() => setAutoRollcallToast(null), 6000);
-      }
-    } catch (err) {
-      console.error('[Telemetry Exception]', err);
-      if (!isAuto) {
-        alert(`通報異常: ${err?.message || '請確認伺服器連線狀態'}`);
-      }
-    } finally {
-      setIsSending(false);
-      if (isAuto) isAutoSendingRef.current = false;
-    }
-  };
-
+  // 工具函式
   const formatFullDateTime = (dateStr) => {
     if (!dateStr) return '暫無通報';
     const d = new Date(dateStr);
@@ -536,7 +296,7 @@ const Dashboard = ({ onOpenLogin }) => {
     return `${year}/${month}/${day} ${hours}:${minutes}:${seconds}`;
   };
 
-  // 解析最新一筆紀錄的 AI 座位在座狀態
+  // 解析統計指標
   let latestAiAnalysis = latestRecord?.ai_analysis;
   if (typeof latestAiAnalysis === 'string') {
     try {
@@ -546,24 +306,42 @@ const Dashboard = ({ onOpenLogin }) => {
     }
   }
 
-  const currentTotalSeats = latestAiAnalysis?.total_seats || seatConfig.seats.length;
-  const currentOccupiedCount = typeof latestAiAnalysis?.occupied_count === 'number' ? latestAiAnalysis.occupied_count : 0;
-  const currentVacantCount = typeof latestAiAnalysis?.vacant_count === 'number' ? latestAiAnalysis.vacant_count : Math.max(0, currentTotalSeats - currentOccupiedCount);
-  const currentAttendanceRate = latestAiAnalysis?.attendance_rate || (currentTotalSeats > 0 ? `${((currentOccupiedCount / currentTotalSeats) * 100).toFixed(1)}%` : '0.0%');
+  const currentTotalSeats = latestAiAnalysis?.total_seats || seatConfig?.seats?.length || 0;
+  const currentOccupiedCount =
+    typeof latestAiAnalysis?.occupied_count === 'number' ? latestAiAnalysis.occupied_count : 0;
+  const currentVacantCount =
+    typeof latestAiAnalysis?.vacant_count === 'number'
+      ? latestAiAnalysis.vacant_count
+      : Math.max(0, currentTotalSeats - currentOccupiedCount);
+  const currentAttendanceRate =
+    latestAiAnalysis?.attendance_rate ||
+    (currentTotalSeats > 0 ? `${((currentOccupiedCount / currentTotalSeats) * 100).toFixed(1)}%` : '0.0%');
 
-  // 解析最新通報記錄的未到座號
   const latestStatuses = Array.isArray(latestAiAnalysis?.seat_statuses) ? latestAiAnalysis.seat_statuses : [];
   const latestVacantSeatIds = latestStatuses.filter((s) => s.status === 'VACANT').map((s) => s.seat_id);
+  const currentPeriodTitle = formatFullPeriodMessage(seatConfig?.current_period, session?.user?.class_name);
 
-  const currentPeriodTitle = formatFullPeriodMessage(seatConfig.current_period, session?.user?.class_name);
-  const nextUpcoming = getNextUpcomingSchedule(scheduleConfig);
-
-  // 訪客模式未登入防護
+  // 訪客未登入守衛
   const isClassLoggedIn = session?.role === 'class';
   if (!isClassLoggedIn) {
     return (
-      <div className="animate-fade-in" style={{ padding: '40px 20px', maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
-        <div style={{ width: '64px', height: '64px', borderRadius: '12px', background: 'var(--brand-light)', color: 'var(--brand-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+      <div
+        className="animate-fade-in"
+        style={{ padding: '40px 20px', maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}
+      >
+        <div
+          style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '12px',
+            background: 'var(--brand-light)',
+            color: 'var(--brand-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 20px',
+          }}
+        >
           <GraduationCap size={32} />
         </div>
         <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px' }}>
@@ -573,7 +351,7 @@ const Dashboard = ({ onOpenLogin }) => {
           您目前處於訪客模式。即時儀表板與相機邊緣考勤功能需登入班級帳號方可啟用。若欲查閱歷次課堂點名照片與出席紀錄，請點選左側「課堂歷史紀錄簿」。
         </p>
         <button
-          onClick={() => (onOpenLogin ? onOpenLogin() : setIsLoginModalOpen(true))}
+          onClick={() => (onOpenLogin ? onOpenLogin() : openLoginModal())}
           style={{
             padding: '10px 24px',
             borderRadius: '6px',
@@ -593,9 +371,9 @@ const Dashboard = ({ onOpenLogin }) => {
 
         <LoginModal
           isOpen={isLoginModalOpen}
-          onClose={() => setIsLoginModalOpen(false)}
-          onSuccess={(role, user) => {
-            setSession(getAuthSession());
+          onClose={closeLoginModal}
+          onSuccess={() => {
+            setSession(useAuthStore.getState().session);
             setSeatConfig(getSavedSeatsConfig());
           }}
         />
@@ -607,7 +385,7 @@ const Dashboard = ({ onOpenLogin }) => {
     <div className="animate-fade-in">
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      {/* 自動點名成功即時通知 Toast (Portal 浮動通知，零版面推擠) */}
+      {/* 自動點名 Toast */}
       {autoRollcallToast && (
         <Toast
           message={`[${autoRollcallToast.time}] ${autoRollcallToast.period} 定時自動點名通報已成功執行並儲存！`}
@@ -616,31 +394,75 @@ const Dashboard = ({ onOpenLogin }) => {
         />
       )}
 
-      <header className="page-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+      {/* 標題與操作區 */}
+      <header
+        className="page-header"
+        style={{
+          marginBottom: '24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '16px',
+        }}
+      >
         <div>
-          <h1 style={{ fontSize: '1.85rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-primary)' }}>
+          <h1
+            style={{
+              fontSize: '1.85rem',
+              marginBottom: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              color: 'var(--text-primary)',
+            }}
+          >
             課堂考勤即時儀表板
           </h1>
           <p style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span>即時鏡頭智慧點名與缺席座號追蹤 (當前課堂：<strong style={{ color: 'var(--accent-primary)' }}>{currentPeriodTitle}</strong>)</span>
+            <span>
+              即時鏡頭智慧點名與缺席座號追蹤 (當前課堂：
+              <strong style={{ color: 'var(--accent-primary)' }}>{currentPeriodTitle}</strong>)
+            </span>
             {isMobile && (
-              <span style={{ fontSize: '0.75rem', padding: '3px 10px', borderRadius: '12px', background: 'var(--bg-subtle)', color: 'var(--accent-primary)', border: '1px solid var(--border-color)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '3px 10px',
+                  borderRadius: '12px',
+                  background: 'var(--bg-subtle)',
+                  color: 'var(--accent-primary)',
+                  border: '1px solid var(--border-color)',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
                 <Smartphone size={13} /> 巡堂查驗模式 (唯讀)
               </span>
             )}
           </p>
         </div>
 
-        {/* 電腦端具備完整點名權限；手機端只能檢視，隱藏設定按鈕 */}
         {!isMobile && (
           <div className="header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* 班級專屬多座位佈局快捷切換下拉選單 (核心課堂配置) */}
             {session?.user?.seat_layout && Object.keys(session.user.seat_layout).length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-subtle)', padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'var(--bg-subtle)',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                }}
+              >
                 <LayoutGrid size={16} color="var(--accent-primary)" />
                 <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>佈局：</span>
                 <select
-                  value={seatConfig.layout_key || session.user.active_layout_key || 'layout1'}
+                  value={seatConfig?.layout_key || session.user.active_layout_key || 'layout1'}
                   onChange={async (e) => {
                     const nextKey = e.target.value;
                     await switchActiveClassLayout(nextKey);
@@ -659,30 +481,40 @@ const Dashboard = ({ onOpenLogin }) => {
                   }}
                 >
                   {Object.entries(session.user.seat_layout).map(([k, l]) => (
-                    <option key={k} value={k}>{l.name || k} ({Array.isArray(l.seats) ? l.seats.length : 0} 席)</option>
+                    <option key={k} value={k}>
+                      {l.name || k} ({Array.isArray(l.seats) ? l.seats.length : 0} 席)
+                    </option>
                   ))}
                 </select>
               </div>
             )}
 
-            {/* 定時自動點名排程按鈕 */}
             <button
               onClick={() => setIsScheduleModalOpen(true)}
               style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                background: scheduleConfig.enabled ? '#ecfdf5' : '#ffffff',
-                color: scheduleConfig.enabled ? '#059669' : 'var(--text-secondary)',
-                border: `1px solid ${scheduleConfig.enabled ? '#a7f3d0' : 'var(--border-color)'}`,
-                padding: '8px 16px', borderRadius: '6px',
-                fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: scheduleConfig?.enabled ? '#ecfdf5' : '#ffffff',
+                color: scheduleConfig?.enabled ? '#059669' : 'var(--text-secondary)',
+                border: `1px solid ${scheduleConfig?.enabled ? '#a7f3d0' : 'var(--border-color)'}`,
+                padding: '8px 16px',
+                borderRadius: '6px',
+                fontWeight: 600,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
                 boxShadow: 'none',
                 transition: 'background 0.15s ease',
               }}
-              onMouseOver={(e) => (e.currentTarget.style.background = scheduleConfig.enabled ? '#d1fae5' : 'var(--accent-light)')}
-              onMouseOut={(e) => (e.currentTarget.style.background = scheduleConfig.enabled ? '#ecfdf5' : '#ffffff')}
+              onMouseOver={(e) =>
+                (e.currentTarget.style.background = scheduleConfig?.enabled ? '#d1fae5' : 'var(--accent-light)')
+              }
+              onMouseOut={(e) =>
+                (e.currentTarget.style.background = scheduleConfig?.enabled ? '#ecfdf5' : '#ffffff')
+              }
             >
               <Clock size={16} />
-              {scheduleConfig.enabled
+              {scheduleConfig?.enabled
                 ? `自動點名 (${scheduleConfig.schedules.filter((s) => s.enabled).length} 個時段)`
                 : '自動點名 (已暫停)'}
             </button>
@@ -690,8 +522,8 @@ const Dashboard = ({ onOpenLogin }) => {
         )}
       </header>
 
-      {/* 下一次排程時間提示標籤 (手機端唯讀顯示，電腦端可點擊編輯) */}
-      {scheduleConfig.enabled && nextUpcoming && (
+      {/* 下一次排程時間提示標籤 */}
+      {scheduleConfig?.enabled && nextUpcoming && (
         <div
           onClick={isMobile ? undefined : () => setIsScheduleModalOpen(true)}
           style={{
@@ -719,466 +551,57 @@ const Dashboard = ({ onOpenLogin }) => {
         >
           <Timer size={15} color="var(--brand-primary)" style={{ flexShrink: 0 }} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            定時排程：下一次自動點名將於 <strong style={{ color: 'var(--brand-primary)' }}>{nextUpcoming.formattedText}</strong> 自動執行
+            定時排程：下一次自動點名將於{' '}
+            <strong style={{ color: 'var(--brand-primary)' }}>{nextUpcoming.formattedText}</strong> 自動執行
           </span>
         </div>
       )}
 
-      {/* 主體區塊：最新點名捕捉影像 (左側) 與 即時通報紀錄簿 (右側) - 支援 RWD 自適應堆疊 (移至上方) */}
+      {/* 主體區塊：最新點名捕捉影像 (左側) 與 即時通報紀錄簿 (右側) */}
       <div className="dashboard-main-grid">
-        {/* 最新點名捕捉影像卡片 */}
-        <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
-          {/* 卡片標題與分頁切換 */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Camera size={22} color="var(--accent-primary)" />
-              <h2 style={{ fontSize: '1.2rem', margin: 0, color: 'var(--text-primary)' }}>最新點名捕捉影像</h2>
-              {isMobile && (
-                <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '10px', background: 'var(--accent-light)', color: 'var(--accent-primary)', fontWeight: 600 }}>
-                  最後通報相片
-                </span>
-              )}
-            </div>
+        <CameraPreview
+          isMobile={isMobile}
+          previewTab={previewTab}
+          setPreviewTab={setPreviewTab}
+          cameraActive={cameraActive}
+          cameraError={cameraError}
+          videoRef={videoRef}
+          overlayCanvasRef={overlayCanvasRef}
+          latestRecord={latestRecord}
+          setSelectedRecord={setSelectedRecord}
+          latestVacantSeatIds={latestVacantSeatIds}
+          currentTotalSeats={currentTotalSeats}
+          currentOccupiedCount={currentOccupiedCount}
+          currentAttendanceRate={currentAttendanceRate}
+          formatFullDateTime={formatFullDateTime}
+          devices={devices}
+          selectedDeviceId={selectedDeviceId}
+          onDeviceChange={(newId) => {
+            setSelectedDeviceId(newId);
+            startCamera(newId);
+          }}
+          onRestartCamera={() => startCamera(selectedDeviceId)}
+          onExecuteRollcall={executeRollcall}
+          isSending={isSending}
+          currentPeriodTitle={currentPeriodTitle}
+        />
 
-            {/* 即時鏡頭 / 最後通報 切換 Tab (僅電腦端可切換即時相機，手機端鎖定通報相片) */}
-            {!isMobile && (
-              <div style={{ display: 'flex', gap: '6px', background: 'var(--accent-light)', padding: '4px', borderRadius: '6px', border: '1px solid var(--glass-border)' }}>
-                <button
-                  onClick={() => setPreviewTab('live')}
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: '4px',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    background: previewTab === 'live' ? '#ffffff' : 'transparent',
-                    color: previewTab === 'live' ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    border: previewTab === 'live' ? '1px solid var(--glass-border)' : '1px solid transparent',
-                    boxShadow: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cameraActive ? '#15803d' : '#b91c1c' }} />
-                  即時鏡頭 (Live)
-                </button>
-
-                <button
-                  onClick={() => setPreviewTab('latest')}
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: '4px',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    background: previewTab === 'latest' ? '#ffffff' : 'transparent',
-                    color: previewTab === 'latest' ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    boxShadow: 'none',
-                    border: previewTab === 'latest' ? '1px solid var(--glass-border)' : '1px solid transparent',
-                  }}
-                >
-                  最後通報相片
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 視訊畫面 / 照片顯示區 (響應式容器) */}
-          <div className="camera-preview-container">
-            {/* TEAM_008: 即時相機視訊區塊 (常駐 DOM 避免切換 Tab 時被 React 卸載導致 srcObject 遺失與黑屏) */}
-            <div style={{ position: 'relative', width: '100%', height: '100%', display: previewTab === 'live' ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center' }}>
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                onLoadedMetadata={(e) => {
-                  const target = e.currentTarget;
-                  if (target.videoWidth > 0 && target.videoHeight > 0) {
-                    setCamAspect(target.videoWidth / target.videoHeight);
-                  }
-                }}
-                style={{
-                  display: cameraActive ? 'block' : 'none',
-                  maxWidth: '100%',
-                  maxHeight: '100%',
-                  width: 'auto',
-                  height: 'auto',
-                  objectFit: 'contain',
-                }}
-              />
-
-              {cameraActive && (
-                <canvas
-                  ref={overlayCanvasRef}
-                  style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    pointerEvents: 'none',
-                    zIndex: 2,
-                  }}
-                />
-              )}
-
-              {!cameraActive && (
-                <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ padding: '16px', background: 'rgba(185, 28, 28, 0.15)', borderRadius: '50%', color: '#b91c1c' }}>
-                    <AlertTriangle size={36} />
-                  </div>
-                  <h4 style={{ color: '#b91c1c', margin: '4px 0 0 0' }}>尚未啟動相機鏡頭</h4>
-                  <p style={{ margin: 0, fontSize: '0.85rem' }}>{cameraError || '請選擇鏡頭或授權攝影機存取以開啟即時預覽。'}</p>
-                </div>
-              )}
-            </div>
-
-            {/* TEAM_008: 最後通報相片區塊 (等比滿幅放大展示，出缺席標籤沉底對齊) */}
-            <div style={{ position: 'relative', width: '100%', height: '100%', display: previewTab === 'latest' ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center' }}>
-              {latestRecord ? (
-                <div
-                  key={latestRecord.id}
-                  className="animate-fade-in"
-                  style={{
-                    position: 'relative',
-                    width: '100%',
-                    height: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div
-                    style={{
-                      position: 'relative',
-                      width: '100%',
-                      height: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => setSelectedRecord(latestRecord)}
-                    title="點擊放大檢視清晰相片"
-                  >
-                    <img
-                      src={latestRecord.file_url}
-                      alt={latestRecord.message}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        maxWidth: '100%',
-                        maxHeight: '100%',
-                        objectFit: 'contain',
-                        display: 'block',
-                      }}
-                    />
-                  </div>
-
-                  {/* 浮動沉底狀態資訊列 (截圖 2 紅筆標記：向沉底對齊，不遮擋相片中央學生主體) */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      bottom: '14px',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      display: 'flex',
-                      gap: '8px',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexWrap: 'wrap',
-                      background: 'rgba(26, 22, 19, 0.88)',
-                      padding: '6px 14px',
-                      borderRadius: '6px',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      boxShadow: 'none',
-                      zIndex: 10,
-                      pointerEvents: 'none',
-                      maxWidth: '92%',
-                    }}
-                  >
-                    {latestVacantSeatIds.length > 0 ? (
-                      <span style={{ fontSize: '0.82rem', padding: '2px 10px', borderRadius: '4px', background: '#b91c1c', color: '#ffffff', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <UserX size={13} /> 未到: {latestVacantSeatIds.join(', ')} (共 {latestVacantSeatIds.length} 席)
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: '0.82rem', padding: '2px 10px', borderRadius: '4px', background: '#15803d', color: '#ffffff', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <UserCheck size={13} /> 全員在座 (共 {currentTotalSeats} 席)
-                      </span>
-                    )}
-
-                    <span style={{ fontSize: '0.82rem', padding: '2px 10px', borderRadius: '4px', background: 'var(--accent-primary)', color: '#ffffff', fontWeight: 600 }}>
-                      在座率: {currentAttendanceRate} ({currentOccupiedCount}/{currentTotalSeats} 席)
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>
-                  <Camera size={44} style={{ opacity: 0.3, marginBottom: '10px' }} />
-                  <p style={{ margin: 0 }}>尚未有任何通報紀錄</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 底部控制器 */}
-          <div style={{ marginTop: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-            {!isMobile && previewTab === 'live' ? (
-              // 電腦即時鏡頭模式：顯示相機裝置切換（Webcam / Ameba）與「立即記錄點名」按鈕
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', flex: '1 1 auto' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: '1 1 auto', minWidth: '180px' }}>
-                    <Camera size={16} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
-                    <select
-                      value={selectedDeviceId}
-                      onChange={(e) => {
-                        const nextId = e.target.value;
-                        setSelectedDeviceId(nextId);
-                        startCamera(nextId);
-                      }}
-                      style={{ padding: '7px 12px', borderRadius: '6px', background: '#ffffff', color: 'var(--text-primary)', border: '1px solid var(--glass-border)', fontSize: '0.82rem', width: '100%', maxWidth: '280px', outline: 'none' }}
-                    >
-                      {devices.map((d) => (
-                        <option key={d.id || d.deviceId} value={d.id || d.deviceId}>
-                          {d.name || d.label || `鏡頭 (${d.deviceId})`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* TEAM_008: 重啟/重新整理相機按鈕 */}
-                  <button
-                    onClick={() => startCamera(selectedDeviceId)}
-                    title="重新載入相機串流"
-                    style={{
-                      padding: '7px 12px',
-                      borderRadius: '4px',
-                      background: '#ffffff',
-                      color: 'var(--text-primary)',
-                      border: '1px solid var(--glass-border)',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    <RefreshCw size={13} /> 重新整理鏡頭
-                  </button>
-                </div>
-
-                <button
-                  onClick={() => executeRollcall(null, false)}
-                  disabled={isSending || !cameraActive}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                    padding: '9px 20px', borderRadius: '6px',
-                    background: cameraActive && !isSending ? 'var(--accent-primary)' : '#e2e8f0',
-                    color: cameraActive && !isSending ? '#fff' : '#94a3b8',
-                    fontWeight: 600, fontSize: '0.88rem',
-                    border: cameraActive && !isSending ? '1px solid var(--accent-primary)' : '1px solid #cbd5e1',
-                    cursor: isSending || !cameraActive ? 'not-allowed' : 'pointer',
-                    boxShadow: 'none',
-                    transition: 'background 0.15s ease',
-                    flex: '1 1 auto',
-                    minWidth: '200px',
-                    opacity: cameraActive && !isSending ? 1 : 0.7,
-                  }}
-                  onMouseOver={(e) => {
-                    if (cameraActive && !isSending) e.currentTarget.style.background = 'var(--accent-hover)';
-                  }}
-                  onMouseOut={(e) => {
-                    if (cameraActive && !isSending) e.currentTarget.style.background = 'var(--accent-primary)';
-                  }}
-                >
-                  <Camera size={16} />
-                  {!cameraActive
-                    ? '請先開啟相機'
-                    : isSending
-                      ? '通報點名中...'
-                      : `📸 立即記錄點名 (${currentPeriodTitle})`}
-                </button>
-              </>
-            ) : (
-              // 最後通報相片模式：左下角寫「最後紀錄：時間」，右下角為「觀看大圖」按鈕
-              <>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                  <Clock size={15} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
-                  <span>
-                    {latestRecord
-                      ? `最後紀錄：${formatFullDateTime(latestRecord.create_at)}`
-                      : '尚無點名照片'}
-                  </span>
-                </div>
-
-                {latestRecord && (
-                  <button
-                    onClick={() => setSelectedRecord(latestRecord)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '6px',
-                      padding: '8px 18px', background: 'var(--accent-primary)',
-                      color: 'white', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600,
-                      border: '1px solid var(--accent-primary)', cursor: 'pointer', marginLeft: 'auto',
-                      boxShadow: 'none',
-                      transition: 'background 0.15s ease',
-                    }}
-                    onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
-                    onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
-                  >
-                    <Eye size={15} /> 觀看大圖
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* 即時動態通報紀錄簿 (右側) */}
-        <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-            <Activity size={22} color="var(--accent-primary)" />
-            <h2 style={{ fontSize: '1.2rem', color: 'var(--text-primary)' }}>即時通報紀錄簿</h2>
-          </div>
-
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '460px' }}>
-            {records.map((rec) => {
-              let recAi = rec.ai_analysis;
-              if (typeof recAi === 'string') {
-                try {
-                  recAi = JSON.parse(recAi);
-                } catch (e) {}
-              }
-
-              const recStatuses = Array.isArray(recAi?.seat_statuses) ? recAi.seat_statuses : [];
-              const recVacantSeats = recStatuses.filter((s) => s.status === 'VACANT').map((s) => s.seat_id);
-              const recRate = recAi?.attendance_rate || '0.0%';
-
-              return (
-                <div
-                  key={rec.id}
-                  className="animate-fade-in"
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '12px',
-                    padding: '12px 14px', background: '#ffffff',
-                    borderRadius: '4px', border: '1px solid var(--glass-border)',
-                    cursor: 'pointer', transition: 'background 0.15s ease',
-                  }}
-                  onClick={() => setSelectedRecord(rec)}
-                  onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-light)')}
-                  onMouseOut={(e) => (e.currentTarget.style.background = '#ffffff')}
-                >
-                  <img
-                    src={rec.file_url}
-                    alt={rec.message}
-                    style={{ width: '44px', height: '44px', borderRadius: '4px', objectFit: 'cover', background: '#1a1613' }}
-                  />
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <GraduationCap size={16} color="var(--accent-primary)" />
-                      {rec.message}
-                    </div>
-
-                    {/* 缺席座號提示 */}
-                    <div style={{ fontSize: '0.78rem', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                      {recVacantSeats.length > 0 ? (
-                        <span style={{ color: 'var(--danger)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          <UserX size={13} /> 未到: {recVacantSeats.join(', ')} ({recVacantSeats.length} 席)
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          <UserCheck size={13} /> 全員在座
-                        </span>
-                      )}
-                      <span style={{ color: 'var(--text-secondary)' }}>· 在座率 {recRate}</span>
-                    </div>
-
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                      {new Date(rec.create_at).toLocaleTimeString('zh-TW', { hour12: false })}
-                    </div>
-                  </div>
-
-                  <div style={{ color: recVacantSeats.length > 0 ? 'var(--danger)' : 'var(--success)' }}>
-                    {recVacantSeats.length > 0 ? <AlertCircle size={20} /> : <CheckCircle size={20} />}
-                  </div>
-                </div>
-              );
-            })}
-
-            {records.length === 0 && (
-              <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px 0' }}>
-                尚無通報紀錄
-              </div>
-            )}
-          </div>
-        </div>
+        <AttendanceRecordsList
+          records={records}
+          onSelectRecord={(rec) => setSelectedRecord(rec)}
+        />
       </div>
 
-      {/* 統計卡片自適應網格 - 移至下方 */}
-      <div className="stat-cards-grid">
-        <div className="glass-panel stat-card" style={{ borderTop: '4px solid var(--accent-primary)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div className="stat-title">應到座位總數</div>
-              <div className="stat-value">{currentTotalSeats} <span style={{ fontSize: '1rem', fontWeight: 'normal', color: 'var(--text-secondary)' }}>席</span></div>
-            </div>
-            <div style={{ padding: '10px', background: 'var(--bg-subtle)', borderRadius: '4px', color: 'var(--text-primary)' }}>
-              <LayoutGrid size={22} />
-            </div>
-          </div>
-        </div>
+      {/* 統計卡片自適應網格 */}
+      <StatCards
+        currentTotalSeats={currentTotalSeats}
+        currentOccupiedCount={currentOccupiedCount}
+        currentVacantCount={currentVacantCount}
+        currentAttendanceRate={currentAttendanceRate}
+        lastFormattedTime={formatFullDateTime(latestRecord?.create_at)}
+      />
 
-        <div className="glass-panel stat-card" style={{ borderTop: '4px solid var(--success)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div className="stat-title">實到在座率</div>
-              <div className="stat-value" style={{ color: currentOccupiedCount > 0 ? 'var(--success)' : 'var(--text-secondary)' }}>
-                {currentAttendanceRate}
-                <span style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-secondary)', marginLeft: '8px' }}>
-                  ({currentOccupiedCount}/{currentTotalSeats} 席)
-                </span>
-              </div>
-            </div>
-            <div style={{ padding: '10px', background: 'var(--success-bg)', borderRadius: '4px', color: 'var(--success)' }}>
-              <UserCheck size={22} />
-            </div>
-          </div>
-        </div>
-
-        <div className="glass-panel stat-card" style={{ borderTop: '4px solid var(--danger)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div className="stat-title">未到/缺席人數</div>
-              <div className="stat-value" style={{ color: currentVacantCount > 0 ? 'var(--danger)' : 'var(--text-secondary)' }}>
-                {currentVacantCount} <span style={{ fontSize: '1rem', fontWeight: 'normal', color: 'var(--text-secondary)' }}>席</span>
-              </div>
-            </div>
-            <div style={{ padding: '10px', background: 'var(--danger-bg)', borderRadius: '4px', color: 'var(--danger)' }}>
-              <UserX size={22} />
-            </div>
-          </div>
-        </div>
-
-        <div className="glass-panel stat-card" style={{ borderTop: '4px solid var(--accent-primary)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div className="stat-title">最後點名時間</div>
-              <div className="stat-value" style={{ fontSize: '1.05rem', color: 'var(--text-primary)', fontWeight: 700, whiteSpace: 'nowrap', marginTop: '6px' }}>
-                {formatFullDateTime(latestRecord?.create_at)}
-              </div>
-            </div>
-            <div style={{ padding: '10px', background: 'var(--accent-light)', borderRadius: '4px', color: 'var(--accent-primary)' }}>
-              <Clock size={22} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 座位劃位設定 Modal (配備 ErrorBoundary 防護) */}
+      {/* 座位劃位設定 Modal */}
       <ErrorBoundary compact onReset={() => setIsSeatEditorOpen(false)}>
         <SeatMapEditorModal
           isOpen={isSeatEditorOpen}
@@ -1186,7 +609,7 @@ const Dashboard = ({ onOpenLogin }) => {
           onSaveSuccess={(newConfig) => {
             setSeatConfig(newConfig);
           }}
-          activeStream={cameraStream || streamRef.current}
+          activeStream={cameraStream}
           parentCameraActive={cameraActive}
           currentDeviceId={selectedDeviceId}
           onDeviceChange={(newId) => {

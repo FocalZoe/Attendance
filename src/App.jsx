@@ -12,12 +12,14 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { getAuthSession, verifyParentToken } from './services/authService';
 import './App.css';
 
+import { useAuthStore } from './store/authStore';
+
 /**
  * 全域未登入安全守衛 (Auth Guard)
  * 未登入狀態一律強制 fallback 至 /login
  */
 function RequireAuth({ children, allowedRoles }) {
-  const session = getAuthSession();
+  const session = useAuthStore((state) => state.session);
   const location = useLocation();
 
   if (!session) {
@@ -41,8 +43,7 @@ function ClientLayout() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [session, setSession] = useState(getAuthSession());
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const { session, setSession, isLoginModalOpen, openLoginModal, closeLoginModal } = useAuthStore();
 
   // 支援 URL Token-based Magic Link (家長免註冊即時鑑權，例: /?student_token=8888)
   useEffect(() => {
@@ -54,29 +55,23 @@ function ClientLayout() {
         }
       });
     }
-  }, [searchParams]);
+  }, [searchParams, setSession]);
 
   useEffect(() => {
-    const handleAuthChange = () => {
-      setSession(getAuthSession());
-    };
-
     const handleOpenLogin = () => {
       navigate('/login');
     };
 
-    window.addEventListener('auth:session-changed', handleAuthChange);
     window.addEventListener('auth:open-login', handleOpenLogin);
 
     return () => {
-      window.removeEventListener('auth:session-changed', handleAuthChange);
       window.removeEventListener('auth:open-login', handleOpenLogin);
     };
   }, [navigate]);
 
   const handleLoginSuccess = () => {
     setSession(getAuthSession());
-    setIsLoginModalOpen(false);
+    closeLoginModal();
     navigate('/');
   };
 
