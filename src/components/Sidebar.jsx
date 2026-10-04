@@ -23,11 +23,12 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
 
   const handleOpenLogin = () => {
     if (onClose) onClose();
-    if (onOpenLogin) {
-      onOpenLogin('teacher');
-    } else {
-      window.dispatchEvent(new CustomEvent('auth:open-login', { detail: { tab: 'teacher' } }));
-    }
+    navigate('/login');
+  };
+
+  const handleOpenRegister = () => {
+    if (onClose) onClose();
+    navigate('/register');
   };
 
   const role = session?.role;
@@ -172,9 +173,6 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
         }}>
           {isGuest && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', paddingLeft: '4px' }}>
-                當前為校園訪客模式
-              </div>
               <button
                 onClick={handleOpenLogin}
                 style={{
@@ -182,13 +180,13 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  padding: '9px 12px',
+                  padding: '10px 12px',
                   borderRadius: '6px',
                   background: 'var(--accent-primary)',
                   color: '#ffffff',
                   border: 'none',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                  fontWeight: 700,
                   cursor: 'pointer',
                   transition: 'background 0.15s ease',
                 }}
@@ -197,6 +195,36 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
               >
                 <LogIn size={16} />
                 多身分日常登入
+              </button>
+
+              <button
+                onClick={handleOpenRegister}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '7px 10px',
+                  borderRadius: '6px',
+                  background: 'transparent',
+                  color: 'var(--text-secondary)',
+                  border: '1px dashed var(--border-color)',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.background = 'var(--bg-subtle)';
+                  e.currentTarget.style.color = 'var(--accent-primary)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--text-secondary)';
+                }}
+              >
+                <School size={14} />
+                新學校入駐開通向導
               </button>
             </div>
           )}

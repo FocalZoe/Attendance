@@ -1,14 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink, useNavigate, useSearchParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, NavLink, useNavigate, useLocation, useSearchParams, Navigate } from 'react-router-dom';
 import { Menu, LayoutDashboard, History, LogIn, School, ShieldCheck } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import HistoryPage from './pages/History';
 import Management from './pages/Management';
+import LoginPage from './pages/LoginPage';
+import RegisterSchoolPage from './pages/RegisterSchoolPage';
 import LoginModal from './components/LoginModal';
 import ErrorBoundary from './components/ErrorBoundary';
 import { getAuthSession, verifyParentToken } from './services/authService';
 import './App.css';
+
+/**
+ * 全域未登入安全守衛 (Auth Guard)
+ * 未登入狀態一律強制 fallback 至 /login
+ */
+function RequireAuth({ children, allowedRoles }) {
+  const session = getAuthSession();
+  const location = useLocation();
+
+  if (!session) {
+    return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(session.role)) {
+    // 角色權限不足時自動導向其可讀頁面
+    if (session.role === 'admin') return <Navigate to="/management" replace />;
+    if (session.role === 'parent') return <Navigate to="/history" replace />;
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+}
 
 /**
  * 前台考勤系統專用版面架構 (包含前台 Sidebar 與主內容區)
@@ -38,7 +62,7 @@ function ClientLayout() {
     };
 
     const handleOpenLogin = () => {
-      setIsLoginModalOpen(true);
+      navigate('/login');
     };
 
     window.addEventListener('auth:session-changed', handleAuthChange);
@@ -48,7 +72,7 @@ function ClientLayout() {
       window.removeEventListener('auth:session-changed', handleAuthChange);
       window.removeEventListener('auth:open-login', handleOpenLogin);
     };
-  }, []);
+  }, [navigate]);
 
   const handleLoginSuccess = () => {
     setSession(getAuthSession());
@@ -106,7 +130,7 @@ function ClientLayout() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {isGuest && (
             <button
-              onClick={() => setIsLoginModalOpen(true)}
+              onClick={() => navigate('/login')}
               style={{
                 fontSize: '0.72rem',
                 padding: '4px 8px',
@@ -133,14 +157,28 @@ function ClientLayout() {
       <Sidebar
         isMobileOpen={isMobileSidebarOpen}
         onClose={() => setIsMobileSidebarOpen(false)}
-        onOpenLogin={() => setIsLoginModalOpen(true)}
+        onOpenLogin={() => navigate('/login')}
       />
 
-      {/* 前台主視窗內容 */}
+      {/* 前台主視窗內容 (皆受 RequireAuth 安全守衛保護) */}
       <main className="main-content">
         <Routes>
-          <Route path="/" element={<Dashboard onOpenLogin={() => setIsLoginModalOpen(true)} />} />
-          <Route path="/history" element={<HistoryPage />} />
+          <Route
+            path="/"
+            element={
+              <RequireAuth allowedRoles={['teacher', 'class']}>
+                <Dashboard onOpenLogin={() => navigate('/login')} />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/history"
+            element={
+              <RequireAuth>
+                <HistoryPage />
+              </RequireAuth>
+            }
+          />
         </Routes>
       </main>
 
@@ -176,7 +214,7 @@ function ClientLayout() {
 
         {isGuest && (
           <button
-            onClick={() => setIsLoginModalOpen(true)}
+            onClick={() => navigate('/login')}
             className="mobile-nav-item"
             style={{
               background: 'none',
@@ -191,7 +229,7 @@ function ClientLayout() {
         )}
       </nav>
 
-      {/* 多身分登入彈窗 */}
+      {/* 多身分登入彈窗備援 */}
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
@@ -206,9 +244,21 @@ function App() {
     <ErrorBoundary>
       <Router>
         <Routes>
-          {/* 獨立單獨管理網頁 */}
-          <Route path="/management" element={<Management />} />
-          {/* 前台考勤系統其他所有頁面 */}
+          {/* 公開認證頁面 (完全無外框沉浸式) */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterSchoolPage />} />
+
+          {/* 學校管理中樞 (嚴格限制 admin 角色，未登入統一 fallback 至 /login) */}
+          <Route
+            path="/management"
+            element={
+              <RequireAuth allowedRoles={['admin']}>
+                <Management />
+              </RequireAuth>
+            }
+          />
+
+          {/* 前台考勤系統其他所有頁面 (皆受 RequireAuth 安全守衛保護) */}
           <Route path="/*" element={<ClientLayout />} />
         </Routes>
       </Router>

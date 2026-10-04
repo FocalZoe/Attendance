@@ -11,9 +11,17 @@ CREATE TABLE IF NOT EXISTS public.schools (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
     code TEXT UNIQUE NOT NULL,
+    edu_code TEXT,
+    contact_email TEXT,
+    is_verified BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 補丁擴充 schools 欄位
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS edu_code TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS contact_email TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT TRUE;
 
 -- 2. 使用者 Profile 資料表 (連結 auth.users 與學校多租戶)
 DO $$ BEGIN

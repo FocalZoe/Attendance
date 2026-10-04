@@ -108,6 +108,7 @@ export const Management = () => {
   const handleAdminLogout = () => {
     clearAuthSession();
     setSession(null);
+    navigate('/login');
   };
 
   // 處理新增班級
