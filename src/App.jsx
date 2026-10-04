@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink, useNavigate } from 'react-router-dom';
-import { Menu, LayoutDashboard, History, LogIn, School } from 'lucide-react';
+import { BrowserRouter as Router, Routes, Route, NavLink, useNavigate, useSearchParams } from 'react-router-dom';
+import { Menu, LayoutDashboard, History, LogIn, School, ShieldCheck } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import HistoryPage from './pages/History';
 import Management from './pages/Management';
 import LoginModal from './components/LoginModal';
 import ErrorBoundary from './components/ErrorBoundary';
-import { getAuthSession } from './services/authService';
+import { getAuthSession, verifyParentToken } from './services/authService';
 import './App.css';
 
 /**
@@ -15,9 +15,22 @@ import './App.css';
  */
 function ClientLayout() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [session, setSession] = useState(getAuthSession());
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  // 支援 URL Token-based Magic Link (家長免註冊即時鑑權，例: /?student_token=8888)
+  useEffect(() => {
+    const magicToken = searchParams.get('student_token') || searchParams.get('token');
+    if (magicToken) {
+      verifyParentToken(magicToken).then((res) => {
+        if (res.success) {
+          setSession(getAuthSession());
+        }
+      });
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const handleAuthChange = () => {
@@ -37,14 +50,16 @@ function ClientLayout() {
     };
   }, []);
 
-  const handleLoginSuccess = (userSession) => {
-    setSession(userSession);
+  const handleLoginSuccess = () => {
+    setSession(getAuthSession());
     setIsLoginModalOpen(false);
     navigate('/');
   };
 
-  const isClass = session?.role === 'class';
-  const isGuest = !isClass;
+  const role = session?.role;
+  const isTeacherOrClass = role === 'teacher' || role === 'class';
+  const isAdmin = role === 'admin';
+  const isGuest = !role;
 
   return (
     <div className="layout-container">
@@ -82,8 +97,8 @@ function ClientLayout() {
             }}>
               <School size={16} />
             </div>
-            <span style={{ fontWeight: 800, fontSize: '0.95rem', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-              班級自動化點名系統
+            <span style={{ fontWeight: 800, fontSize: '0.92rem', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+              班級自動化考勤
             </span>
           </div>
         </div>
@@ -103,10 +118,10 @@ function ClientLayout() {
                 cursor: 'pointer',
               }}
             >
-              班級登入
+              多身分登入
             </button>
           )}
-          {isClass && (
+          {!isGuest && (
             <div style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '4px', background: 'var(--bg-subtle)', color: 'var(--accent-primary)', border: '1px solid var(--border-color)', fontWeight: 600 }}>
               {session.name || session.id}
             </div>
@@ -114,7 +129,7 @@ function ClientLayout() {
         </div>
       </header>
 
-      {/* 前台側邊欄 (桌機固定，手機滑出抽屜) */}
+      {/* 前台側邊欄 */}
       <Sidebar
         isMobileOpen={isMobileSidebarOpen}
         onClose={() => setIsMobileSidebarOpen(false)}
@@ -129,9 +144,9 @@ function ClientLayout() {
         </Routes>
       </main>
 
-      {/* 行動端底部快捷導覽列 (Bottom Nav) */}
+      {/* 行動端底部快捷導覽列 */}
       <nav className="mobile-bottom-nav">
-        {isClass && (
+        {isTeacherOrClass && (
           <NavLink
             to="/"
             className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
@@ -149,6 +164,16 @@ function ClientLayout() {
           <span>歷史紀錄簿</span>
         </NavLink>
 
+        {isAdmin && (
+          <NavLink
+            to="/management"
+            className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+          >
+            <ShieldCheck size={20} />
+            <span>管理中樞</span>
+          </NavLink>
+        )}
+
         {isGuest && (
           <button
             onClick={() => setIsLoginModalOpen(true)}
@@ -161,17 +186,16 @@ function ClientLayout() {
             }}
           >
             <LogIn size={20} />
-            <span>班級登入</span>
+            <span>身分登入</span>
           </button>
         )}
       </nav>
 
-      {/* 班級登入彈窗 */}
+      {/* 多身分登入彈窗 */}
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
         onLoginSuccess={handleLoginSuccess}
-        initialTab="class"
       />
     </div>
   );
@@ -182,9 +206,9 @@ function App() {
     <ErrorBoundary>
       <Router>
         <Routes>
-          {/* 獨立單獨管理網頁，完全不套用前台 Sidebar 與外層框架 */}
+          {/* 獨立單獨管理網頁 */}
           <Route path="/management" element={<Management />} />
-          {/* 前台點名系統其他所有頁面 */}
+          {/* 前台考勤系統其他所有頁面 */}
           <Route path="/*" element={<ClientLayout />} />
         </Routes>
       </Router>

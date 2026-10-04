@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, History, LogIn, LogOut, School, X } from 'lucide-react';
+import { LayoutDashboard, History, LogIn, LogOut, School, X, ShieldCheck, HeartHandshake, User } from 'lucide-react';
 import { getAuthSession, clearAuthSession } from '../services/authService';
 
 const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
@@ -24,18 +24,30 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
   const handleOpenLogin = () => {
     if (onClose) onClose();
     if (onOpenLogin) {
-      onOpenLogin('class');
+      onOpenLogin('teacher');
     } else {
-      window.dispatchEvent(new CustomEvent('auth:open-login', { detail: { tab: 'class' } }));
+      window.dispatchEvent(new CustomEvent('auth:open-login', { detail: { tab: 'teacher' } }));
     }
   };
 
-  const isClass = session?.role === 'class';
-  const isGuest = !isClass;
+  const role = session?.role;
+  const isTeacherOrClass = role === 'teacher' || role === 'class';
+  const isAdmin = role === 'admin';
+  const isParent = role === 'parent';
+  const isGuest = !role;
+
+  // 動態標籤文字
+  const getRoleBadge = () => {
+    if (isAdmin) return '學校總管理者';
+    if (role === 'teacher') return `任課老師 · ${session.name || '老師'}`;
+    if (role === 'class') return `班級在線 · ${session.name || '班級'}`;
+    if (isParent) return `家長查閱 · ${session.name || '學生'}`;
+    return '校園訪客模式';
+  };
 
   return (
     <>
-      {/* 行動端遮罩層 (Mobile Backdrop) */}
+      {/* 行動端遮罩層 */}
       {isMobileOpen && (
         <div
           onClick={onClose}
@@ -81,16 +93,15 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
               <School size={22} />
             </div>
             <div>
-              <h2 style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-primary)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-                班級自動化點名系統
+              <h2 style={{ fontSize: '1.05rem', margin: 0, color: 'var(--text-primary)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                班級自動化考勤
               </h2>
               <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                {isClass ? `班級專區 · ${session.name || session.account || '在線'}` : '校園訪客瀏覽模式'}
+                {getRoleBadge()}
               </span>
             </div>
           </div>
 
-          {/* 行動端關閉按鈕 */}
           <button
             onClick={onClose}
             className="mobile-only"
@@ -116,19 +127,19 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
             功能導覽
           </div>
 
-          {/* 班級專屬：即時儀表板 */}
-          {isClass && (
+          {/* 教師 / 班級專用：即時儀表板 */}
+          {isTeacherOrClass && (
             <NavLink
               to="/"
               onClick={() => onClose && onClose()}
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
             >
               <LayoutDashboard size={19} />
-              即時儀表板
+              課堂即時儀表板
             </NavLink>
           )}
 
-          {/* 所有訪客與班級皆可見：課堂歷史紀錄簿 */}
+          {/* 歷史紀錄簿 (所有人皆可見) */}
           <NavLink
             to="/history"
             onClick={() => onClose && onClose()}
@@ -137,6 +148,18 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
             <History size={19} />
             課堂歷史紀錄簿
           </NavLink>
+
+          {/* 學校管理者入口 */}
+          {isAdmin && (
+            <NavLink
+              to="/management"
+              onClick={() => onClose && onClose()}
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <ShieldCheck size={19} />
+              全校租戶管理中樞
+            </NavLink>
+          )}
         </nav>
 
         {/* 底部帳號狀態區塊 */}
@@ -150,7 +173,7 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
           {isGuest && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', paddingLeft: '4px' }}>
-                當前為訪客模式（僅供查閱紀錄）
+                當前為校園訪客模式
               </div>
               <button
                 onClick={handleOpenLogin}
@@ -173,12 +196,12 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
                 onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent-primary)')}
               >
                 <LogIn size={16} />
-                班級帳號登入
+                多身分日常登入
               </button>
             </div>
           )}
 
-          {isClass && (
+          {!isGuest && (
             <div style={{
               background: 'var(--bg-subtle)',
               border: '1px solid var(--border-color)',
@@ -190,9 +213,9 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
                   width: '32px',
                   height: '32px',
                   borderRadius: '50%',
-                  background: 'var(--accent-light)',
+                  background: isParent ? '#ecfdf5' : 'var(--accent-light)',
                   border: '1px solid var(--border-color)',
-                  color: 'var(--accent-primary)',
+                  color: isParent ? '#059669' : 'var(--accent-primary)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -200,14 +223,14 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
                   fontSize: '0.88rem',
                   flexShrink: 0,
                 }}>
-                  {session.name ? session.name.charAt(0) : '班'}
+                  {isParent ? <HeartHandshake size={16} /> : (isAdmin ? <ShieldCheck size={16} /> : <User size={16} />)}
                 </div>
                 <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
-                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {session.name || session.account || '班級'}
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {session.name || session.id}
                   </div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
-                    代碼：{session.account || (session.id && session.id.length < 16 ? session.id : '已驗證')} · {session.studentCount ? `${session.studentCount}人` : '人數未定'}
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
+                    {session.schoolName || session.currentClassName || getRoleBadge()}
                   </div>
                 </div>
               </div>
@@ -232,7 +255,7 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
                 }}
               >
                 <LogOut size={14} />
-                班級登出
+                安全退出身分
               </button>
             </div>
           )}
