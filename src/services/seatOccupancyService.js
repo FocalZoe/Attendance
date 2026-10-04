@@ -39,20 +39,7 @@ export const getSavedSeatsConfig = () => {
     }
   }
 
-  // 2. 本機 localStorage 快取備援
-  try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed.seats) && parsed.seats.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.warn('[SeatOccupancyService] 讀取座位配置失敗:', e);
-  }
-
-  // 3. 預設 4x5 網格
+  // 2. 預設 4x5 網格
   return {
     base_width: 640,
     base_height: 480,
@@ -71,12 +58,6 @@ export const getSavedSeatsConfig = () => {
  * @param {string} [targetLayoutKey]
  */
 export const saveSeatsConfig = async (config, targetLayoutKey = null) => {
-  try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(config));
-  } catch (e) {
-    console.error('[SeatOccupancyService] 儲存座位配置至 localStorage 失敗:', e);
-  }
-
   // 若登入班級帳號，同步寫入 Supabase 資料庫該班級的 seat_layout
   const session = getAuthSession();
   if (session?.role === 'class' && session.user?.id) {

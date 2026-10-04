@@ -137,6 +137,91 @@ app.get('/api/history', async (req, res) => {
   }
 });
 
+// POST /api/init-demo (初始化競賽展示資料)
+app.post('/api/init-demo', async (req, res) => {
+  try {
+    const demoCode = '333301';
+    const demoEmail = 'office@tp.edu.tw';
+    const demoPassword = 'School@2026';
+    const demoName = '臺北市立示範高級中學';
+
+    // 1. 檢查學校是否存在
+    let { data: school, error: schoolError } = await supabase
+      .from('schools')
+      .select('*')
+      .eq('code', demoCode)
+      .single();
+
+    if (!school) {
+      const { data: newSchool, error: insertSchoolError } = await supabase
+        .from('schools')
+        .insert([{
+          name: demoName,
+          code: demoCode,
+          edu_code: demoCode,
+          contact_email: demoEmail,
+          is_verified: true,
+        }])
+        .select('*')
+        .single();
+      
+      if (insertSchoolError) throw insertSchoolError;
+      school = newSchool;
+    }
+
+    // 2. 檢查/建立管理員帳號
+    // 透過 supabase.auth.admin.createUser 建立
+    // (需確保 supabaseClient.js 是使用 Service Role Key)
+    let adminUserId = null;
+    const { data: listUsers, error: listError } = await supabase.auth.admin.listUsers();
+    
+    if (!listError && listUsers?.users) {
+      const existingUser = listUsers.users.find(u => u.email === demoEmail);
+      if (existingUser) {
+        adminUserId = existingUser.id;
+        // 更新密碼確保可登入
+        await supabase.auth.admin.updateUserById(adminUserId, { password: demoPassword });
+      }
+    }
+
+    if (!adminUserId) {
+      const { data: newUser, error: createUserError } = await supabase.auth.admin.createUser({
+        email: demoEmail,
+        password: demoPassword,
+        email_confirm: true,
+      });
+      if (createUserError) throw createUserError;
+      adminUserId = newUser.user.id;
+    }
+
+    // 3. 確保 user_profiles 存在
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', adminUserId)
+      .single();
+
+    if (!profile) {
+      await supabase.from('user_profiles').insert([{
+        id: adminUserId,
+        school_id: school.id,
+        role: 'school_admin',
+        name: '示範管理員',
+        email: demoEmail,
+      }]);
+    }
+
+    return res.json({
+      success: true,
+      message: '示範資料初始化完成',
+      school,
+    });
+  } catch (err) {
+    console.error('[Vercel Init Demo Error]', err);
+    return res.status(500).json({ error: 'Internal server error initializing demo', details: err?.message });
+  }
+});
+
 // GET /api/health
 app.get('/api/health', (_req, res) => {
   res.json({

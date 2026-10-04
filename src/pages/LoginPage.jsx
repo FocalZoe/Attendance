@@ -5,7 +5,7 @@
 // ==============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { 
   School, User, Key, ShieldCheck, HeartHandshake, 
   ArrowRight, AlertCircle, CheckCircle, GraduationCap, ArrowLeft 
@@ -14,6 +14,7 @@ import { loginTeacher, loginAdmin, verifyParentAccess, getAuthSession } from '..
 
 export const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   const [activeTab, setActiveTab] = useState('parent'); // 'parent' | 'teacher' | 'admin'
@@ -24,6 +25,18 @@ export const LoginPage = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // 接收來自 RegisterSchoolPage 的示範就緒狀態
+  useEffect(() => {
+    if (location.state?.demoReady) {
+      setActiveTab('admin');
+      setAccount('office@tp.edu.tw');
+      setPassword('School@2026');
+      setSuccessMsg('示範資料庫已就緒！已為您帶入管理員測試帳號');
+      // 清除 state 避免重整一直出現
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   // 若使用者已登入，根據角色直接導向對應主頁
   useEffect(() => {

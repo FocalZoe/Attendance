@@ -11,6 +11,7 @@ import {
   AlertCircle, ArrowRight, ArrowLeft, Sparkles, Building2 
 } from 'lucide-react';
 import { registerSchool } from '../services/authService';
+import { getApiUrl } from '../config/api';
 
 // 內建常見教育部示範學校字典
 const DEMO_SCHOOLS = [
@@ -44,16 +45,33 @@ export const RegisterSchoolPage = () => {
     }
   };
 
-  // 競賽快速示範帶入
-  const handleFillDemo = () => {
-    const demo = DEMO_SCHOOLS[0];
-    setEduCode(demo.code);
-    setSchoolName(demo.name);
-    setAdminEmail(`office@${demo.domain}`);
-    setAdminPassword('School@2026');
-    setConfirmPassword('School@2026');
-    setOtpCode('888888');
-    setErrorMsg('');
+  // 競賽快速示範帶入 (初始化並寫入資料庫)
+  const handleFillDemo = async () => {
+    try {
+      setLoading(true);
+      setErrorMsg('');
+      setSuccessMsg('正在準備真實資料庫示範環境，請稍候...');
+      
+      const res = await fetch(getApiUrl('/api/init-demo'), {
+        method: 'POST'
+      });
+      const data = await res.json();
+      
+      if (res.ok && data.success) {
+        setSuccessMsg('真實示範資料庫準備完成！為您跳轉至登入頁面...');
+        // 等待一下讓使用者看到成功訊息，然後跳轉到 Login，並帶入示範參數
+        setTimeout(() => {
+          navigate('/login', { state: { demoReady: true } });
+        }, 1500);
+      } else {
+        setErrorMsg(data.error || '示範資料庫初始化失敗');
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('網路連線異常，無法連線至示範 API');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e) => {

@@ -91,7 +91,7 @@ export const logoutAuth = async () => {
 export const clearAuthSession = logoutAuth;
 
 /**
- * 1. 學校總管理者登入 (支援 Supabase Auth 或內建管理者憑證備援)
+ * 1. 學校總管理者登入 (僅支援 Supabase Auth)
  * @param {string} emailOrAccount 
  * @param {string} password 
  */
@@ -99,43 +99,6 @@ export const loginAdmin = async (emailOrAccount, password) => {
   const cleanAccount = (emailOrAccount || '').trim();
   const cleanPass = (password || '').trim();
 
-  const envAdminUser = import.meta.env?.ADMIN_USERNAME || 'admin';
-  const envAdminPass = import.meta.env?.ADMIN_PASSWORD || 'admin';
-
-  // 1. 本地安全預設管理者檢查 (專題展示即刻可用)
-  if (cleanAccount === envAdminUser && cleanPass === envAdminPass) {
-    const adminUser = {
-      id: 'admin_root',
-      account: 'admin',
-      name: '學校總管理者',
-      role: 'admin',
-      school_id: 'school_demo_01',
-    };
-    saveAuthSession('admin', adminUser, { schoolName: '示範示範綜合高中 (總管)' });
-    return { success: true, user: adminUser };
-  }
-
-  // 1.1 若為新註冊開通之本地自訂學校管理員
-  try {
-    const rawCustom = localStorage.getItem('custom_schools_cache_v1');
-    if (rawCustom) {
-      const list = JSON.parse(rawCustom);
-      const match = list.find((s) => (s.adminEmail === cleanAccount || s.eduCode === cleanAccount) && s.adminPassword === cleanPass);
-      if (match) {
-        const customAdminUser = {
-          id: `admin_${match.eduCode}`,
-          account: match.adminEmail,
-          name: `${match.schoolName} (總管)`,
-          role: 'admin',
-          school_id: match.id,
-        };
-        saveAuthSession('admin', customAdminUser, { schoolName: match.schoolName });
-        return { success: true, user: customAdminUser };
-      }
-    }
-  } catch {}
-
-  // 2. 透過 Supabase 官方 Auth 登入
   try {
     const { data, error } = await supabaseClient.auth.signInWithPassword({
       email: cleanAccount.includes('@') ? cleanAccount : `${cleanAccount}@school.internal`,
@@ -165,7 +128,7 @@ export const loginAdmin = async (emailOrAccount, password) => {
       return { success: true, user: userObj };
     }
   } catch (e) {
-    console.warn('[AuthService] 官方 Auth 登入 fallback:', e);
+    console.warn('[AuthService] 官方 Auth 登入錯誤:', e);
   }
 
   return { success: false, message: '學校總管理者帳號或密碼錯誤' };
@@ -189,61 +152,67 @@ export const registerSchool = async ({ schoolName, eduCode, adminEmail, adminPas
     return { success: false, message: '請填寫所有學校開通必填資訊' };
   }
 
-  // 驗證 edu.tw 或校園公務信箱格式
   const isEduTw = cleanEmail.endsWith('.edu.tw') || cleanEmail.includes('@school');
   if (!isEduTw && !cleanEmail.endsWith('.internal')) {
     return { success: false, message: '依政府機關規範，學校管理員信箱限定為專屬 *.edu.tw 教育網域' };
   }
 
   try {
-    const schoolId = `sch_${cleanCode}_${Date.now().toString(36)}`;
-
-    // 嘗試寫入 Supabase schools 表
-    const { error: dbError } = await supabaseClient.from('schools').insert([
-      {
-        id: undefined, // 由資料庫 uuid 或自增處理
+    // 1. 寫入 Supabase schools 表
+    const { data: newSchool, error: dbError } = await supabaseClient
+      .from('schools')
+      .insert([{
         name: cleanName,
         code: cleanCode,
         edu_code: cleanCode,
         contact_email: cleanEmail,
         is_verified: true,
-      },
-    ]);
+      }])
+      .select('*')
+      .single();
 
     if (dbError) {
-      console.warn('[AuthService] 寫入資料庫 schools 警示 (使用本地持久化備援):', dbError.message);
+      console.error('[AuthService] 寫入資料庫 schools 失敗:', dbError.message);
+      return { success: false, message: '學校建立失敗 (可能代碼重複)' };
     }
 
-    // 存入本地自訂學校註冊清單 (確保展示 100% 可行)
-    const newSchoolItem = {
-      id: schoolId,
-      schoolName: cleanName,
-      eduCode: cleanCode,
-      adminEmail: cleanEmail,
-      adminPassword: cleanPass,
-      registeredAt: new Date().toISOString(),
-    };
+    // 2. 註冊 Supabase Auth 帳號
+    const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+      email: cleanEmail,
+      password: cleanPass,
+    });
 
-    let existingSchools = [];
-    try {
-      const raw = localStorage.getItem('custom_schools_cache_v1');
-      if (raw) existingSchools = JSON.parse(raw);
-    } catch {}
+    if (authError || !authData?.user) {
+      console.error('[AuthService] 建立 Auth 帳號失敗:', authError?.message);
+      return { success: false, message: '管理員帳號建立失敗' };
+    }
 
-    existingSchools.push(newSchoolItem);
-    localStorage.setItem('custom_schools_cache_v1', JSON.stringify(existingSchools));
+    // 3. 建立 user_profile
+    const { error: profileError } = await supabaseClient
+      .from('user_profiles')
+      .insert([{
+        id: authData.user.id,
+        school_id: newSchool.id,
+        role: 'school_admin',
+        name: `${cleanName} (總管)`,
+        email: cleanEmail,
+      }]);
 
-    // 自動登入該學校管理員
+    if (profileError) {
+      console.error('[AuthService] 建立 Profile 失敗:', profileError.message);
+    }
+
+    // 4. 自動登入該學校管理員
     const adminUser = {
-      id: `admin_${cleanCode}`,
+      id: authData.user.id,
       account: cleanEmail,
       name: `${cleanName} (總管)`,
       role: 'admin',
-      school_id: schoolId,
+      school_id: newSchool.id,
     };
     saveAuthSession('admin', adminUser, { schoolName: cleanName });
 
-    return { success: true, school: newSchoolItem, user: adminUser };
+    return { success: true, school: newSchool, user: adminUser };
   } catch (err) {
     console.error('[AuthService] 學校開通異常:', err);
     return { success: false, message: '系統開通失敗，請稍後再試' };
@@ -262,23 +231,6 @@ export const loginTeacher = async (emailOrAccount, password) => {
 
   if (!cleanAccount || !cleanPass) {
     return { success: false, message: '請輸入教師帳號與密碼' };
-  }
-
-  // 內建模擬示範帳號 (teacher / 123456)
-  if (cleanAccount === 'teacher' && cleanPass === '123456') {
-    const mockTeacher = {
-      id: 'teacher_mock_01',
-      account: 'teacher',
-      name: '李小華 老師',
-      role: 'teacher',
-      school_id: 'school_demo_01',
-    };
-    saveAuthSession('teacher', mockTeacher, {
-      schoolName: '示範高級中學',
-      currentClassId: 'cls_301',
-      currentClassName: '三年一班 (資訊科)',
-    });
-    return { success: true, user: mockTeacher };
   }
 
   try {
@@ -343,30 +295,6 @@ export const verifyParentAccess = async (studentNo, verifyCode) => {
   }
   if (!cleanCode) {
     return { success: false, message: '請輸入家長安全驗證碼（預設為生日 4 碼或座號）' };
-  }
-
-  // 1. 本地示範帳號相容 (學號 112001 / 驗證碼 0521 或 12)
-  if (
-    cleanNo === '112001' || 
-    cleanNo === 'DEMO' || 
-    cleanNo.toUpperCase() === 'DEMO-STUDENT'
-  ) {
-    if (cleanCode === '0521' || cleanCode === '12' || cleanCode === '8888') {
-      const mockStudent = {
-        id: 'mock_std_01',
-        name: '王小明',
-        student_no: '112001',
-        seat_number: 12,
-        class_name: '三年一班 (資訊科)',
-        school_name: '示範高級中學',
-      };
-      const parentSession = saveAuthSession('parent', mockStudent, {
-        schoolName: mockStudent.school_name,
-        currentClassName: mockStudent.class_name,
-      });
-      return { success: true, student: mockStudent, session: parentSession };
-    }
-    return { success: false, message: '驗證碼錯誤，預設為學生生日 4 碼（例如 0521）或座號' };
   }
 
   // 2. 透過 Supabase RPC 安全查詢 (verify_student_parent_access)
@@ -438,11 +366,6 @@ export const verifyParentToken = async (token) => {
   const cleanToken = (token || '').trim();
   if (!cleanToken) {
     return { success: false, message: '請輸入有效之學生查詢代碼' };
-  }
-
-  // 若 Token 為 demo 相關
-  if (cleanToken.toUpperCase() === 'DEMO-STUDENT' || cleanToken === '8888') {
-    return verifyParentAccess('112001', '0521');
   }
 
   try {
@@ -528,27 +451,8 @@ export const getAllClasses = async () => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      // 本地示範資料備援
-      return [
-        {
-          id: 'cls_301',
-          name: '三年一班 (資訊科)',
-          account: '301',
-          class_name: '三年一班 (資訊科)',
-          student_count: 38,
-          active_layout_key: 'layout1',
-          seat_layout: {
-            layout1: {
-              name: '平時上課 (4×5 標準)',
-              gridRows: 4,
-              gridCols: 5,
-              base_width: 640,
-              base_height: 480,
-              seats: [],
-            },
-          },
-        },
-      ];
+      console.error('[AuthService] 取得班級清單失敗:', error);
+      return [];
     }
     return (data || []).map((c) => ({
       ...c,
@@ -601,17 +505,8 @@ export const createClassAccount = async ({ account, class_name, student_count = 
       .single();
 
     if (error) {
-      // 本地快取模擬成功
-      const mockClass = {
-        id: `cls_${Date.now()}`,
-        name,
-        class_name: name,
-        account: name,
-        student_count: safeCount,
-        seat_layout: defaultSeatLayout,
-        active_layout_key: 'layout1',
-      };
-      return { success: true, classItem: mockClass };
+      console.error('[AuthService] 新增班級失敗:', error);
+      return { success: false, message: error.message };
     }
 
     return { success: true, classItem: { ...data, class_name: data.name } };
@@ -621,7 +516,7 @@ export const createClassAccount = async ({ account, class_name, student_count = 
 };
 
 /**
- * 管理者更新班級資料
+ * 管理者更新班級資料並同步真實學生紀錄
  */
 export const updateClassInfo = async (classId, updateData) => {
   if (!classId) return { success: false, message: '缺少班級 ID' };
@@ -644,11 +539,44 @@ export const updateClassInfo = async (classId, updateData) => {
       .single();
 
     if (error) {
-      return { success: true, classItem: { id: classId, ...updateData } };
+      console.error('[AuthService] 更新班級資料失敗:', error);
+      return { success: false, message: error.message };
+    }
+
+    // 自動同步學生紀錄：當儲存/更新班級的座位表 (seat_layout) 時，對應產生 students 資料
+    if (payload.seat_layout) {
+      const activeKey = payload.active_layout_key || data.active_layout_key || 'layout1';
+      const seats = payload.seat_layout[activeKey]?.seats || [];
+      if (seats.length > 0) {
+        // 先查詢該班級現有的學生 (為了不覆寫已經有的 verify_code 等)
+        const { data: existingStudents } = await supabaseClient
+          .from('students')
+          .select('seat_number, student_no, verify_code')
+          .eq('class_id', classId);
+
+        const existMap = new Map((existingStudents || []).map(s => [s.seat_number, s]));
+
+        const studentsToUpsert = seats.map((seat, index) => {
+          const seatNum = parseInt(seat.seat_id, 10) || (index + 1);
+          const exist = existMap.get(seatNum);
+          return {
+            class_id: classId,
+            seat_number: seatNum,
+            name: `學生 ${seatNum} 號`,
+            student_no: exist?.student_no || `112${String(seatNum).padStart(3, '0')}`,
+            verify_code: exist?.verify_code || String(seatNum).padStart(2, '0'),
+          };
+        });
+
+        // 刪除該班舊資料再寫入 (或使用 upsert，但為求乾淨我們對齊座位表)
+        await supabaseClient.from('students').delete().eq('class_id', classId);
+        await supabaseClient.from('students').insert(studentsToUpsert);
+      }
     }
 
     return { success: true, classItem: data };
   } catch (err) {
+    console.error('[AuthService] 更新班級資料與學生同步異常:', err);
     return { success: false, message: err.message || '更新班級資料失敗' };
   }
 };
