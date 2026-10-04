@@ -1,27 +1,25 @@
 // ==============================================================================
-// 班級自動化考勤系統 - 獨立登入頁面 (LoginPage.jsx)
-// 全螢幕沉浸式三合一認證 (家長學號查閱、教師管理、學校總管)
+// 班級自動化考勤系統 - 教職員與管理者登入頁面 (LoginPage.jsx)
+// 雙角色身分認證 (任課/班導師工作台、學校總管中樞)
 // 米白咖啡色系 (Warm Cream & Rich Coffee)，純淨典雅
 // ==============================================================================
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { 
-  School, User, Key, ShieldCheck, HeartHandshake, 
-  ArrowRight, AlertCircle, CheckCircle, GraduationCap, ArrowLeft 
+  School, User, Key, ShieldCheck, ArrowRight, 
+  AlertCircle, CheckCircle, ArrowLeft, HeartHandshake 
 } from 'lucide-react';
-import { loginTeacher, loginAdmin, verifyParentAccess, getAuthSession } from '../services/authService';
+import { loginTeacher, loginAdmin, getAuthSession } from '../services/authService';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState('parent'); // 'parent' | 'teacher' | 'admin'
+  const [activeTab, setActiveTab] = useState('teacher'); // 'teacher' | 'admin'
   const [account, setAccount] = useState('');
   const [password, setPassword] = useState('');
-  const [studentNo, setStudentNo] = useState('112001');
-  const [verifyCode, setVerifyCode] = useState('0521');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,7 +31,6 @@ export const LoginPage = () => {
       setAccount('office@tp.edu.tw');
       setPassword('School@2026');
       setSuccessMsg('示範資料庫已就緒！已為您帶入管理員測試帳號');
-      // 清除 state 避免重整一直出現
       window.history.replaceState({}, document.title);
     }
   }, [location]);
@@ -43,7 +40,7 @@ export const LoginPage = () => {
     const session = getAuthSession();
     if (session) {
       if (session.role === 'admin') navigate('/management');
-      else if (session.role === 'teacher' || session.role === 'class') navigate('/');
+      else if (session.role === 'teacher' || session.role === 'class') navigate('/dashboard');
       else if (session.role === 'parent') navigate('/history');
     }
   }, [navigate]);
@@ -59,7 +56,7 @@ export const LoginPage = () => {
     try {
       const res = await loginTeacher(account, password);
       if (res.success) {
-        navigate(redirectTarget || '/');
+        navigate(redirectTarget || '/dashboard');
       } else {
         setErrorMsg(res.message || '教師登入失敗，請確認帳號與密碼');
       }
@@ -89,29 +86,6 @@ export const LoginPage = () => {
     }
   };
 
-  const handleParentSubmit = async (e) => {
-    e.preventDefault();
-    setErrorMsg('');
-    setSuccessMsg('');
-    setLoading(true);
-
-    try {
-      const res = await verifyParentAccess(studentNo, verifyCode);
-      if (res.success) {
-        setSuccessMsg(`身分驗證成功！歡迎 ${res.student.name} 的家長（學號：${res.student.student_no || studentNo}）`);
-        setTimeout(() => {
-          navigate(redirectTarget || '/history');
-        }, 600);
-      } else {
-        setErrorMsg(res.message || '學號或驗證碼不符，請確認學生生日或座號');
-      }
-    } catch {
-      setErrorMsg('查詢連線異常');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div style={{
       minHeight: '100vh',
@@ -122,8 +96,33 @@ export const LoginPage = () => {
       justifyContent: 'center',
       padding: '24px 16px',
       boxSizing: 'border-box',
+      position: 'relative',
     }}>
-      {/* 頂部 LOGO 與回首頁 */}
+      {/* 回到家長查詢首頁 */}
+      <div style={{ position: 'absolute', top: '24px', left: '24px' }}>
+        <Link
+          to="/"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '8px 14px',
+            borderRadius: '6px',
+            background: '#ffffff',
+            border: '1px solid var(--border-color)',
+            color: 'var(--text-primary)',
+            fontSize: '0.84rem',
+            fontWeight: 600,
+            textDecoration: 'none',
+            boxShadow: '0 2px 8px rgba(45, 36, 30, 0.05)',
+          }}
+        >
+          <ArrowLeft size={15} />
+          前往家長查閱專區
+        </Link>
+      </div>
+
+      {/* 頂部 LOGO 與標題 */}
       <div style={{ marginBottom: '24px', textAlign: 'center' }}>
         <div style={{
           display: 'inline-flex',
@@ -142,7 +141,7 @@ export const LoginPage = () => {
           </span>
         </div>
         <div style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
-          安全、即時、多校區的雲端在座識別中樞
+          教職員認證中樞 · 即時監控與班級空間管理
         </div>
       </div>
 
@@ -156,31 +155,8 @@ export const LoginPage = () => {
         boxShadow: '0 16px 40px -8px rgba(45, 36, 30, 0.12)',
         overflow: 'hidden',
       }}>
-        {/* 三合一身分 Tabs */}
+        {/* 雙身分 Tabs */}
         <div style={{ display: 'flex', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)' }}>
-          <button
-            onClick={() => { setActiveTab('parent'); setErrorMsg(''); setSuccessMsg(''); }}
-            style={{
-              flex: 1,
-              padding: '14px 8px',
-              border: 'none',
-              background: activeTab === 'parent' ? '#ffffff' : 'transparent',
-              fontWeight: activeTab === 'parent' ? 800 : 500,
-              color: activeTab === 'parent' ? '#059669' : 'var(--text-secondary)',
-              fontSize: '0.9rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              borderBottom: activeTab === 'parent' ? '3px solid #059669' : 'none',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <HeartHandshake size={16} />
-            家長 (學號)
-          </button>
-
           <button
             onClick={() => { setActiveTab('teacher'); setErrorMsg(''); setSuccessMsg(''); }}
             style={{
@@ -190,7 +166,7 @@ export const LoginPage = () => {
               background: activeTab === 'teacher' ? '#ffffff' : 'transparent',
               fontWeight: activeTab === 'teacher' ? 800 : 500,
               color: activeTab === 'teacher' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              fontSize: '0.9rem',
+              fontSize: '0.92rem',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -201,7 +177,7 @@ export const LoginPage = () => {
             }}
           >
             <User size={16} />
-            老師 (班級)
+            教師 (課堂 / 班導師)
           </button>
 
           <button
@@ -213,7 +189,7 @@ export const LoginPage = () => {
               background: activeTab === 'admin' ? '#ffffff' : 'transparent',
               fontWeight: activeTab === 'admin' ? 800 : 500,
               color: activeTab === 'admin' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              fontSize: '0.9rem',
+              fontSize: '0.92rem',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -224,7 +200,7 @@ export const LoginPage = () => {
             }}
           >
             <ShieldCheck size={16} />
-            學校 (總管)
+            學校 (總管理員)
           </button>
         </div>
 
@@ -267,86 +243,11 @@ export const LoginPage = () => {
           )}
         </div>
 
-        {/* 1. 家長（學號 + 生日驗證碼） */}
-        {activeTab === 'parent' && (
-          <form onSubmit={handleParentSubmit} style={{ padding: '0 24px 24px 24px' }}>
-            <p style={{ margin: '0 0 16px 0', fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              免註冊即可查閱！請輸入孩子的<strong>「正式學號」</strong>與<strong>「身分驗證碼」</strong>（預設為孩子生日月日 4 碼，例如 5 月 21 日請填 <code>0521</code>，或兩碼座號 <code>12</code>）。
-            </p>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
-                學生學號 (Student ID)
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  required
-                  value={studentNo}
-                  onChange={(e) => setStudentNo(e.target.value)}
-                  placeholder="例如: 112001"
-                  style={{ width: '100%', padding: '10px 12px 10px 38px', borderRadius: '6px', border: '1px solid var(--border-dark)', fontSize: '0.9rem', boxSizing: 'border-box' }}
-                />
-                <GraduationCap size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '22px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  家長身分驗證防護碼
-                </label>
-                <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
-                  預設: 生日 4 碼或座號
-                </span>
-              </div>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="password"
-                  required
-                  value={verifyCode}
-                  onChange={(e) => setVerifyCode(e.target.value)}
-                  placeholder="例如: 0521 或 12"
-                  style={{ width: '100%', padding: '10px 12px 10px 38px', borderRadius: '6px', border: '1px solid var(--border-dark)', fontSize: '0.9rem', boxSizing: 'border-box' }}
-                />
-                <Key size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '11px 16px',
-                borderRadius: '6px',
-                background: '#059669',
-                color: '#ffffff',
-                border: 'none',
-                fontSize: '0.92rem',
-                fontWeight: 700,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-              }}
-            >
-              {loading ? '驗證學號與身分中...' : (
-                <>
-                  驗證並進入學生考勤查閱
-                  <ArrowRight size={16} />
-                </>
-              )}
-            </button>
-          </form>
-        )}
-
-        {/* 2. 教師登入 */}
+        {/* 1. 教師登入 */}
         {activeTab === 'teacher' && (
           <form onSubmit={handleTeacherSubmit} style={{ padding: '0 24px 24px 24px' }}>
             <p style={{ margin: '0 0 16px 0', fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              任課教師請輸入學校配發之帳號（示範快捷輸入：<code>teacher</code> / <code>123456</code>）。
+              任課教師與班導師請輸入學校配發之帳號或公務信箱（示範帳號：<code>teacher</code> / <code>123456</code>）。
             </p>
 
             <div style={{ marginBottom: '16px' }}>
@@ -412,11 +313,11 @@ export const LoginPage = () => {
           </form>
         )}
 
-        {/* 3. 學校總管理員 */}
+        {/* 2. 學校總管理員 */}
         {activeTab === 'admin' && (
           <form onSubmit={handleAdminSubmit} style={{ padding: '0 24px 24px 24px' }}>
             <p style={{ margin: '0 0 16px 0', fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              學校總管進入全校租戶後台（示範管理帳號：<code>admin</code> / <code>admin</code>）。
+              學校總管進入全校租戶管理中樞（示範管理帳號：<code>admin</code> / <code>admin</code>）。
             </p>
 
             <div style={{ marginBottom: '16px' }}>

@@ -57,16 +57,20 @@ CREATE TABLE IF NOT EXISTS public.classes (
 
 CREATE INDEX IF NOT EXISTS idx_classes_school_id ON public.classes(school_id);
 
--- 4. 教師與班級多對多關聯表 (Teacher Classes)
+-- 4. 教師與班級多對多關聯表 (Teacher Classes) - 支援班導師 (is_homeroom) 辨識
 CREATE TABLE IF NOT EXISTS public.teacher_classes (
     teacher_id UUID REFERENCES public.user_profiles(id) ON DELETE CASCADE,
     class_id UUID REFERENCES public.classes(id) ON DELETE CASCADE,
+    is_homeroom BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (teacher_id, class_id)
 );
 
+ALTER TABLE public.teacher_classes ADD COLUMN IF NOT EXISTS is_homeroom BOOLEAN DEFAULT FALSE;
+
 CREATE INDEX IF NOT EXISTS idx_teacher_classes_teacher_id ON public.teacher_classes(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_teacher_classes_class_id ON public.teacher_classes(class_id);
+CREATE INDEX IF NOT EXISTS idx_teacher_classes_is_homeroom ON public.teacher_classes(is_homeroom);
 
 -- 5. 學生資料表 (Students) - 支援學號、生日驗證碼與備援魔術代碼
 CREATE TABLE IF NOT EXISTS public.students (
@@ -175,7 +179,7 @@ CREATE POLICY "user_write_own_profile" ON public.user_profiles
     USING (id = (SELECT auth.uid()))
     WITH CHECK (id = (SELECT auth.uid()));
 
--- classes: 學校總管可存取同校所有班級；教師可存取指派班級
+-- classes: 學校總管可存取同校所有班級；教師可存取指派班級並更新劃位佈局
 DROP POLICY IF EXISTS "school_admin_all_classes" ON public.classes;
 CREATE POLICY "school_admin_all_classes" ON public.classes
     FOR ALL
@@ -203,7 +207,26 @@ CREATE POLICY "teacher_read_assigned_classes" ON public.classes
         )
     );
 
--- students: 允許學校管理員管理同校學生，並允許持有有效 magic_token 免登入讀取特定學生資訊
+DROP POLICY IF EXISTS "teacher_update_assigned_classes" ON public.classes;
+CREATE POLICY "teacher_update_assigned_classes" ON public.classes
+    FOR UPDATE
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.teacher_classes 
+            WHERE class_id = classes.id 
+            AND teacher_id = (SELECT auth.uid())
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.teacher_classes 
+            WHERE class_id = classes.id 
+            AND teacher_id = (SELECT auth.uid())
+        )
+    );
+
+-- students: 
+-- 1. 學校總管管理全校學生
 DROP POLICY IF EXISTS "school_admin_all_students" ON public.students;
 CREATE POLICY "school_admin_all_students" ON public.students
     FOR ALL
@@ -221,6 +244,39 @@ CREATE POLICY "school_admin_all_students" ON public.students
             WHERE c.id = students.class_id
               AND c.school_id = (SELECT public.get_auth_school_id())
               AND (SELECT public.get_auth_role()) = 'school_admin'::public.app_user_role
+        )
+    );
+
+-- 2. 班導師 (is_homeroom = true) 可增刪改查該班學生
+DROP POLICY IF EXISTS "homeroom_teacher_all_students" ON public.students;
+CREATE POLICY "homeroom_teacher_all_students" ON public.students
+    FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.teacher_classes tc
+            WHERE tc.class_id = students.class_id
+              AND tc.teacher_id = (SELECT auth.uid())
+              AND tc.is_homeroom = TRUE
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.teacher_classes tc
+            WHERE tc.class_id = students.class_id
+              AND tc.teacher_id = (SELECT auth.uid())
+              AND tc.is_homeroom = TRUE
+        )
+    );
+
+-- 3. 任課/科系導師僅可讀取其指派班級學生名冊
+DROP POLICY IF EXISTS "subject_teacher_read_students" ON public.students;
+CREATE POLICY "subject_teacher_read_students" ON public.students
+    FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.teacher_classes tc
+            WHERE tc.class_id = students.class_id
+              AND tc.teacher_id = (SELECT auth.uid())
         )
     );
 

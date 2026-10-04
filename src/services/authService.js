@@ -23,12 +23,21 @@ export const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY, {
 const AUTH_STORAGE_KEY = 'attendance_auth_session_v2';
 
 /**
- * 取得當前本機登入會話
+ * 取得當前本機登入會話 (優先檢查暫態 sessionStorage，次之檢查 localStorage)
  * @returns {{ role: 'admin'|'teacher'|'class'|'parent', user: Object, currentClass?: Object } | null}
  */
 export const getAuthSession = () => {
   try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    // 優先讀取家長等暫態會話 (sessionStorage)
+    let raw = null;
+    if (typeof sessionStorage !== 'undefined') {
+      raw = sessionStorage.getItem(AUTH_STORAGE_KEY);
+    }
+    // 次之讀取長期管理會話 (localStorage)
+    if (!raw && typeof localStorage !== 'undefined') {
+      raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    }
+
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && (parsed.role === 'admin' || parsed.role === 'teacher' || parsed.role === 'class' || parsed.role === 'parent')) {
@@ -51,8 +60,9 @@ export const subscribeAuthSession = (fn) => {
  * @param {'admin'|'teacher'|'class'|'parent'} role 
  * @param {Object} user 
  * @param {Object} [extra] 
+ * @param {'local'|'session'} [storageType='local'] 
  */
-export const saveAuthSession = (role, user, extra = {}) => {
+export const saveAuthSession = (role, user, extra = {}, storageType = 'local') => {
   try {
     const sessionData = {
       role,
@@ -64,10 +74,30 @@ export const saveAuthSession = (role, user, extra = {}) => {
       currentClassName: extra.currentClassName || user?.class_name || '',
       studentCount: user?.student_count || 0,
       activeLayoutKey: user?.active_layout_key || 'layout1',
+      isHomeroom: extra.isHomeroom ?? user?.isHomeroom ?? false,
+      assignedClasses: extra.assignedClasses || user?.assignedClasses || [],
       user,
       ...extra,
     };
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(sessionData));
+
+    const serialized = JSON.stringify(sessionData);
+
+    if (storageType === 'session') {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(AUTH_STORAGE_KEY, serialized);
+      }
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+      }
+    } else {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(AUTH_STORAGE_KEY, serialized);
+      }
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem(AUTH_STORAGE_KEY);
+      }
+    }
+
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('auth:session-changed', { detail: sessionData }));
     }
@@ -82,12 +112,17 @@ export const saveAuthSession = (role, user, extra = {}) => {
 };
 
 /**
- * 登出並回歸遊客狀態
+ * 登出並回歸遊客狀態 (清除 localStorage 與 sessionStorage)
  */
 export const logoutAuth = async () => {
   try {
     await supabaseClient.auth.signOut().catch(() => {});
-    localStorage.removeItem(AUTH_STORAGE_KEY);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    }
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem(AUTH_STORAGE_KEY);
+    }
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('auth:session-changed', { detail: null }));
     }
@@ -269,21 +304,33 @@ export const loginTeacher = async (emailOrAccount, password) => {
         school_id: profile?.school_id,
       };
 
-      // 取得指派班級
+      // 取得指派班級 (包含 is_homeroom 欄位)
       const { data: assignedClasses } = await supabaseClient
         .from('teacher_classes')
-        .select('class_id, classes(*)')
+        .select('class_id, is_homeroom, classes(*)')
         .eq('teacher_id', data.user.id);
 
       const firstClass = assignedClasses?.[0]?.classes;
+      const hasHomeroom = (assignedClasses || []).some(
+        (ac) => ac.is_homeroom === true || profile?.role === 'homeroom_teacher'
+      );
 
       saveAuthSession('teacher', userObj, {
         schoolName: profile?.schools?.name || '學校',
         currentClassId: firstClass?.id || '',
         currentClassName: firstClass?.name || '無指派班級',
-      });
+        isHomeroom: hasHomeroom,
+        assignedClasses: (assignedClasses || []).map((ac) => ({
+          id: ac.class_id,
+          class_name: ac.classes?.name || '未命名班級',
+          is_homeroom: ac.is_homeroom ?? false,
+          student_count: ac.classes?.student_count || 0,
+          seat_layout: ac.classes?.seat_layout || {},
+          active_layout_key: ac.classes?.active_layout_key || 'layout1',
+        })),
+      }, 'local');
 
-      return { success: true, user: userObj, classes: assignedClasses };
+      return { success: true, user: userObj, classes: assignedClasses, isHomeroom: hasHomeroom };
     }
   } catch (err) {
     console.error('[AuthService] 教師登入異常:', err);
@@ -294,6 +341,7 @@ export const loginTeacher = async (emailOrAccount, password) => {
 
 /**
  * 3. 家長（遊客）學號 + 安全防護碼（生日4碼或座號補零）登入驗證
+ * 嚴格以 sessionStorage 保存臨時憑證，分頁關閉即刻銷毀 (Zero-Leak 防護)
  * @param {string} studentNo - 學生正式學號 (例如 112001)
  * @param {string} verifyCode - 家長安全驗證碼 (預設生日月日如 0521 或 2 碼座號如 12)
  */
@@ -329,7 +377,7 @@ export const verifyParentAccess = async (studentNo, verifyCode) => {
       const parentSession = saveAuthSession('parent', studentInfo, {
         schoolName: studentInfo.school_name,
         currentClassName: studentInfo.class_name,
-      });
+      }, 'session');
 
       return { success: true, student: studentInfo, session: parentSession };
     }
@@ -356,7 +404,7 @@ export const verifyParentAccess = async (studentNo, verifyCode) => {
         const parentSession = saveAuthSession('parent', studentInfo, {
           schoolName: studentInfo.school_name,
           currentClassName: studentInfo.class_name,
-        });
+        }, 'session');
         return { success: true, student: studentInfo, session: parentSession };
       }
       return { success: false, message: '驗證碼錯誤，請確認學生生日或座號' };
@@ -403,7 +451,7 @@ export const verifyParentToken = async (token) => {
     saveAuthSession('parent', studentInfo, {
       schoolName: studentInfo.school_name,
       currentClassName: studentInfo.class_name,
-    });
+    }, 'session');
 
     return { success: true, student: studentInfo };
   } catch (err) {
@@ -634,5 +682,288 @@ export const deleteClassAccount = async (classId) => {
     return { success: true };
   } catch (err) {
     return { success: false, message: err.message || '刪除班級失敗' };
+  }
+};
+
+// ==============================================================================
+// 學生資料維護 API (提供學校總管與班導師使用)
+// ==============================================================================
+
+/**
+ * 取得指定班級的學生清單
+ * @param {string} classId 
+ */
+export const getStudentsByClass = async (classId) => {
+  if (!classId) return [];
+  try {
+    const { data, error } = await supabaseClient
+      .from('students')
+      .select('id, class_id, name, student_no, seat_number, verify_code, created_at')
+      .eq('class_id', classId)
+      .order('seat_number', { ascending: true });
+
+    if (error) {
+      console.error('[AuthService] 取得學生清單失敗:', error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error('[AuthService] 取得學生清單異常:', err);
+    return [];
+  }
+};
+
+/**
+ * 新增學生
+ * @param {Object} student 
+ */
+export const createStudent = async (student) => {
+  const { class_id, name, student_no, seat_number, verify_code } = student;
+  if (!class_id || !name) {
+    return { success: false, message: '學生姓名與班級代號為必填' };
+  }
+
+  try {
+    const seatNum = parseInt(seat_number, 10) || 1;
+    const { data, error } = await supabaseClient
+      .from('students')
+      .insert([{
+        class_id,
+        name: name.trim(),
+        student_no: (student_no || '').trim() || `112${String(seatNum).padStart(3, '0')}`,
+        seat_number: seatNum,
+        verify_code: (verify_code || '').trim() || String(seatNum).padStart(2, '0'),
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      return { success: false, message: error.message };
+    }
+    return { success: true, student: data };
+  } catch (err) {
+    return { success: false, message: err.message || '新增學生失敗' };
+  }
+};
+
+/**
+ * 更新學生資料
+ * @param {string} studentId 
+ * @param {Object} updates 
+ */
+export const updateStudent = async (studentId, updates) => {
+  if (!studentId) return { success: false, message: '缺少學生 ID' };
+
+  try {
+    const payload = { ...updates };
+    if (payload.seat_number !== undefined) {
+      payload.seat_number = parseInt(payload.seat_number, 10) || 1;
+    }
+
+    const { data, error } = await supabaseClient
+      .from('students')
+      .update(payload)
+      .eq('id', studentId)
+      .select()
+      .single();
+
+    if (error) {
+      return { success: false, message: error.message };
+    }
+    return { success: true, student: data };
+  } catch (err) {
+    return { success: false, message: err.message || '更新學生失敗' };
+  }
+};
+
+/**
+ * 刪除學生
+ * @param {string} studentId 
+ */
+export const deleteStudent = async (studentId) => {
+  if (!studentId) return { success: false, message: '缺少學生 ID' };
+
+  try {
+    const { error } = await supabaseClient
+      .from('students')
+      .delete()
+      .eq('id', studentId);
+
+    if (error) {
+      return { success: false, message: error.message };
+    }
+    return { success: true };
+  } catch (err) {
+    return { success: false, message: err.message || '刪除學生失敗' };
+  }
+};
+
+// ==============================================================================
+// 教師資料與指派 API (提供學校總管專用)
+// ==============================================================================
+
+/**
+ * 取得學校內的所有教師清單及其指派班級
+ * @param {string} [schoolId]
+ */
+export const getAllTeachers = async (schoolId) => {
+  try {
+    let query = supabaseClient
+      .from('user_profiles')
+      .select('id, name, email, role, school_id, created_at, teacher_classes(class_id, is_homeroom, classes(id, name))')
+      .in('role', ['teacher', 'homeroom_teacher']);
+
+    if (schoolId) {
+      query = query.eq('school_id', schoolId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('[AuthService] 取得教師清單失敗:', error);
+      return [];
+    }
+
+    return (data || []).map((t) => {
+      const assigned = t.teacher_classes || [];
+      const firstClass = assigned[0];
+      return {
+        id: t.id,
+        name: t.name,
+        email: t.email,
+        role: t.role,
+        is_homeroom: assigned.some((ac) => ac.is_homeroom) || t.role === 'homeroom_teacher',
+        assigned_classes: assigned.map((ac) => ({
+          class_id: ac.class_id,
+          class_name: ac.classes?.name || '',
+          is_homeroom: ac.is_homeroom ?? false,
+        })),
+        class_name: firstClass?.classes?.name || '無指派班級',
+        class_id: firstClass?.class_id || null,
+      };
+    });
+  } catch (err) {
+    console.error('[AuthService] 取得教師異常:', err);
+    return [];
+  }
+};
+
+/**
+ * 學校總管建立教師帳號
+ * @param {Object} params
+ * @param {string} params.name
+ * @param {string} params.email
+ * @param {string} params.password
+ * @param {string} params.schoolId
+ * @param {boolean} [params.isHomeroom=false]
+ * @param {string} [params.classId]
+ */
+export const createTeacherAccount = async ({ name, email, password, schoolId, isHomeroom = false, classId }) => {
+  const cleanName = (name || '').trim();
+  const cleanEmail = (email || '').trim();
+  const cleanPass = (password || '').trim();
+
+  if (!cleanName || !cleanEmail || !cleanPass) {
+    return { success: false, message: '教師姓名、Email 與密碼皆為必填' };
+  }
+
+  try {
+    // 1. 建立 Supabase Auth 使用者
+    const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+      email: cleanEmail,
+      password: cleanPass,
+    });
+
+    if (authError || !authData?.user) {
+      return { success: false, message: authError?.message || '建立教師帳號失敗' };
+    }
+
+    const teacherId = authData.user.id;
+
+    // 2. 建立 Profile
+    const { error: profileError } = await supabaseClient
+      .from('user_profiles')
+      .insert([{
+        id: teacherId,
+        school_id: schoolId || null,
+        name: cleanName,
+        email: cleanEmail,
+        role: isHomeroom ? 'homeroom_teacher' : 'teacher',
+      }]);
+
+    if (profileError) {
+      console.warn('[AuthService] 建立教師 Profile 警告:', profileError.message);
+    }
+
+    // 3. 指派班級 (若有提供 classId)
+    if (classId) {
+      await supabaseClient
+        .from('teacher_classes')
+        .insert([{
+          teacher_id: teacherId,
+          class_id: classId,
+          is_homeroom: isHomeroom,
+        }]);
+    }
+
+    return { success: true, teacherId };
+  } catch (err) {
+    return { success: false, message: err.message || '新增教師發生異常' };
+  }
+};
+
+/**
+ * 學校總管刪除教師帳號
+ * @param {string} teacherId 
+ */
+export const deleteTeacherAccount = async (teacherId) => {
+  if (!teacherId) return { success: false, message: '缺少教師 ID' };
+
+  try {
+    // 刪除關聯指派與 Profile
+    await supabaseClient.from('teacher_classes').delete().eq('teacher_id', teacherId);
+    await supabaseClient.from('user_profiles').delete().eq('id', teacherId);
+    return { success: true };
+  } catch (err) {
+    return { success: false, message: err.message || '刪除教師失敗' };
+  }
+};
+
+/**
+ * 學校總管更新教師指派班級與角色
+ * @param {string} teacherId 
+ * @param {Object} options 
+ * @param {string} [options.classId] 
+ * @param {boolean} [options.isHomeroom] 
+ * @param {string} [options.name] 
+ */
+export const updateTeacherAssignment = async (teacherId, { classId, isHomeroom, name }) => {
+  if (!teacherId) return { success: false, message: '缺少教師 ID' };
+
+  try {
+    if (name) {
+      await supabaseClient
+        .from('user_profiles')
+        .update({
+          name: name.trim(),
+          role: isHomeroom ? 'homeroom_teacher' : 'teacher',
+        })
+        .eq('id', teacherId);
+    }
+
+    if (classId !== undefined) {
+      // 清除舊指派後重新插入
+      await supabaseClient.from('teacher_classes').delete().eq('teacher_id', teacherId);
+      if (classId) {
+        await supabaseClient.from('teacher_classes').insert([{
+          teacher_id: teacherId,
+          class_id: classId,
+          is_homeroom: !!isHomeroom,
+        }]);
+      }
+    }
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, message: err.message || '更新教師指派失敗' };
   }
 };

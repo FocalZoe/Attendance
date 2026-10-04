@@ -128,10 +128,20 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
             功能導覽
           </div>
 
+          {/* 家長查閱專區 (公開首頁) */}
+          <NavLink
+            to="/"
+            onClick={() => onClose && onClose()}
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          >
+            <HeartHandshake size={19} />
+            家長查閱專區
+          </NavLink>
+
           {/* 教師 / 班級專用：即時儀表板 */}
           {isTeacherOrClass && (
             <NavLink
-              to="/"
+              to="/dashboard"
               onClick={() => onClose && onClose()}
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
             >
@@ -150,15 +160,15 @@ const Sidebar = ({ isMobileOpen, onClose, onOpenLogin }) => {
             課堂歷史紀錄簿
           </NavLink>
 
-          {/* 學校管理者入口 */}
-          {isAdmin && (
+          {/* 管理中樞入口 (學校管理者與授權教師皆可進入) */}
+          {(isAdmin || isTeacherOrClass) && (
             <NavLink
               to="/management"
               onClick={() => onClose && onClose()}
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
             >
               <ShieldCheck size={19} />
-              全校租戶管理中樞
+              {isAdmin ? '全校管理中樞' : '班級空間管理'}
             </NavLink>
           )}
         </nav>
