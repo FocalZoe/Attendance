@@ -31,6 +31,15 @@ const History = () => {
   const [session, setSession] = useState(getAuthSession());
 
   const isLoggedIn = !!session;
+  const isParent = session?.role === 'parent';
+
+  useEffect(() => {
+    const handleAuthChange = () => {
+      setSession(getAuthSession());
+    };
+    window.addEventListener('auth:session-changed', handleAuthChange);
+    return () => window.removeEventListener('auth:session-changed', handleAuthChange);
+  }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -184,6 +193,56 @@ const History = () => {
           )}
         </div>
       </header>
+
+      {/* 家長遊客專屬關注學生資訊橫幅 */}
+      {isParent && (
+        <div style={{
+          marginBottom: '20px',
+          padding: '14px 20px',
+          borderRadius: '8px',
+          background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+          border: '1px solid #10b981',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '50%',
+              background: '#059669',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <GraduationCap size={20} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '1rem', color: '#065f46' }}>
+                {session.name} 同學 · 家長查閱專區
+              </div>
+              <div style={{ fontSize: '0.82rem', color: '#047857', marginTop: '2px' }}>
+                學號：<strong>{session.user?.student_no || '112001'}</strong> · 座號：<strong>{session.user?.seat_number || 12} 號</strong> · 班級：{session.currentClassName || '三年一班'}
+              </div>
+            </div>
+          </div>
+          <div style={{
+            fontSize: '0.78rem',
+            background: '#ffffff',
+            padding: '6px 12px',
+            borderRadius: '20px',
+            color: '#047857',
+            fontWeight: 700,
+            border: '1px solid #a7f3d0',
+          }}>
+            已鎖定該生在校出缺席追蹤
+          </div>
+        </div>
+      )}
 
       {/* 搜尋列與計數區 */}
       <div className="glass-panel" style={{ padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>

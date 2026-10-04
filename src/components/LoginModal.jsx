@@ -8,14 +8,15 @@
 
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
-import { X, User, Key, School, AlertCircle, ArrowRight, ShieldCheck, HeartHandshake, CheckCircle } from 'lucide-react';
-import { loginTeacher, loginAdmin, verifyParentToken } from '../services/authService';
+import { X, User, Key, School, AlertCircle, ArrowRight, ShieldCheck, HeartHandshake, CheckCircle, GraduationCap } from 'lucide-react';
+import { loginTeacher, loginAdmin, verifyParentAccess } from '../services/authService';
 
 export const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
-  const [activeTab, setActiveTab] = useState('teacher'); // 'teacher' | 'parent' | 'admin'
+  const [activeTab, setActiveTab] = useState('parent'); // 預設提供家長查閱最常見入口
   const [account, setAccount] = useState('');
   const [password, setPassword] = useState('');
-  const [parentToken, setParentToken] = useState('');
+  const [studentNo, setStudentNo] = useState('112001');
+  const [verifyCode, setVerifyCode] = useState('0521');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
@@ -69,15 +70,15 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
     setLoading(true);
 
     try {
-      const res = await verifyParentToken(parentToken);
+      const res = await verifyParentAccess(studentNo, verifyCode);
       if (res.success) {
-        setSuccessMsg(`身分驗證成功！歡迎 ${res.student.name} 的家長`);
+        setSuccessMsg(`身分驗證成功！歡迎 ${res.student.name} 的家長（學號：${res.student.student_no || studentNo}）`);
         setTimeout(() => {
           if (onLoginSuccess) onLoginSuccess(res.student);
           onClose();
-        }, 800);
+        }, 700);
       } else {
-        setErrorMsg(res.message || '無效的查詢代碼，請向班級導師索取');
+        setErrorMsg(res.message || '學號或驗證碼不符，請確認學生生日或座號');
       }
     } catch (err) {
       setErrorMsg(err.message || '查詢失敗');
@@ -271,24 +272,46 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
           </form>
         )}
 
-        {/* 2. 家長遊客免註冊魔術代碼 */}
+        {/* 2. 家長遊客：學號 + 安全防護碼 */}
         {activeTab === 'parent' && (
           <form onSubmit={handleParentSubmit} style={{ padding: '0 24px 24px 24px' }}>
             <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-              家長無需繁瑣註冊！輸入導師提供的學生代碼（示範代碼：<code>8888</code> 或 <code>DEMO-STUDENT</code>）即可即時掌握在校在座狀況。
+              免註冊即可查閱！請輸入孩子的<strong>「在校學號」</strong>與<strong>「身分驗證碼」</strong>（預設為孩子生日月日 4 碼，例如 5 月 21 日請輸入 <code>0521</code>，或兩碼座號）。
             </p>
 
-            <div style={{ marginBottom: '20px' }}>
+            <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
-                學生專屬查詢代碼 (Token)
+                學生學號 (Student ID)
               </label>
               <div style={{ position: 'relative' }}>
                 <input
                   type="text"
                   required
-                  value={parentToken}
-                  onChange={(e) => setParentToken(e.target.value)}
-                  placeholder="例如: 8888 或 a7f9c2d1..."
+                  value={studentNo}
+                  onChange={(e) => setStudentNo(e.target.value)}
+                  placeholder="例如: 112001 或 30101"
+                  style={{ width: '100%', padding: '9px 12px 9px 36px', borderRadius: '6px', border: '1px solid var(--border-dark)', fontSize: '0.88rem', boxSizing: 'border-box' }}
+                />
+                <GraduationCap size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  家長身分驗證碼
+                </label>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                  預設: 生日 4 碼或座號
+                </span>
+              </div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="password"
+                  required
+                  value={verifyCode}
+                  onChange={(e) => setVerifyCode(e.target.value)}
+                  placeholder="例如: 0521 (月日 4 碼) 或 12"
                   style={{ width: '100%', padding: '9px 12px 9px 36px', borderRadius: '6px', border: '1px solid var(--border-dark)', fontSize: '0.88rem', boxSizing: 'border-box' }}
                 />
                 <Key size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
@@ -300,7 +323,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
               disabled={loading}
               style={{ width: '100%', padding: '10px 14px', borderRadius: '6px', background: '#059669', color: '#ffffff', border: 'none', fontSize: '0.9rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
             >
-              {loading ? '驗證查詢代碼中...' : (
+              {loading ? '驗證學號與身分中...' : (
                 <>
                   驗證並進入家長查閱視圖
                   <ArrowRight size={16} />

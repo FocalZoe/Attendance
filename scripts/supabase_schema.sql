@@ -60,18 +60,26 @@ CREATE TABLE IF NOT EXISTS public.teacher_classes (
 CREATE INDEX IF NOT EXISTS idx_teacher_classes_teacher_id ON public.teacher_classes(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_teacher_classes_class_id ON public.teacher_classes(class_id);
 
--- 5. 學生資料表 (Students) - 支援座號與魔術代碼/Token 查詢
+-- 5. 學生資料表 (Students) - 支援學號、生日驗證碼與備援魔術代碼
 CREATE TABLE IF NOT EXISTS public.students (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     class_id UUID NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
+    student_no TEXT,
     seat_number INT NOT NULL,
     name TEXT NOT NULL,
+    verify_code TEXT,
     magic_token TEXT UNIQUE DEFAULT encode(gen_random_bytes(16), 'hex'),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 若資料庫中已有舊版 students 表，自動補丁擴充缺少欄位
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS student_no TEXT;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS verify_code TEXT;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS magic_token TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_students_class_id ON public.students(class_id);
+CREATE INDEX IF NOT EXISTS idx_students_student_no ON public.students(student_no);
 CREATE INDEX IF NOT EXISTS idx_students_magic_token ON public.students(magic_token);
 
 -- 6. 啟用與強制 RLS (符合 SupabasePostgreSQL_MaximumSecurityRLS Invariant)
@@ -140,3 +148,40 @@ CREATE POLICY "parents_token_read_student" ON public.students
     USING (
         magic_token IS NOT NULL AND magic_token != ''
     );
+
+-- 8. 家長以「學號 + 安全驗證碼 (生日月日4碼或座號補零)」專屬安全查詢 RPC
+-- 符合 SECURITY DEFINER Hardening：宣告 SET search_path = '' 與完全限定名稱
+CREATE OR REPLACE FUNCTION public.verify_student_parent_access(
+    p_student_no TEXT,
+    p_verify_code TEXT
+) RETURNS TABLE (
+    student_id UUID,
+    student_name TEXT,
+    student_no TEXT,
+    seat_number INT,
+    class_name TEXT,
+    school_name TEXT
+) LANGUAGE plpgsql SECURITY DEFINER 
+SET search_path = ''
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        s.id AS student_id,
+        s.name AS student_name,
+        s.student_no,
+        s.seat_number,
+        c.name AS class_name,
+        sch.name AS school_name
+    FROM public.students s
+    JOIN public.classes c ON s.class_id = c.id
+    JOIN public.schools sch ON c.school_id = sch.id
+    WHERE s.student_no = TRIM(p_student_no)
+      AND (
+          s.verify_code = TRIM(p_verify_code)
+          OR pg_catalog.lpad(s.seat_number::TEXT, 2, '0') = TRIM(p_verify_code)
+      )
+    LIMIT 1;
+END;
+$$;
+

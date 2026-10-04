@@ -230,7 +230,108 @@ export const loginTeacher = async (emailOrAccount, password) => {
 };
 
 /**
- * 3. 家長（遊客）免註冊魔術代碼/Token 驗證
+ * 3. 家長（遊客）學號 + 安全防護碼（生日4碼或座號補零）登入驗證
+ * @param {string} studentNo - 學生正式學號 (例如 112001)
+ * @param {string} verifyCode - 家長安全驗證碼 (預設生日月日如 0521 或 2 碼座號如 12)
+ */
+export const verifyParentAccess = async (studentNo, verifyCode) => {
+  const cleanNo = (studentNo || '').trim();
+  const cleanCode = (verifyCode || '').trim();
+
+  if (!cleanNo) {
+    return { success: false, message: '請輸入學生學號' };
+  }
+  if (!cleanCode) {
+    return { success: false, message: '請輸入家長安全驗證碼（預設為生日 4 碼或座號）' };
+  }
+
+  // 1. 本地示範帳號相容 (學號 112001 / 驗證碼 0521 或 12)
+  if (
+    cleanNo === '112001' || 
+    cleanNo === 'DEMO' || 
+    cleanNo.toUpperCase() === 'DEMO-STUDENT'
+  ) {
+    if (cleanCode === '0521' || cleanCode === '12' || cleanCode === '8888') {
+      const mockStudent = {
+        id: 'mock_std_01',
+        name: '王小明',
+        student_no: '112001',
+        seat_number: 12,
+        class_name: '三年一班 (資訊科)',
+        school_name: '示範高級中學',
+      };
+      const parentSession = saveAuthSession('parent', mockStudent, {
+        schoolName: mockStudent.school_name,
+        currentClassName: mockStudent.class_name,
+      });
+      return { success: true, student: mockStudent, session: parentSession };
+    }
+    return { success: false, message: '驗證碼錯誤，預設為學生生日 4 碼（例如 0521）或座號' };
+  }
+
+  // 2. 透過 Supabase RPC 安全查詢 (verify_student_parent_access)
+  try {
+    const { data, error } = await supabaseClient.rpc('verify_student_parent_access', {
+      p_student_no: cleanNo,
+      p_verify_code: cleanCode,
+    });
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      const row = data[0];
+      const studentInfo = {
+        id: row.student_id,
+        name: row.student_name,
+        student_no: row.student_no,
+        seat_number: row.seat_number,
+        class_name: row.class_name,
+        school_name: row.school_name,
+      };
+
+      const parentSession = saveAuthSession('parent', studentInfo, {
+        schoolName: studentInfo.school_name,
+        currentClassName: studentInfo.class_name,
+      });
+
+      return { success: true, student: studentInfo, session: parentSession };
+    }
+
+    // 備援查詢: 若 RPC 尚未佈署，嘗試走帶條件 select 查詢單筆
+    const { data: directData } = await supabaseClient
+      .from('students')
+      .select('id, name, student_no, seat_number, verify_code, classes(name, schools(name))')
+      .eq('student_no', cleanNo)
+      .limit(1);
+
+    if (directData && directData.length > 0) {
+      const s = directData[0];
+      const seatPadded = String(s.seat_number).padStart(2, '0');
+      if (s.verify_code === cleanCode || seatPadded === cleanCode || String(s.seat_number) === cleanCode) {
+        const studentInfo = {
+          id: s.id,
+          name: s.name,
+          student_no: s.student_no,
+          seat_number: s.seat_number,
+          class_name: s.classes?.name || '',
+          school_name: s.classes?.schools?.name || '',
+        };
+        const parentSession = saveAuthSession('parent', studentInfo, {
+          schoolName: studentInfo.school_name,
+          currentClassName: studentInfo.class_name,
+        });
+        return { success: true, student: studentInfo, session: parentSession };
+      }
+      return { success: false, message: '驗證碼錯誤，請確認學生生日或座號' };
+    }
+
+    return { success: false, message: '查無此學號之在校學生，請確認學號輸入正確' };
+  } catch (err) {
+    console.error('[AuthService] 家長查閱異常:', err);
+    return { success: false, message: '系統連線異常，請稍後再試' };
+  }
+};
+
+/**
+ * 3.1 家長魔術代碼/Token 驗證 (向下相容 URL 傳參免打字直達)
  * @param {string} token 
  */
 export const verifyParentToken = async (token) => {
@@ -239,26 +340,15 @@ export const verifyParentToken = async (token) => {
     return { success: false, message: '請輸入有效之學生查詢代碼' };
   }
 
-  // 示範代碼相容
+  // 若 Token 為 demo 相關
   if (cleanToken.toUpperCase() === 'DEMO-STUDENT' || cleanToken === '8888') {
-    const mockStudent = {
-      id: 'mock_std_01',
-      name: '王小明',
-      seat_number: 12,
-      class_name: '三年一班',
-      school_name: '示範高級中學',
-    };
-    const parentSession = saveAuthSession('parent', mockStudent, {
-      schoolName: mockStudent.school_name,
-      currentClassName: mockStudent.class_name,
-    });
-    return { success: true, student: mockStudent, session: parentSession };
+    return verifyParentAccess('112001', '0521');
   }
 
   try {
     const { data, error } = await supabaseClient
       .from('students')
-      .select('id, name, seat_number, classes(name, schools(name))')
+      .select('id, name, student_no, seat_number, classes(name, schools(name))')
       .eq('magic_token', cleanToken)
       .limit(1)
       .single();
@@ -270,6 +360,7 @@ export const verifyParentToken = async (token) => {
     const studentInfo = {
       id: data.id,
       name: data.name,
+      student_no: data.student_no,
       seat_number: data.seat_number,
       class_name: data.classes?.name || '',
       school_name: data.classes?.schools?.name || '',
