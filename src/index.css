@@ -1,332 +1,75 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-/* ==============================================================================
-   班級自動化點名系統 - 全站統一樣式規範 (Warm Cream & Rich Coffee)
-   風格定義：溫潤暖米白底色 + 經典醇厚深咖啡色 (Warm Cream #f7f5f0 & Rich Coffee #5c3a21)
-   嚴格杜絕冷灰與冷科技藍，全站 100% 統一米白咖啡調
-   ============================================================================== */
-
-:root {
-  /* 背景層次 (溫潤暖米白) */
-  --bg-color: #f7f5f0;        /* 溫潤暖米白底色，溫和高雅 */
-  --bg-card: #ffffff;         /* 純白面板卡片 */
-  --bg-subtle: #f5ede6;       /* 淺燕麥拿鐵底色，表頭、標籤底、滑過底 */
-  --bg-muted: #ebe4d8;        /* 米灰底色 */
-
-  /* 文字階層 (深烘焙暖咖黑字，溫和高對比清晰好讀) */
-  --text-primary: #2d241e;    /* 深烘焙咖啡黑字 */
-  --text-secondary: #7d7268;  /* 暖調拿鐵中灰，次要說明文字 */
-  --text-muted: #a3998f;      /* 拿鐵淺灰，輔助資訊 */
-
-  /* 核心主色調 (經典醇厚深咖啡色) */
-  --accent-primary: #5c3a21;  /* 經典醇厚深咖啡色主題色 */
-  --accent-hover: #452a16;    /* 深濃縮咖啡色懸停 */
-  --accent-light: #f5ede6;    /* 淺燕麥拿鐵底色 */
-
-  /* 品牌色系 (完全統一對齊深咖啡色) */
-  --brand-primary: #5c3a21;   /* 深咖啡主要品牌色 */
-  --brand-hover: #452a16;     /* 品牌色懸停 */
-  --brand-light: #f5ede6;     /* 淺拿鐵底色 */
-  --brand-border: #dfd7cc;    /* 拿鐵細邊框 */
-
-  /* 語意狀態色彩 (與米白咖啡調和的自然色調) */
-  --success: #15803d;         /* 沉穩在座綠 */
-  --success-bg: #f0fdf4;      /* 淺綠狀態底 */
-  --success-border: #bbf7d0;  /* 綠色細邊框 */
-
-  --danger: #b91c1c;          /* 沉穩缺席紅 */
-  --danger-bg: #fef2f2;       /* 淺紅狀態底 */
-  --danger-border: #fecaca;   /* 紅色細邊框 */
-
-  --warning: #b45309;         /* 提醒琥珀金 */
-  --warning-bg: #fffbeb;      /* 淺琥珀底 */
-  --warning-border: #fde68a;  /* 琥珀細邊框 */
-
-  /* 邊框規範 (1px 溫潤米灰純色線條，完全無陰影) */
-  --border-color: #e6e2d8;    /* 溫暖米灰細線 */
-  --border-dark: #d5cebf;     /* 中米灰線條 */
-  --glass-bg: #ffffff;
-  --glass-border: #e6e2d8;
-  --glass-shadow: none;       /* 極致扁平化：0 陰影 */
-
-  /* 微圓角規範 */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-}
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background-color: var(--bg-color);
-  color: var(--text-primary);
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* 溫潤扁平卡片 utility */
-.glass-panel {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: none;
-  transition: border-color 0.15s ease;
-}
-
-/* 溫和米灰滾動條 */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #dcd7ce;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
-}
-
-/* 動畫效果 */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(2px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out forwards;
-}
-
-.layout-container {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-  position: relative;
-  background-color: var(--bg-color);
-}
-
-.main-content {
-  flex: 1;
-  padding: 32px;
-  overflow-y: auto;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* ==============================================================================
-   RWD 響應式佈局規範
-   ============================================================================== */
-
-.desktop-only {
-  display: flex !important;
-}
-.mobile-only {
-  display: none !important;
-}
-
-.dashboard-main-grid {
-  display: grid;
-  grid-template-columns: 3fr 2fr;
-  gap: 24px;
-  min-height: 560px;
-  margin-bottom: 24px;
-}
-
-.stat-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 20px;
-  margin-bottom: 24px;
-}
-
-/* 視訊畫面自適應容器 (維持暖深黑褐高對比，利於 AI 坐姿標記，外框溫潤米灰無陰影) */
-.camera-preview-container {
-  height: 440px;
-  min-height: 440px;
-  max-height: 440px;
-  position: relative;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: #1a1613;
-  border: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* 行動端頂部 Bar */
-.mobile-topbar {
-  display: none;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: #ffffff;
-  border-bottom: 1px solid var(--border-color);
-  position: sticky;
-  top: 0;
-  z-index: 40;
-}
-
-/* 行動端底部快捷導覽列 */
-.mobile-bottom-nav {
-  display: none;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 64px;
-  background: #ffffff;
-  border-top: 1px solid var(--border-color);
-  z-index: 50;
-  justify-content: space-around;
-  align-items: center;
-  padding-bottom: env(safe-area-inset-bottom, 0);
-}
-
-.mobile-nav-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  color: var(--text-secondary);
-  text-decoration: none;
-  font-size: 0.75rem;
-  font-weight: 500;
-  padding: 6px 16px;
-  border-radius: var(--radius-sm);
-  transition: all 0.15s ease;
-}
-
-.mobile-nav-item.active {
-  color: var(--accent-primary);
-  background: var(--bg-subtle);
-  font-weight: 700;
-}
-
-@media (max-width: 1024px) {
-  .dashboard-main-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-    min-height: auto;
+@layer base {
+  :root {
+    --background: 40 20% 97%;
+    --foreground: 25 19% 24%;
+    --card: 0 0% 100%;
+    --card-foreground: 25 19% 24%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 25 19% 24%;
+    --primary: 25 24% 29%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 34 23% 87%;
+    --secondary-foreground: 25 19% 24%;
+    --muted: 40 33% 91%;
+    --muted-foreground: 27 15% 48%;
+    --accent: 27 25% 78%;
+    --accent-foreground: 25 19% 24%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 34 23% 87%;
+    --input: 34 23% 87%;
+    --ring: 27 26% 44%;
+    --radius: 0.75rem;
+    --sidebar-background: 40 20% 97%;
+    --sidebar-foreground: 25 19% 24%;
+    --sidebar-primary: 25 24% 29%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 34 23% 87%;
+    --sidebar-accent-foreground: 25 19% 24%;
+    --sidebar-border: 34 23% 87%;
+    --sidebar-ring: 27 26% 44%;
   }
-  
-  .main-content {
-    padding: 24px 20px;
+
+  .dark {
+    --background: 40 20% 97%;
+    --foreground: 25 19% 24%;
+    --card: 0 0% 100%;
+    --card-foreground: 25 19% 24%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 25 19% 24%;
+    --primary: 25 24% 29%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 34 23% 87%;
+    --secondary-foreground: 25 19% 24%;
+    --muted: 40 33% 91%;
+    --muted-foreground: 27 15% 48%;
+    --accent: 27 25% 78%;
+    --accent-foreground: 25 19% 24%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 34 23% 87%;
+    --input: 34 23% 87%;
+    --ring: 27 26% 44%;
+    --sidebar-background: 40 20% 97%;
+    --sidebar-foreground: 25 19% 24%;
+    --sidebar-primary: 25 24% 29%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 34 23% 87%;
+    --sidebar-accent-foreground: 25 19% 24%;
+    --sidebar-border: 34 23% 87%;
+    --sidebar-ring: 27 26% 44%;
   }
 }
 
-@media (max-width: 768px) {
-  .desktop-only {
-    display: none !important;
+@layer base {
+  * {
+    @apply border-border;
   }
-  .mobile-only {
-    display: flex !important;
+  body {
+    @apply bg-background text-foreground;
   }
-
-  .layout-container {
-    flex-direction: column;
-    height: 100vh;
-  }
-
-  .sidebar-container {
-    position: fixed !important;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    transform: translateX(-100%);
-    border-right: 1px solid var(--border-color);
-    z-index: 100;
-  }
-
-  .sidebar-container.mobile-open {
-    transform: translateX(0) !important;
-  }
-
-  .mobile-topbar {
-    display: flex;
-  }
-
-  .mobile-bottom-nav {
-    display: flex;
-  }
-
-  .main-content {
-    padding: 16px 12px 84px 12px;
-    overflow-x: hidden;
-  }
-
-  .stat-cards-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    margin-bottom: 16px;
-  }
-
-  .stat-card {
-    padding: 14px !important;
-  }
-
-  .stat-title {
-    font-size: 0.75rem !important;
-    margin-bottom: 4px !important;
-  }
-
-  .stat-value {
-    font-size: 1.4rem !important;
-  }
-
-  .camera-preview-container {
-    height: clamp(230px, 52vw, 320px);
-    min-height: 230px;
-    max-height: 320px;
-  }
-
-  .page-header {
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    gap: 12px !important;
-    margin-bottom: 18px !important;
-  }
-
-  .page-header h1 {
-    font-size: 1.4rem !important;
-  }
-
-  .header-actions {
-    width: 100% !important;
-  }
-
-  .header-actions button {
-    flex: 1 !important;
-    justify-content: center !important;
-  }
-}
-
-@media (max-width: 420px) {
-  .stat-cards-grid {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-}
-
-h1, h2, h3 {
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
-}
-
-button {
-  font-family: inherit;
-  cursor: pointer;
-  border: none;
-  outline: none;
 }
