@@ -18,6 +18,15 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 })
 
+export const createTransientClient = () =>
+  createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  })
+
 export const getStoragePublicUrl = (
   bucket: 'avatars' | 'attendance-photos',
   path: string | null | undefined

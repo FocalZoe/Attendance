@@ -47,14 +47,18 @@ export const LoginPage: React.FC = () => {
 
       // 若為教師，查詢指派之班級列表
       let assignedClassIds: string[] = []
+      let homeroomClassIds: string[] = []
       if (assignedRole === 'teacher') {
         const { data: tcData } = await supabase
           .from('teacher_classes')
-          .select('class_id')
+          .select('class_id, is_homeroom')
           .eq('teacher_id', data.user.id)
 
         if (tcData) {
           assignedClassIds = tcData.map((item: { class_id: string }) => item.class_id)
+          homeroomClassIds = tcData
+            .filter((item: { is_homeroom: boolean }) => item.is_homeroom)
+            .map((item: { class_id: string }) => item.class_id)
         }
       }
 
@@ -66,6 +70,7 @@ export const LoginPage: React.FC = () => {
         schoolId: profile.school_id,
         schoolName: profile.schools?.name || '',
         assignedClassIds: assignedClassIds.length > 0 ? assignedClassIds : undefined,
+        homeroomClassIds: homeroomClassIds.length > 0 ? homeroomClassIds : undefined,
       })
 
       // 導向各身分首頁

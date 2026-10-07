@@ -220,23 +220,14 @@ export const DashboardPage: React.FC = () => {
           <p className="text-sm text-muted-foreground flex items-center gap-2">
             <School className="h-4 w-4" />
             {user?.schoolName || '學校'} · {activeClass?.name || '請選擇班級'}
+            {activeClass && user?.homeroomClassIds?.includes(activeClass.id) && (
+              <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4">
+                班導師
+              </Badge>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {/* 班級切換下拉 */}
-          <select
-            className="rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium"
-            value={selectedClassId}
-            onChange={(e) => setSelectedClassId(e.target.value)}
-            disabled={classes.length === 0}
-          >
-            {classes.map((cls) => (
-              <option key={cls.id} value={cls.id}>
-                {cls.name}
-              </option>
-            ))}
-          </select>
-
           <Button
             onClick={triggerScan}
             disabled={isScanning || classes.length === 0}
@@ -250,6 +241,35 @@ export const DashboardPage: React.FC = () => {
             {isScanning ? 'AI 推論辨識中...' : '即時執行 AI 點名'}
           </Button>
         </div>
+      </div>
+
+      {/* 負責班級切換標籤 */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-muted-foreground">負責班級列表：</span>
+        {classes.length === 0 ? (
+          <span className="text-xs text-muted-foreground">尚無指派班級，請向學校總管申請班級指派</span>
+        ) : (
+          classes.map((cls) => {
+            const isHomeroom = user?.homeroomClassIds?.includes(cls.id)
+            return (
+              <Button
+                key={cls.id}
+                variant={selectedClassId === cls.id ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedClassId(cls.id)}
+                className="text-xs h-8 flex items-center gap-1.5"
+              >
+                <span>{cls.name}</span>
+                <Badge
+                  variant={selectedClassId === cls.id ? 'secondary' : 'outline'}
+                  className="text-[10px] px-1 py-0 h-4"
+                >
+                  {isHomeroom ? '導師' : '任課'}
+                </Badge>
+              </Button>
+            )
+          })
+        )}
       </div>
 
       {errorStatus && (

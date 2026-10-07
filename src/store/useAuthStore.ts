@@ -13,6 +13,7 @@ export interface UserProfile {
   studentNo?: string
   seatNumber?: number
   assignedClassIds?: string[]
+  homeroomClassIds?: string[]
 }
 
 interface AuthState {
@@ -58,13 +59,17 @@ export const useAuthStore = create<AuthState>((set) => ({
         }
 
         let assignedClassIds: string[] = []
+        let homeroomClassIds: string[] = []
         if (profile.role === 'teacher') {
           const { data: tcData } = await supabase
             .from('teacher_classes')
-            .select('class_id')
+            .select('class_id, is_homeroom')
             .eq('teacher_id', userId)
           if (tcData) {
             assignedClassIds = tcData.map((item: { class_id: string }) => item.class_id)
+            homeroomClassIds = tcData
+              .filter((item: { is_homeroom: boolean }) => item.is_homeroom)
+              .map((item: { class_id: string }) => item.class_id)
           }
         }
 
@@ -77,6 +82,7 @@ export const useAuthStore = create<AuthState>((set) => ({
             schoolId: profile.school_id || '',
             schoolName: profile.schools?.name || '',
             assignedClassIds,
+            homeroomClassIds,
           },
           isAuthenticated: true,
           isLoading: false,
