@@ -71,6 +71,8 @@ scratch/
 
 # 5. 建置與腳本快取 (Build Tools & Script Caches - 若有引入工具鏈)
 node_modules/
+.next/
+out/
 dist/
 src-tauri/target/
 target/
