@@ -8,6 +8,150 @@ export interface RegisterSchoolResult {
   error?: string;
 }
 
+export interface LoginResult {
+  success: boolean;
+  error?: string;
+  redirectTo?: string;
+}
+
+/**
+ * 登入處理函式（支援環境變數透明比對與常規帳密驗證）
+ */
+export async function loginAction(
+  prevState: LoginResult | null,
+  formData: FormData
+): Promise<LoginResult> {
+  const email = (formData.get('email') as string)?.trim().toLowerCase();
+  const password = (formData.get('password') as string)?.trim();
+
+  if (!email || !password) {
+    return { success: false, error: '請輸入電子信箱與密碼' };
+  }
+
+  const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL?.trim().toLowerCase();
+  const initialAdminPassword = process.env.INITIAL_ADMIN_PASSWORD?.trim();
+  const initialAdminName = process.env.INITIAL_ADMIN_NAME?.trim() || '平台系統總管';
+
+  // 1. 環境變數透明比對：若符合系統總管環境變數，直接在背景自動預置/同步並登入
+  if (
+    initialAdminEmail &&
+    initialAdminPassword &&
+    email === initialAdminEmail &&
+    password === initialAdminPassword
+  ) {
+    try {
+      const adminSupabase = createAdminClient();
+
+      // 檢查 Supabase 是否已有此使用者
+      const { data: existingProfile } = await adminSupabase
+        .from('profiles')
+        .select('id, role')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (!existingProfile) {
+        // 自動在背景建立 Auth 使用者與 Profile
+        const { data: newUserData, error: createError } = await adminSupabase.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: {
+            name: initialAdminName,
+            role: 'sys_admin',
+            school_id: null,
+          },
+        });
+
+        if (createError) {
+          return { success: false, error: `系統總管初始化失敗: ${createError.message}` };
+        }
+
+        if (newUserData?.user) {
+          await adminSupabase.from('profiles').upsert({
+            id: newUserData.user.id,
+            school_id: null,
+            role: 'sys_admin',
+            name: initialAdminName,
+            email,
+          });
+        }
+      } else {
+        // 確保角色為 sys_admin，並同步最新密碼
+        await adminSupabase.auth.admin.updateUserById(existingProfile.id, {
+          password,
+          email_confirm: true,
+        });
+        await adminSupabase
+          .from('profiles')
+          .update({ role: 'sys_admin', school_id: null })
+          .eq('id', existingProfile.id);
+      }
+
+      // 使用伺服器客戶端建立標準會話 Cookie
+      const supabase = await createClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInError) {
+        return { success: false, error: `系統總管登入失敗: ${signInError.message}` };
+      }
+
+      return { success: true, redirectTo: '/dashboard/sys-admin' };
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : '系統總管驗證過程發生未預期錯誤';
+      return { success: false, error: errorMsg };
+    }
+  }
+
+  // 2. 常規使用者驗證 (學校主管、任課教師)
+  try {
+    const supabase = await createClient();
+    const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (signInError) {
+      return {
+        success: false,
+        error:
+          signInError.message === 'Invalid login credentials'
+            ? '帳號或密碼錯誤，請重新確認'
+            : signInError.message,
+      };
+    }
+
+    // 依 Profile 角色決定導向
+    if (authData?.user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', authData.user.id)
+        .maybeSingle();
+
+      if (profile?.role === 'sys_admin') {
+        return { success: true, redirectTo: '/dashboard/sys-admin' };
+      }
+      if (profile?.role === 'school_admin') {
+        return { success: true, redirectTo: '/dashboard/school-admin' };
+      }
+      if (profile?.role === 'teacher') {
+        return { success: true, redirectTo: '/dashboard/teacher' };
+      }
+    }
+
+    return { success: true, redirectTo: '/dashboard' };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : '登入過程發生未預期錯誤';
+    return { success: false, error: errorMsg };
+  }
+}
+
+/**
+ * 學校主管開通學校單位與註冊處理函式
+ */
 export async function registerSchoolAction(
   prevState: RegisterSchoolResult | null,
   formData: FormData

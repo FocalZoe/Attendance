@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
+import { loginAction } from '@/app/actions/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -11,32 +11,29 @@ import { Camera, ArrowLeft, AlertCircle, LogIn } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [errorMsg, setErrorMsg] = React.useState('');
   const [loading, setLoading] = React.useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrorMsg('');
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const formData = new FormData(e.currentTarget);
+      const result = await loginAction(null, formData);
 
-      if (error) {
-        setErrorMsg(error.message === 'Invalid login credentials' ? '帳號或密碼錯誤，請重新確認' : error.message);
+      if (!result.success) {
+        setErrorMsg(result.error || '帳號或密碼錯誤，請重新確認');
         setLoading(false);
         return;
       }
 
-      // 登入成功後跳轉控制台智慧分流路由
-      router.push('/dashboard');
+      // 登入成功後跳轉指定控制台路由（系統總管直達 /dashboard/sys-admin）
+      router.push(result.redirectTo || '/dashboard');
       router.refresh();
     } catch {
       setErrorMsg('認證過程發生未預期錯誤，請檢查網路連線或稍後再試。');
@@ -68,7 +65,7 @@ export default function LoginPage() {
             </div>
             <CardTitle className="text-xl">教職員登入</CardTitle>
             <CardDescription>
-              請輸入您的公務 Email 與密碼以進入教學或校務管理後台
+              請輸入公務 Email 或系統總管帳號以進入管理控制台
             </CardDescription>
           </CardHeader>
 
@@ -83,15 +80,17 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <Input
                 label="電子信箱 (Email)"
+                name="email"
                 type="email"
                 required
-                placeholder="teacher@school.edu.tw"
+                placeholder="teacher@school.edu.tw 或 sysadmin@..."
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
 
               <Input
                 label="密碼"
+                name="password"
                 type="password"
                 required
                 placeholder="請輸入密碼"
