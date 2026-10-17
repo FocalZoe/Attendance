@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createSchoolAction } from '@/app/actions/schools';
+import { SchoolAdminModal } from '@/components/sys-admin/school-admin-modal';
 import { School, Shield, PlusCircle, Building, Users } from 'lucide-react';
 import type { School as SchoolType } from '@/types/database';
 
@@ -33,6 +34,14 @@ export default async function SysAdminDashboard() {
 
   const schools: SchoolType[] = schoolsData || [];
 
+  // 取得全平台所有學校主管名單 (role = 'school_admin')
+  const { data: adminsData } = await supabase
+    .from('profiles')
+    .select('id, name, email, phone, school_id, created_at')
+    .eq('role', 'school_admin');
+
+  const allAdmins = adminsData || [];
+
   // 取得系統概況統計
   const { count: totalUsers } = await supabase
     .from('profiles')
@@ -57,7 +66,7 @@ export default async function SysAdminDashboard() {
               </h1>
             </div>
             <p className="mt-1 text-sm text-slate-500">
-              平台全域管理 · 多校租戶監控與學校組織授權
+              平台全域管理 · 多校租戶監控、學校機構開通與主管名冊授權維護
             </p>
           </div>
           <div className="mt-4 sm:mt-0 flex items-center space-x-2">
@@ -125,8 +134,8 @@ export default async function SysAdminDashboard() {
             <Card className="border-slate-300">
               <CardHeader className="flex flex-row items-center justify-between pb-4">
                 <div>
-                  <CardTitle>已註冊學校清單</CardTitle>
-                  <CardDescription>各校擁有獨立的資料庫隔離範疇與管理員</CardDescription>
+                  <CardTitle>已註冊學校機構清單</CardTitle>
+                  <CardDescription>各校具備獨立資料庫隔離範疇，支援多主管團隊協作</CardDescription>
                 </div>
                 <Badge variant="outline">{schools.length} 所學校</Badge>
               </CardHeader>
@@ -146,29 +155,36 @@ export default async function SysAdminDashboard() {
                         <tr>
                           <th className="py-3 px-4">學校名稱</th>
                           <th className="py-3 px-4">學校代碼</th>
+                          <th className="py-3 px-4">所屬主管團隊</th>
                           <th className="py-3 px-4">建立時間</th>
                           <th className="py-3 px-4 text-right">狀態</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-                        {schools.map((school) => (
-                          <tr key={school.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="py-3 px-4 font-bold text-slate-900">
-                              {school.name}
-                            </td>
-                            <td className="py-3 px-4">
-                              <span className="font-mono text-xs bg-slate-100 border border-slate-300 px-2 py-0.5 rounded text-slate-700">
-                                {school.code}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-xs text-slate-500">
-                              {new Date(school.created_at).toLocaleDateString('zh-TW')}
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <Badge variant="success">已啟用</Badge>
-                            </td>
-                          </tr>
-                        ))}
+                        {schools.map((school) => {
+                          const schoolAdmins = allAdmins.filter((a) => a.school_id === school.id);
+                          return (
+                            <tr key={school.id} className="hover:bg-slate-50 transition-colors">
+                              <td className="py-3 px-4 font-bold text-slate-900">
+                                {school.name}
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className="font-mono text-xs bg-slate-100 border border-slate-300 px-2 py-0.5 rounded text-slate-700">
+                                  {school.code}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <SchoolAdminModal school={school} admins={schoolAdmins} />
+                              </td>
+                              <td className="py-3 px-4 text-xs text-slate-500">
+                                {new Date(school.created_at).toLocaleDateString('zh-TW')}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <Badge variant="success">已啟用</Badge>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -183,10 +199,10 @@ export default async function SysAdminDashboard() {
               <CardHeader>
                 <div className="flex items-center space-x-2">
                   <PlusCircle className="w-5 h-5 text-blue-600" />
-                  <CardTitle className="text-base">新增學校組織</CardTitle>
+                  <CardTitle className="text-base">新增學校機構</CardTitle>
                 </div>
                 <CardDescription>
-                  建立後系統將生成唯一的學校代碼，以供校長或主管綁定
+                  建立後系統將生成獨立學校代碼，可由主管註冊時填寫或由總管手動指派
                 </CardDescription>
               </CardHeader>
               <CardContent>

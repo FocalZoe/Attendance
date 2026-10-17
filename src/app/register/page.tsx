@@ -90,8 +90,8 @@ export default function RegisterPage() {
                     placeholder="例如：DEMO-HS"
                   />
                 </div>
-                <p className="text-[11px] text-slate-400">
-                  * 學校代碼為校內獨立唯一識別符號，將用於校務資料與報表關聯。
+                <p className="text-[11px] text-slate-500">
+                  * 提示：輸入由系統總管預建之「既有學校代碼」將直接加入該校主管團隊；若輸入新代碼將自動建立新機構。
                 </p>
               </div>
 

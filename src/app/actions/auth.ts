@@ -174,10 +174,10 @@ export async function registerSchoolAction(
   try {
     const adminSupabase = createAdminClient();
 
-    // 1. 檢查學校代碼是否重複
+    // 1. 檢查學校代碼是否已存在（支援既有學校加入多主管）
     const { data: existingSchool, error: checkSchoolError } = await adminSupabase
       .from('schools')
-      .select('id')
+      .select('id, name')
       .eq('code', schoolCode)
       .maybeSingle();
 
@@ -185,47 +185,74 @@ export async function registerSchoolAction(
       return { success: false, error: `檢查學校代碼失敗: ${checkSchoolError.message}` };
     }
 
+    let targetSchoolId: string;
+
     if (existingSchool) {
-      return { success: false, error: `學校代碼「${schoolCode}」已被使用，請更換代碼` };
+      // 學校代碼已存在（例如由系統總管預置或已有學校），將新註冊主管加入該校管理團隊
+      targetSchoolId = existingSchool.id;
+    } else {
+      // 學校代碼不存在，建立新學校實體
+      const { data: newSchool, error: createSchoolError } = await adminSupabase
+        .from('schools')
+        .insert({
+          name: schoolName,
+          code: schoolCode,
+        })
+        .select('id')
+        .single();
+
+      if (createSchoolError || !newSchool) {
+        return { success: false, error: `建立學校資料失敗: ${createSchoolError?.message}` };
+      }
+      targetSchoolId = newSchool.id;
     }
 
-    // 2. 建立學校實體
-    const { data: newSchool, error: createSchoolError } = await adminSupabase
-      .from('schools')
-      .insert({
-        name: schoolName,
-        code: schoolCode,
-      })
+    // 2. 檢查此 Email 是否已被註冊
+    const { data: existingUser } = await adminSupabase
+      .from('profiles')
       .select('id')
-      .single();
+      .eq('email', email)
+      .maybeSingle();
 
-    if (createSchoolError || !newSchool) {
-      return { success: false, error: `建立學校資料失敗: ${createSchoolError?.message}` };
+    let userId: string;
+
+    if (existingUser) {
+      // 若該信箱已存在，更新其密碼並設為該校主管
+      userId = existingUser.id;
+      await adminSupabase.auth.admin.updateUserById(userId, {
+        password,
+        email_confirm: true,
+        user_metadata: {
+          name: adminName,
+          role: 'school_admin',
+          school_id: targetSchoolId,
+          phone: phone || null,
+        },
+      });
+    } else {
+      // 建立學校管理員 Auth 使用者 (自動確認信箱)
+      const { data: userData, error: createUserError } = await adminSupabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          name: adminName,
+          role: 'school_admin',
+          school_id: targetSchoolId,
+          phone: phone || null,
+        },
+      });
+
+      if (createUserError || !userData?.user) {
+        return { success: false, error: `建立管理員帳號失敗: ${createUserError?.message}` };
+      }
+      userId = userData.user.id;
     }
 
-    // 3. 建立學校管理員 Auth 使用者 (自動確認信箱)
-    const { data: userData, error: createUserError } = await adminSupabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        name: adminName,
-        role: 'school_admin',
-        school_id: newSchool.id,
-        phone: phone || null,
-      },
-    });
-
-    if (createUserError || !userData?.user) {
-      // 回滾學校建立
-      await adminSupabase.from('schools').delete().eq('id', newSchool.id);
-      return { success: false, error: `建立管理員帳號失敗: ${createUserError?.message}` };
-    }
-
-    // 4. 同步寫入 Profile 表
+    // 3. 同步寫入 Profile 表
     const { error: profileError } = await adminSupabase.from('profiles').upsert({
-      id: userData.user.id,
-      school_id: newSchool.id,
+      id: userId,
+      school_id: targetSchoolId,
       role: 'school_admin',
       name: adminName,
       email,
@@ -236,7 +263,7 @@ export async function registerSchoolAction(
       console.error('Profile upsert warning:', profileError);
     }
 
-    // 5. 為當前客戶端會話進行登入認證
+    // 4. 為當前客戶端會話進行登入認證
     const supabase = await createClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
@@ -244,7 +271,7 @@ export async function registerSchoolAction(
     });
 
     if (signInError) {
-      return { success: true }; // 帳號已建立，引導手動登入
+      return { success: true }; // 帳號已建立/更新，引導手動登入
     }
 
     return { success: true };

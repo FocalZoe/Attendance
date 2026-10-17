@@ -66,7 +66,13 @@ export function Navbar({ profile }: NavbarProps) {
           {profile && (
             <nav className="hidden md:flex items-center space-x-4 pl-4 border-l border-slate-200 text-sm font-semibold">
               <Link
-                href="/dashboard"
+                href={
+                  profile.role === 'sys_admin'
+                    ? '/dashboard/sys-admin'
+                    : profile.role === 'school_admin'
+                    ? '/dashboard/school-admin'
+                    : '/dashboard/teacher'
+                }
                 className="text-slate-700 hover:text-blue-600 px-2 py-1 rounded transition-colors"
               >
                 控制台
