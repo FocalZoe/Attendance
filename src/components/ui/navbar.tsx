@@ -57,9 +57,9 @@ export function Navbar({ profile }: NavbarProps) {
             </div>
             <div className="flex flex-col">
               <span className="font-extrabold text-base tracking-tight text-slate-900 leading-tight">
-                視覺化智慧點名
+                班級自動化點名系統
               </span>
-              <span className="text-[10px] text-slate-500 font-medium">全國專題競賽作品</span>
+              <span className="text-[10px] text-slate-500 font-medium">校園智慧出勤平台</span>
             </div>
           </Link>
 
@@ -119,11 +119,18 @@ export function Navbar({ profile }: NavbarProps) {
               </Button>
             </div>
           ) : (
-            <Link href="/login">
-              <Button variant="primary" size="sm">
-                登入系統
-              </Button>
-            </Link>
+            <div className="flex items-center space-x-2">
+              <Link href="/register">
+                <Button variant="outline" size="sm" className="hidden sm:inline-flex">
+                  開通學校
+                </Button>
+              </Link>
+              <Link href="/login">
+                <Button variant="primary" size="sm">
+                  教職員登入
+                </Button>
+              </Link>
+            </div>
           )}
         </div>
       </div>

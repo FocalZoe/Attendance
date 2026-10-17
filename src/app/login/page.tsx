@@ -7,17 +7,14 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Camera, ArrowLeft, Shield, School, User, AlertCircle } from 'lucide-react';
+import { Camera, ArrowLeft, AlertCircle, LogIn } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const [isRegister, setIsRegister] = React.useState(false);
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
-  const [name, setName] = React.useState('');
-  const [role, setRole] = React.useState<'sys_admin' | 'school_admin' | 'teacher'>('teacher');
   const [errorMsg, setErrorMsg] = React.useState('');
   const [loading, setLoading] = React.useState(false);
 
@@ -27,44 +24,20 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      if (isRegister) {
-        // 註冊帳號並將角色及姓名寫入 metadata（由 Supabase Trigger 自動同步建立 Profile）
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              name,
-              role,
-            },
-          },
-        });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-        if (error) {
-          setErrorMsg(error.message);
-          setLoading(false);
-          return;
-        }
-
-        // 登入成功後跳轉控制台
-        router.push('/dashboard');
-        router.refresh();
-      } else {
-        // 登入
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (error) {
-          setErrorMsg(error.message);
-          setLoading(false);
-          return;
-        }
-
-        router.push('/dashboard');
-        router.refresh();
+      if (error) {
+        setErrorMsg(error.message === 'Invalid login credentials' ? '帳號或密碼錯誤，請重新確認' : error.message);
+        setLoading(false);
+        return;
       }
+
+      // 登入成功後跳轉控制台智慧分流路由
+      router.push('/dashboard');
+      router.refresh();
     } catch {
       setErrorMsg('認證過程發生未預期錯誤，請檢查網路連線或稍後再試。');
       setLoading(false);
@@ -79,24 +52,23 @@ export default function LoginPage() {
             <Camera className="w-6 h-6" />
           </div>
           <span className="font-extrabold text-xl tracking-tight text-slate-900">
-            視覺化智慧點名系統
+            班級自動化點名系統
           </span>
         </Link>
         <p className="text-center text-sm font-medium text-slate-500">
-          全國專題競賽作品 · 創新與應用整合架構
+          現代化校園智慧出勤平台 · 教職員後台登入
         </p>
       </div>
 
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md px-4">
         <Card className="border-slate-300 shadow-none">
           <CardHeader className="text-center pb-2">
-            <CardTitle className="text-xl">
-              {isRegister ? '建立管理帳號' : '使用者登入'}
-            </CardTitle>
+            <div className="mx-auto w-10 h-10 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 mb-2">
+              <LogIn className="w-5 h-5" />
+            </div>
+            <CardTitle className="text-xl">教職員登入</CardTitle>
             <CardDescription>
-              {isRegister
-                ? '選擇您的職務角色並填寫帳戶資訊'
-                : '請輸入您的公務 Email 與密碼進入後台'}
+              請輸入您的公務 Email 與密碼以進入教學或校務管理後台
             </CardDescription>
           </CardHeader>
 
@@ -109,63 +81,6 @@ export default function LoginPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {isRegister && (
-                <>
-                  <Input
-                    label="姓名 / 稱謂"
-                    type="text"
-                    required
-                    placeholder="例如：張老師、林主任"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-
-                  <div className="space-y-1.5 text-left">
-                    <label className="block text-sm font-semibold text-slate-700">
-                      身分職務
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setRole('teacher')}
-                        className={`flex flex-col items-center justify-center p-2.5 rounded-md border text-xs font-semibold cursor-pointer transition-colors ${
-                          role === 'teacher'
-                            ? 'bg-blue-50 border-blue-600 text-blue-700'
-                            : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <User className="w-4 h-4 mb-1" />
-                        任課教師
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRole('school_admin')}
-                        className={`flex flex-col items-center justify-center p-2.5 rounded-md border text-xs font-semibold cursor-pointer transition-colors ${
-                          role === 'school_admin'
-                            ? 'bg-blue-50 border-blue-600 text-blue-700'
-                            : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <School className="w-4 h-4 mb-1" />
-                        學校主管
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRole('sys_admin')}
-                        className={`flex flex-col items-center justify-center p-2.5 rounded-md border text-xs font-semibold cursor-pointer transition-colors ${
-                          role === 'sys_admin'
-                            ? 'bg-blue-50 border-blue-600 text-blue-700'
-                            : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <Shield className="w-4 h-4 mb-1" />
-                        系統總管
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-
               <Input
                 label="電子信箱 (Email)"
                 type="email"
@@ -185,21 +100,15 @@ export default function LoginPage() {
               />
 
               <Button type="submit" variant="primary" className="w-full mt-2" disabled={loading}>
-                {loading ? '處理中...' : isRegister ? '建立帳號並登入' : '登入系統'}
+                {loading ? '驗證登入中...' : '登入系統'}
               </Button>
             </form>
 
-            <div className="pt-2 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRegister(!isRegister);
-                  setErrorMsg('');
-                }}
-                className="text-xs font-semibold text-blue-600 hover:text-blue-800 underline underline-offset-2 cursor-pointer"
-              >
-                {isRegister ? '已有帳號？切換至直接登入' : '尚未註冊？點此建立新管理帳號'}
-              </button>
+            <div className="pt-2 text-center text-xs text-slate-500">
+              新設學校機構尚未開通？{' '}
+              <Link href="/register" className="font-semibold text-blue-600 hover:text-blue-800 underline">
+                前往開通學校單位
+              </Link>
             </div>
           </CardContent>
 

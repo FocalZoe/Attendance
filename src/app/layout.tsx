@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "視覺化智慧點名系統 | 全國專題競賽作品",
-  description: "基於視訊劃位與 Web AI 人員識別之全端智慧點名系統",
+  title: "班級自動化點名系統 | 現代化校園智慧出勤解決方案",
+  description: "結合教室視訊動態劃位與前端邊緣 AI 辨識之現代化校園點名平台",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -84,7 +84,7 @@ export default async function TeacherDashboard() {
                 <span className="text-xs font-semibold text-blue-600 flex items-center">
                   準備點名 <ChevronRight className="w-3.5 h-3.5 ml-1" />
                 </span>
-                <Badge variant="info">Phase 4 模組</Badge>
+                <Badge variant="info">即時點名</Badge>
               </div>
             </div>
           </Card>
@@ -104,7 +104,7 @@ export default async function TeacherDashboard() {
                 <span className="text-xs font-semibold text-emerald-600 flex items-center">
                   編輯劃位表 <ChevronRight className="w-3.5 h-3.5 ml-1" />
                 </span>
-                <Badge variant="success">Phase 3 模組</Badge>
+                <Badge variant="success">劃位配置</Badge>
               </div>
             </div>
           </Card>
@@ -124,7 +124,7 @@ export default async function TeacherDashboard() {
                 <span className="text-xs font-semibold text-amber-600 flex items-center">
                   檢視名冊 <ChevronRight className="w-3.5 h-3.5 ml-1" />
                 </span>
-                <Badge variant="warning">Phase 2 模組</Badge>
+                <Badge variant="warning">學生名冊</Badge>
               </div>
             </div>
           </Card>
