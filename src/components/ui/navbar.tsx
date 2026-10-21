@@ -1,25 +1,23 @@
-'use client';
-
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import * as React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/store/useAuthStore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Profile } from '@/types/database';
+import type { Profile } from '@/types/database';
 import { Camera, LogOut, School, Shield, User, Search } from 'lucide-react';
 
 interface NavbarProps {
   profile?: Profile | null;
 }
 
-export function Navbar({ profile }: NavbarProps) {
-  const router = useRouter();
-  const supabase = createClient();
+export function Navbar({ profile: propProfile }: NavbarProps) {
+  const navigate = useNavigate();
+  const { profile: storeProfile, signOut } = useAuthStore();
+  const profile = propProfile !== undefined ? propProfile : storeProfile;
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
+    await signOut();
+    navigate('/login');
   };
 
   const getRoleBadge = (role?: string) => {
@@ -51,8 +49,8 @@ export function Navbar({ profile }: NavbarProps) {
     <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <div className="flex items-center space-x-6">
-          <Link href="/" className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-md bg-blue-600 flex items-center justify-center text-white font-bold">
+          <Link to="/" className="flex items-center space-x-2.5 group">
+            <div className="w-9 h-9 rounded-md bg-blue-600 flex items-center justify-center text-white font-bold transition-transform group-hover:scale-105">
               <Camera className="w-5 h-5" />
             </div>
             <div className="flex flex-col">
@@ -66,7 +64,7 @@ export function Navbar({ profile }: NavbarProps) {
           {profile && (
             <nav className="hidden md:flex items-center space-x-4 pl-4 border-l border-slate-200 text-sm font-semibold">
               <Link
-                href={
+                to={
                   profile.role === 'sys_admin'
                     ? '/dashboard/sys-admin'
                     : profile.role === 'school_admin'
@@ -79,7 +77,7 @@ export function Navbar({ profile }: NavbarProps) {
               </Link>
               {profile.role === 'teacher' && (
                 <Link
-                  href="/dashboard/teacher"
+                  to="/dashboard/teacher"
                   className="text-slate-700 hover:text-blue-600 px-2 py-1 rounded transition-colors"
                 >
                   任教班級與點名
@@ -87,7 +85,7 @@ export function Navbar({ profile }: NavbarProps) {
               )}
               {profile.role === 'school_admin' && (
                 <Link
-                  href="/dashboard/school-admin"
+                  to="/dashboard/school-admin"
                   className="text-slate-700 hover:text-blue-600 px-2 py-1 rounded transition-colors"
                 >
                   校務名冊管理
@@ -95,7 +93,7 @@ export function Navbar({ profile }: NavbarProps) {
               )}
               {profile.role === 'sys_admin' && (
                 <Link
-                  href="/dashboard/sys-admin"
+                  to="/dashboard/sys-admin"
                   className="text-slate-700 hover:text-blue-600 px-2 py-1 rounded transition-colors"
                 >
                   學校組織總覽
@@ -106,7 +104,7 @@ export function Navbar({ profile }: NavbarProps) {
         </div>
 
         <div className="flex items-center space-x-3">
-          <Link href="/parent-query">
+          <Link to="/parent-query">
             <Button variant="outline" size="sm" className="hidden sm:inline-flex">
               <Search className="w-3.5 h-3.5 mr-1.5" />
               家長查勤
@@ -126,12 +124,12 @@ export function Navbar({ profile }: NavbarProps) {
             </div>
           ) : (
             <div className="flex items-center space-x-2">
-              <Link href="/register">
+              <Link to="/register">
                 <Button variant="outline" size="sm" className="hidden sm:inline-flex">
                   開通學校
                 </Button>
               </Link>
-              <Link href="/login">
+              <Link to="/login">
                 <Button variant="primary" size="sm">
                   教職員登入
                 </Button>

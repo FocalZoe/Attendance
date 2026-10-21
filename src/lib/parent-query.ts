@@ -1,9 +1,7 @@
-'use server';
+import { supabase } from '@/lib/supabase';
+import type { ParentQueryResult } from '@/types/database';
 
-import { createClient } from '@/lib/supabase/server';
-import { ParentQueryResult } from '@/types/database';
-
-export async function queryStudentAttendanceAction(
+export async function queryStudentAttendance(
   studentNumber: string,
   parentPhoneLast4: string
 ): Promise<ParentQueryResult> {
@@ -14,19 +12,21 @@ export async function queryStudentAttendanceAction(
     return { success: false, message: '請輸入正確的學號與家長電話後四碼' };
   }
 
-  const supabase = await createClient();
+  // 1. 優先嘗試呼叫資料庫安全 RPC
+  try {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('query_student_attendance', {
+      p_student_number: cleanStudentNumber,
+      p_parent_phone_last4: cleanLast4,
+    });
 
-  // 優先嘗試呼叫資料庫安全 RPC
-  const { data: rpcData, error: rpcError } = await supabase.rpc('query_student_attendance', {
-    p_student_number: cleanStudentNumber,
-    p_parent_phone_last4: cleanLast4,
-  });
-
-  if (!rpcError && rpcData) {
-    return rpcData as ParentQueryResult;
+    if (!rpcError && rpcData) {
+      return rpcData as ParentQueryResult;
+    }
+  } catch (err) {
+    console.warn('RPC 查詢異常，改用客戶端資料查詢:', err);
   }
 
-  // 若 RPC 尚未在資料庫部署，降級以標準查詢 fallback
+  // 2. 若 RPC 未生效或失敗，降級以標準查詢 fallback
   const { data: student, error: studentError } = await supabase
     .from('students')
     .select('id, name, student_number, seat_number, parent_phone, class:classes(name), school:schools(name)')
@@ -77,8 +77,12 @@ export async function queryStudentAttendanceAction(
     created_at: r.created_at,
   }));
 
-  const studentClass = Array.isArray(student.class) ? student.class[0] : student.class;
-  const studentSchool = Array.isArray(student.school) ? student.school[0] : student.school;
+  type ClassObj = { name: string } | { name: string }[] | null;
+  type SchoolObj = { name: string } | { name: string }[] | null;
+  const rawClass = student.class as unknown as ClassObj;
+  const rawSchool = student.school as unknown as SchoolObj;
+  const studentClass = Array.isArray(rawClass) ? rawClass[0] : rawClass;
+  const studentSchool = Array.isArray(rawSchool) ? rawSchool[0] : rawSchool;
 
   return {
     success: true,

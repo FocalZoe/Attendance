@@ -341,3 +341,126 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ------------------------------------------------------------------------------
+-- 14. 安全預存程序：學校單位開通與多主管綁定 (register_school_admin)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.register_school_admin(
+    p_school_name TEXT,
+    p_school_code TEXT,
+    p_admin_name TEXT,
+    p_phone TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_user_id UUID;
+    v_school_id UUID;
+    v_clean_code TEXT;
+    v_user_email TEXT;
+BEGIN
+    v_user_id := auth.uid();
+    IF v_user_id IS NULL THEN
+        RAISE EXCEPTION '未經身分驗證，無法執行學校主管開通';
+    END IF;
+
+    v_clean_code := UPPER(TRIM(p_school_code));
+
+    -- 取得呼叫者信箱
+    SELECT email INTO v_user_email FROM auth.users WHERE id = v_user_id;
+
+    -- 檢查學校是否已存在（支援既有學校加入新主管）
+    SELECT id INTO v_school_id FROM public.schools WHERE code = v_clean_code;
+
+    IF v_school_id IS NULL THEN
+        -- 學校不存在，建立新學校
+        INSERT INTO public.schools (name, code)
+        VALUES (TRIM(p_school_name), v_clean_code)
+        RETURNING id INTO v_school_id;
+    END IF;
+
+    -- 配置或更新呼叫者的 Profile 為該校主管
+    INSERT INTO public.profiles (id, school_id, role, name, email, phone)
+    VALUES (
+        v_user_id,
+        v_school_id,
+        'school_admin',
+        TRIM(p_admin_name),
+        v_user_email,
+        p_phone
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        school_id = v_school_id,
+        role = 'school_admin',
+        name = TRIM(p_admin_name),
+        phone = p_phone,
+        updated_at = TIMEZONE('utc'::text, NOW());
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'school_id', v_school_id,
+        'school_code', v_clean_code
+    );
+END;
+$$;
+
+-- ------------------------------------------------------------------------------
+-- 15. 系統總管安全預存程序：主管解任與指派 (remove_school_admin / assign_school_admin)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.remove_school_admin(p_profile_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF public.current_user_role() != 'sys_admin' THEN
+        RAISE EXCEPTION '權限不足，僅系統總管可執行解任操作';
+    END IF;
+
+    UPDATE public.profiles
+    SET school_id = NULL, role = 'teacher', updated_at = TIMEZONE('utc'::text, NOW())
+    WHERE id = p_profile_id;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.assign_school_admin(
+    p_school_id UUID,
+    p_email TEXT,
+    p_name TEXT,
+    p_phone TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_target_id UUID;
+BEGIN
+    IF public.current_user_role() != 'sys_admin' THEN
+        RAISE EXCEPTION '權限不足，僅系統總管可指派學校主管';
+    END IF;
+
+    SELECT id INTO v_target_id FROM public.profiles WHERE LOWER(email) = LOWER(TRIM(p_email));
+
+    IF v_target_id IS NOT NULL THEN
+        UPDATE public.profiles
+        SET school_id = p_school_id,
+            role = 'school_admin',
+            name = COALESCE(NULLIF(TRIM(p_name), ''), name),
+            phone = COALESCE(p_phone, phone),
+            updated_at = TIMEZONE('utc'::text, NOW())
+        WHERE id = v_target_id;
+
+        RETURN jsonb_build_object('success', true, 'action', 'updated');
+    ELSE
+        RETURN jsonb_build_object('success', false, 'error', '查無此信箱之帳號，請請該員先進行註冊');
+    END IF;
+END;
+$$;
