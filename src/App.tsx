@@ -11,6 +11,7 @@ import { DashboardRedirect } from '@/pages/DashboardRedirect';
 import { SysAdminDashboard } from '@/pages/SysAdminDashboard';
 import { SchoolAdminDashboard } from '@/pages/SchoolAdminDashboard';
 import { TeacherDashboard } from '@/pages/TeacherDashboard';
+import { Toaster } from '@/components/ui/sonner';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -94,6 +95,7 @@ export function App() {
         {/* 兜底重定向 */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <Toaster />
     </BrowserRouter>
   );
 }

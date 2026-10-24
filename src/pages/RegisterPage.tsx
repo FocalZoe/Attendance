@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Camera, School, ArrowLeft, ShieldCheck, AlertCircle } from 'lucide-react';
 
@@ -179,18 +180,24 @@ export function RegisterPage() {
                   <span>第一步：學校單位資訊</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Input
-                    label="學校全銜"
-                    name="school_name"
-                    required
-                    placeholder="例如：國立示範高級中學"
-                  />
-                  <Input
-                    label="學校代碼 (英文縮寫)"
-                    name="school_code"
-                    required
-                    placeholder="例如：DEMO-HS"
-                  />
+                  <div className="space-y-1.5">
+                    <Label htmlFor="reg-school-name">學校全銜</Label>
+                    <Input
+                      id="reg-school-name"
+                      name="school_name"
+                      required
+                      placeholder="例如：國立示範高級中學"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="reg-school-code">學校代碼 (英文縮寫)</Label>
+                    <Input
+                      id="reg-school-code"
+                      name="school_code"
+                      required
+                      placeholder="例如：DEMO-HS"
+                    />
+                  </div>
                 </div>
                 <p className="text-[11px] text-slate-500">
                   * 提示：輸入由系統總管預建之「既有學校代碼」將直接加入該校主管團隊；若輸入新代碼將自動建立新機構。
@@ -204,37 +211,49 @@ export function RegisterPage() {
                   <span>第二步：學校主管個人資訊</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Input
-                    label="管理主管姓名"
-                    name="admin_name"
-                    required
-                    placeholder="例如：張教務主任"
-                  />
-                  <Input
-                    label="公務聯絡電話 (選填)"
-                    name="phone"
-                    placeholder="例如：02-12345678#101"
-                  />
+                  <div className="space-y-1.5">
+                    <Label htmlFor="reg-admin-name">管理主管姓名</Label>
+                    <Input
+                      id="reg-admin-name"
+                      name="admin_name"
+                      required
+                      placeholder="例如：張教務主任"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="reg-admin-phone">公務聯絡電話 (選填)</Label>
+                    <Input
+                      id="reg-admin-phone"
+                      name="phone"
+                      placeholder="例如：02-12345678#101"
+                    />
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Input
-                    label="登入電子信箱 (Email)"
-                    name="email"
-                    type="email"
-                    required
-                    placeholder="admin@school.edu.tw"
-                  />
-                  <Input
-                    label="設定密碼"
-                    name="password"
-                    type="password"
-                    required
-                    placeholder="至少 6 個字元"
-                  />
+                  <div className="space-y-1.5">
+                    <Label htmlFor="reg-admin-email">登入電子信箱 (Email)</Label>
+                    <Input
+                      id="reg-admin-email"
+                      name="email"
+                      type="email"
+                      required
+                      placeholder="admin@school.edu.tw"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="reg-admin-password">設定密碼</Label>
+                    <Input
+                      id="reg-admin-password"
+                      name="password"
+                      type="password"
+                      required
+                      placeholder="至少 6 個字元"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <Button type="submit" variant="primary" className="w-full mt-2" disabled={loading}>
+              <Button type="submit" variant="default" className="w-full mt-2" disabled={loading}>
                 {loading ? '機構開通處理中...' : '確認開通並登入控制台'}
               </Button>
             </form>

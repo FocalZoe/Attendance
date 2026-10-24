@@ -4,7 +4,16 @@ import { queryStudentAttendance } from '@/lib/parent-query';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/components/ui/table';
 import type { ParentQueryResult, AttendanceStatus } from '@/types/database';
 import { Camera, Search, ArrowLeft, ShieldCheck, AlertCircle, Calendar, Clock, CheckCircle } from 'lucide-react';
 
@@ -40,7 +49,7 @@ export function ParentQueryPage() {
       case 'present':
         return <Badge variant="success">準時出席</Badge>;
       case 'absent':
-        return <Badge variant="danger">未到缺席</Badge>;
+        return <Badge variant="destructive">未到缺席</Badge>;
       case 'late':
         return <Badge variant="warning">遲到到課</Badge>;
       case 'leave':
@@ -84,18 +93,20 @@ export function ParentQueryPage() {
 
           <CardContent className="pt-4">
             <form onSubmit={handleQuery} className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-2 space-y-1.5">
+                <Label htmlFor="query-student-number">學生學號</Label>
                 <Input
-                  label="學生學號"
+                  id="query-student-number"
                   required
                   placeholder="例如：113001"
                   value={studentNumber}
                   onChange={(e) => setStudentNumber(e.target.value)}
                 />
               </div>
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-2 space-y-1.5">
+                <Label htmlFor="query-phone-last4">家長電話末四碼</Label>
                 <Input
-                  label="家長電話末四碼"
+                  id="query-phone-last4"
                   required
                   maxLength={4}
                   placeholder="例如：5678"
@@ -104,7 +115,7 @@ export function ParentQueryPage() {
                 />
               </div>
               <div className="sm:col-span-1 flex items-end">
-                <Button type="submit" variant="primary" className="w-full" disabled={loading}>
+                <Button type="submit" variant="default" className="w-full" disabled={loading}>
                   {loading ? '查詢中...' : (
                     <>
                       <Search className="w-4 h-4 mr-1" />
@@ -160,51 +171,49 @@ export function ParentQueryPage() {
                     此學生目前尚無課堂出勤紀錄
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-100 text-slate-700 border-b border-slate-200 font-bold uppercase tracking-wider">
-                          <th className="px-4 py-3">點名日期</th>
-                          <th className="px-4 py-3">節次 / 課堂</th>
-                          <th className="px-4 py-3">出勤狀態</th>
-                          <th className="px-4 py-3">AI 辨識原由</th>
-                          <th className="px-4 py-3">備註說明</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 bg-white">
-                        {result.records.map((rec) => (
-                          <tr key={rec.record_id} className="hover:bg-slate-50">
-                            <td className="px-4 py-3.5 font-mono text-slate-900 font-medium">
-                              {rec.date}
-                            </td>
-                            <td className="px-4 py-3.5 text-slate-600">
-                              <span className="inline-flex items-center">
-                                <Clock className="w-3 h-3 mr-1 text-slate-400" />
-                                {rec.period || '全日課堂'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3.5">
-                              {getStatusBadge(rec.status)}
-                            </td>
-                            <td className="px-4 py-3.5 text-slate-500">
-                              {rec.is_overridden ? (
-                                <span className="text-amber-600 font-semibold">教師手動更正</span>
-                              ) : rec.ai_detected_status === 'present' ? (
-                                <span className="text-emerald-600 font-medium">視覺 AI 辨識就座</span>
-                              ) : rec.ai_detected_status === 'absent' ? (
-                                <span className="text-rose-600 font-medium">視覺 AI 判定未就座</span>
-                              ) : (
-                                '標準登記'
-                              )}
-                            </td>
-                            <td className="px-4 py-3.5 text-slate-500 max-w-xs truncate">
-                              {rec.note || '-'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>點名日期</TableHead>
+                        <TableHead>節次 / 課堂</TableHead>
+                        <TableHead>出勤狀態</TableHead>
+                        <TableHead>AI 辨識原由</TableHead>
+                        <TableHead>備註說明</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {result.records.map((rec) => (
+                        <TableRow key={rec.record_id}>
+                          <TableCell className="font-mono text-slate-900 font-medium">
+                            {rec.date}
+                          </TableCell>
+                          <TableCell className="text-slate-600">
+                            <span className="inline-flex items-center">
+                              <Clock className="w-3 h-3 mr-1 text-slate-400" />
+                              {rec.period || '全日課堂'}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadge(rec.status)}
+                          </TableCell>
+                          <TableCell className="text-slate-500">
+                            {rec.is_overridden ? (
+                              <span className="text-amber-600 font-semibold">教師手動更正</span>
+                            ) : rec.ai_detected_status === 'present' ? (
+                              <span className="text-emerald-600 font-medium">視覺 AI 辨識就座</span>
+                            ) : rec.ai_detected_status === 'absent' ? (
+                              <span className="text-rose-600 font-medium">視覺 AI 判定未就座</span>
+                            ) : (
+                              '標準登記'
+                            )}
+                          </TableCell>
+                          <TableCell className="text-slate-500 max-w-xs truncate">
+                            {rec.note || '-'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 )}
               </CardContent>
             </Card>

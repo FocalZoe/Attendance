@@ -6,6 +6,15 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/components/ui/table';
 import { SchoolAdminModal } from '@/components/sys-admin/school-admin-modal';
 import { School, Shield, PlusCircle, Building, Users } from 'lucide-react';
 import type { School as SchoolType } from '@/types/database';
@@ -175,23 +184,29 @@ export function SysAdminDashboard() {
                   </div>
                 )}
                 <form onSubmit={handleCreateSchool} className="space-y-4">
-                  <Input
-                    label="學校全名"
-                    name="name"
-                    required
-                    placeholder="例如：國立示範科技大學"
-                    value={schoolName}
-                    onChange={(e) => setSchoolName(e.target.value)}
-                  />
-                  <Input
-                    label="學校代碼 (大寫英文/數字)"
-                    name="code"
-                    required
-                    placeholder="例如：DEMO-TECH"
-                    value={schoolCode}
-                    onChange={(e) => setSchoolCode(e.target.value)}
-                  />
-                  <Button type="submit" variant="primary" className="w-full" disabled={creatingSchool}>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="sys-school-name">學校全名</Label>
+                    <Input
+                      id="sys-school-name"
+                      name="name"
+                      required
+                      placeholder="例如：國立示範科技大學"
+                      value={schoolName}
+                      onChange={(e) => setSchoolName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="sys-school-code">學校代碼 (大寫英文/數字)</Label>
+                    <Input
+                      id="sys-school-code"
+                      name="code"
+                      required
+                      placeholder="例如：DEMO-TECH"
+                      value={schoolCode}
+                      onChange={(e) => setSchoolCode(e.target.value)}
+                    />
+                  </div>
+                  <Button type="submit" variant="default" className="w-full" disabled={creatingSchool}>
                     <PlusCircle className="w-4 h-4 mr-1.5" />
                     {creatingSchool ? '建立中...' : '確認開通學校'}
                   </Button>
@@ -224,57 +239,55 @@ export function SysAdminDashboard() {
                     目前尚未建立任何學校單位。請由左側表單新增第一所學校。
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-100 text-slate-700 border-b border-slate-200 font-bold uppercase tracking-wider">
-                          <th className="px-4 py-3">學校全稱</th>
-                          <th className="px-4 py-3">專屬代碼</th>
-                          <th className="px-4 py-3">管理團隊 (主管數)</th>
-                          <th className="px-4 py-3">開通時間</th>
-                          <th className="px-4 py-3 text-right">管理操作</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 bg-white">
-                        {schools.map((s) => {
-                          const schoolAdmins = allAdmins.filter((a) => a.school_id === s.id);
-                          return (
-                            <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                              <td className="px-4 py-3.5 font-bold text-slate-900">
-                                {s.name}
-                              </td>
-                              <td className="px-4 py-3.5 font-mono text-slate-600">
-                                <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-bold">
-                                  {s.code}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3.5">
-                                {schoolAdmins.length === 0 ? (
-                                  <span className="text-amber-600 font-medium">尚未配置</span>
-                                ) : (
-                                  <div className="flex items-center space-x-1.5">
-                                    <span className="font-semibold text-slate-800">
-                                      {schoolAdmins.map((a) => a.name).join(', ')}
-                                    </span>
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-4 py-3.5 text-slate-500 font-mono">
-                                {new Date(s.created_at).toLocaleDateString()}
-                              </td>
-                              <td className="px-4 py-3.5 text-right">
-                                <SchoolAdminModal
-                                  school={{ id: s.id, name: s.name, code: s.code }}
-                                  admins={schoolAdmins}
-                                  onRefresh={loadData}
-                                />
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>學校全稱</TableHead>
+                        <TableHead>專屬代碼</TableHead>
+                        <TableHead>管理團隊 (主管數)</TableHead>
+                        <TableHead>開通時間</TableHead>
+                        <TableHead className="text-right">管理操作</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {schools.map((s) => {
+                        const schoolAdmins = allAdmins.filter((a) => a.school_id === s.id);
+                        return (
+                          <TableRow key={s.id}>
+                            <TableCell className="font-bold text-slate-900">
+                              {s.name}
+                            </TableCell>
+                            <TableCell className="font-mono text-slate-600">
+                              <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-bold">
+                                {s.code}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              {schoolAdmins.length === 0 ? (
+                                <span className="text-amber-600 font-medium">尚未配置</span>
+                              ) : (
+                                <div className="flex items-center space-x-1.5">
+                                  <span className="font-semibold text-slate-800">
+                                    {schoolAdmins.map((a) => a.name).join(', ')}
+                                  </span>
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-slate-500 font-mono">
+                              {new Date(s.created_at).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <SchoolAdminModal
+                                school={{ id: s.id, name: s.name, code: s.code }}
+                                admins={schoolAdmins}
+                                onRefresh={loadData}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
                 )}
               </CardContent>
             </Card>

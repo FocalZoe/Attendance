@@ -130,7 +130,7 @@ export function Navbar({ profile: propProfile }: NavbarProps) {
                 </Button>
               </Link>
               <Link to="/login">
-                <Button variant="primary" size="sm">
+                <Button variant="default" size="sm">
                   教職員登入
                 </Button>
               </Link>

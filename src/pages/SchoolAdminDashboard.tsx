@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { School, Users, BookOpen, PlusCircle, GraduationCap, AlertCircle, Mail, UserPlus } from 'lucide-react';
 import type { SchoolClass, Profile } from '@/types/database';
 
@@ -250,32 +251,41 @@ export function SchoolAdminDashboard() {
                 )}
                 <form onSubmit={handleCreateClass} className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="school-academic-year">學年度</Label>
+                      <Input
+                        id="school-academic-year"
+                        name="academic_year"
+                        required
+                        placeholder="例如：113"
+                        value={academicYear}
+                        onChange={(e) => setAcademicYear(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="school-class-grade">年級</Label>
+                      <Input
+                        id="school-class-grade"
+                        name="grade"
+                        required
+                        placeholder="例如：高一 或 七年級"
+                        value={classGrade}
+                        onChange={(e) => setClassGrade(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="school-class-name">班級名稱</Label>
                     <Input
-                      label="學年度"
-                      name="academic_year"
+                      id="school-class-name"
+                      name="name"
                       required
-                      placeholder="例如：113"
-                      value={academicYear}
-                      onChange={(e) => setAcademicYear(e.target.value)}
-                    />
-                    <Input
-                      label="年級"
-                      name="grade"
-                      required
-                      placeholder="例如：高一 或 七年級"
-                      value={classGrade}
-                      onChange={(e) => setClassGrade(e.target.value)}
+                      placeholder="例如：資訊一甲"
+                      value={className}
+                      onChange={(e) => setClassName(e.target.value)}
                     />
                   </div>
-                  <Input
-                    label="班級名稱"
-                    name="name"
-                    required
-                    placeholder="例如：資訊一甲"
-                    value={className}
-                    onChange={(e) => setClassName(e.target.value)}
-                  />
-                  <Button type="submit" variant="primary" className="w-full" disabled={creatingClass}>
+                  <Button type="submit" variant="default" className="w-full" disabled={creatingClass}>
                     {creatingClass ? '建立中...' : '建立班級'}
                   </Button>
                 </form>
@@ -330,35 +340,44 @@ export function SchoolAdminDashboard() {
                   </div>
                 )}
                 <form onSubmit={handleCreateTeacher} className="space-y-3">
-                  <Input
-                    label="教師真實姓名"
-                    name="name"
-                    required
-                    placeholder="例如：王小明 老師"
-                    value={teacherName}
-                    onChange={(e) => setTeacherName(e.target.value)}
-                  />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="teacher-real-name">教師真實姓名</Label>
                     <Input
-                      label="公務電子信箱"
-                      name="email"
-                      type="email"
+                      id="teacher-real-name"
+                      name="name"
                       required
-                      placeholder="teacher@school.edu.tw"
-                      value={teacherEmail}
-                      onChange={(e) => setTeacherEmail(e.target.value)}
-                    />
-                    <Input
-                      label="初始密碼"
-                      name="password"
-                      type="password"
-                      required
-                      placeholder="至少 6 個字元"
-                      value={teacherPassword}
-                      onChange={(e) => setTeacherPassword(e.target.value)}
+                      placeholder="例如：王小明 老師"
+                      value={teacherName}
+                      onChange={(e) => setTeacherName(e.target.value)}
                     />
                   </div>
-                  <Button type="submit" variant="primary" className="w-full" disabled={creatingTeacher}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="teacher-email">公務電子信箱</Label>
+                      <Input
+                        id="teacher-email"
+                        name="email"
+                        type="email"
+                        required
+                        placeholder="teacher@school.edu.tw"
+                        value={teacherEmail}
+                        onChange={(e) => setTeacherEmail(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="teacher-password">初始密碼</Label>
+                      <Input
+                        id="teacher-password"
+                        name="password"
+                        type="password"
+                        required
+                        placeholder="至少 6 個字元"
+                        value={teacherPassword}
+                        onChange={(e) => setTeacherPassword(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <Button type="submit" variant="default" className="w-full" disabled={creatingTeacher}>
                     {creatingTeacher ? '派發中...' : '開通教師帳號'}
                   </Button>
                 </form>

@@ -67,7 +67,7 @@ export function TeacherDashboard() {
             </p>
           </div>
           <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-            <Button variant="primary">
+            <Button variant="default">
               <Camera className="w-4 h-4 mr-2" />
               啟動視訊鏡頭點名
             </Button>
@@ -167,7 +167,7 @@ export function TeacherDashboard() {
                         <Button variant="outline" size="sm" className="text-xs">
                           <Grid3X3 className="w-3.5 h-3.5 mr-1" /> 劃位
                         </Button>
-                        <Button variant="primary" size="sm" className="text-xs">
+                        <Button variant="default" size="sm" className="text-xs">
                           <Camera className="w-3.5 h-3.5 mr-1" /> 點名
                         </Button>
                       </div>

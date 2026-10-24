@@ -49,7 +49,7 @@ export function HomePage() {
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             {profile ? (
               <Link to="/dashboard">
-                <Button variant="primary" size="lg" className="w-full sm:w-auto">
+                <Button variant="default" size="lg" className="w-full sm:w-auto">
                   進入教學控制台
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
@@ -57,7 +57,7 @@ export function HomePage() {
             ) : (
               <>
                 <Link to="/login">
-                  <Button variant="primary" size="lg" className="w-full sm:w-auto">
+                  <Button variant="default" size="lg" className="w-full sm:w-auto">
                     教職員登入
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>

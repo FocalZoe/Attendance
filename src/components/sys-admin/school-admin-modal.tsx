@@ -2,8 +2,16 @@ import * as React from 'react';
 import { supabase, createIsolatedClient } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Users, UserX, UserPlus, X, Shield, Phone, Mail, Calendar, AlertCircle } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { Users, UserX, UserPlus, Shield, Phone, Mail, Calendar, AlertCircle } from 'lucide-react';
 
 export interface SchoolAdminInfo {
   id: string;
@@ -37,13 +45,11 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
     setLoading(true);
     setErrorMsg('');
     try {
-      // 優先呼叫安全 RPC
       const { error: rpcError } = await supabase.rpc('remove_school_admin', {
         p_profile_id: adminId,
       });
 
       if (rpcError) {
-        // Fallback 直接更新 profiles
         const { error: updateError } = await supabase
           .from('profiles')
           .update({ school_id: null, role: 'teacher' })
@@ -83,7 +89,6 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
     }
 
     try {
-      // 1. 檢查該信箱是否已在 profiles 註冊
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
@@ -91,7 +96,6 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
         .maybeSingle();
 
       if (existingProfile) {
-        // 已有帳號，呼叫 assign_school_admin RPC 或直接更新
         const { error: rpcError } = await supabase.rpc('assign_school_admin', {
           p_school_id: school.id,
           p_email: email,
@@ -112,7 +116,6 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
           }
         }
       } else {
-        // 全新帳號：透過隔離客戶端建立 Auth 使用者，避免覆蓋總管會話
         const isolated = createIsolatedClient();
         const { error: signUpError } = await isolated.auth.signUp({
           email,
@@ -156,212 +159,218 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
         管理主管 ({admins.length})
       </Button>
 
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-lg border border-slate-300 w-full max-w-xl overflow-hidden shadow-xl">
-            {/* 彈窗標題列 */}
-            <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-md bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-                  <Shield className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900">{school.name}</h3>
-                  <p className="text-xs text-slate-500">
-                    學校代碼：
-                    <span className="font-mono bg-slate-200 px-1 py-0.5 rounded text-slate-800">
-                      {school.code}
-                    </span>
-                    {' '}· 所屬管理主管團隊
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsOpen(false);
-                  setShowAddForm(false);
-                  setErrorMsg('');
-                }}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-md"
-              >
-                <X className="w-5 h-5" />
-              </button>
+      <Dialog
+        open={isOpen}
+        onOpenChange={(open) => {
+          setIsOpen(open);
+          if (!open) {
+            setShowAddForm(false);
+            setErrorMsg('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl p-0 overflow-hidden">
+          {/* 彈窗標題列 */}
+          <DialogHeader className="p-4 border-b border-slate-200 bg-slate-50 flex flex-row items-center space-x-2 text-left">
+            <div className="w-8 h-8 rounded-md bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
+              <Shield className="w-4 h-4" />
             </div>
+            <div>
+              <DialogTitle className="text-sm font-bold text-slate-900">{school.name}</DialogTitle>
+              <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                學校代碼：
+                <span className="font-mono bg-slate-200 px-1 py-0.5 rounded text-slate-800 font-bold">
+                  {school.code}
+                </span>
+                {' '}· 所屬管理主管團隊
+              </DialogDescription>
+            </div>
+          </DialogHeader>
 
-            {/* 內容區塊 */}
-            <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
-              {errorMsg && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-md flex items-start space-x-2 text-rose-700 text-xs font-medium">
-                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                  <span>{errorMsg}</span>
-                </div>
-              )}
+          {/* 內容區塊 */}
+          <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+            {errorMsg && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-md flex items-start space-x-2 text-rose-700 text-xs font-medium">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
 
-              {/* 現有主管列表 */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    現任學校主管名冊 ({admins.length})
-                  </span>
-                  {!showAddForm && (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => setShowAddForm(true)}
-                      className="text-xs h-7 px-2"
-                    >
-                      <UserPlus className="w-3.5 h-3.5 mr-1" />
-                      指派新主管
-                    </Button>
-                  )}
-                </div>
-
-                {admins.length === 0 ? (
-                  <div className="p-6 text-center border border-dashed border-slate-300 rounded-lg text-slate-500 text-xs">
-                    目前該校尚未配置主管。可點擊上方按鈕指派，或提供代碼讓主管自註冊開通。
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-md bg-white">
-                    {admins.map((admin) => (
-                      <div
-                        key={admin.id}
-                        className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-2">
-                            <span className="font-bold text-sm text-slate-900">{admin.name}</span>
-                            <Badge variant="success" className="text-[10px] py-0">主管職</Badge>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                            <span className="inline-flex items-center">
-                              <Mail className="w-3 h-3 mr-1 text-slate-400" />
-                              {admin.email}
-                            </span>
-                            {admin.phone && (
-                              <span className="inline-flex items-center">
-                                <Phone className="w-3 h-3 mr-1 text-slate-400" />
-                                {admin.phone}
-                              </span>
-                            )}
-                            <span className="inline-flex items-center">
-                              <Calendar className="w-3 h-3 mr-1 text-slate-400" />
-                              {new Date(admin.created_at).toLocaleDateString()}
-                            </span>
-                          </div>
-                        </div>
-
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemove(admin.id, admin.name)}
-                          disabled={loading}
-                          className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 h-8 px-2"
-                          title="解除主管職務"
-                        >
-                          <UserX className="w-4 h-4 mr-1" />
-                          <span className="text-xs">解任</span>
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
+            {/* 現有主管列表 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  現任學校主管名冊 ({admins.length})
+                </span>
+                {!showAddForm && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setShowAddForm(true)}
+                    className="text-xs h-7 px-2"
+                  >
+                    <UserPlus className="w-3.5 h-3.5 mr-1" />
+                    指派新主管
+                  </Button>
                 )}
               </div>
 
-              {/* 新增主管表單折疊區 */}
-              {showAddForm && (
-                <div className="p-3.5 bg-blue-50/50 border border-blue-200 rounded-lg space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-blue-900 flex items-center">
-                      <UserPlus className="w-3.5 h-3.5 mr-1 text-blue-600" />
-                      指派新管理主管至 {school.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowAddForm(false)}
-                      className="text-xs text-slate-500 hover:text-slate-800"
+              {admins.length === 0 ? (
+                <div className="p-6 text-center border border-dashed border-slate-300 rounded-lg text-slate-500 text-xs">
+                  目前該校尚未配置主管。可點擊上方按鈕指派，或提供代碼讓主管自註冊開通。
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-md bg-white">
+                  {admins.map((admin) => (
+                    <div
+                      key={admin.id}
+                      className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors"
                     >
-                      取消
-                    </button>
-                  </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold text-sm text-slate-900">{admin.name}</span>
+                          <Badge variant="success" className="text-[10px] py-0">主管職</Badge>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                          <span className="inline-flex items-center">
+                            <Mail className="w-3 h-3 mr-1 text-slate-400" />
+                            {admin.email}
+                          </span>
+                          {admin.phone && (
+                            <span className="inline-flex items-center">
+                              <Phone className="w-3 h-3 mr-1 text-slate-400" />
+                              {admin.phone}
+                            </span>
+                          )}
+                          <span className="inline-flex items-center">
+                            <Calendar className="w-3 h-3 mr-1 text-slate-400" />
+                            {new Date(admin.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
 
-                  <form onSubmit={handleAdd} className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemove(admin.id, admin.name)}
+                        disabled={loading}
+                        className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 h-8 px-2"
+                        title="解除主管職務"
+                      >
+                        <UserX className="w-4 h-4 mr-1" />
+                        <span className="text-xs">解任</span>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 新增主管表單折疊區 */}
+            {showAddForm && (
+              <div className="p-3.5 bg-blue-50/50 border border-blue-200 rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-blue-900 flex items-center">
+                    <UserPlus className="w-3.5 h-3.5 mr-1 text-blue-600" />
+                    指派新管理主管至 {school.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddForm(false)}
+                    className="text-xs text-slate-500 hover:text-slate-800 cursor-pointer"
+                  >
+                    取消
+                  </button>
+                </div>
+
+                <form onSubmit={handleAdd} className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div className="space-y-1">
+                      <Label htmlFor="admin-name" className="text-xs">主管真實姓名</Label>
                       <Input
-                        label="主管真實姓名"
+                        id="admin-name"
                         name="name"
                         required
                         placeholder="例如：林教務長"
-                        className="bg-white text-xs"
+                        className="bg-white text-xs h-8"
                       />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="admin-email" className="text-xs">公務電子信箱</Label>
                       <Input
-                        label="公務電子信箱"
+                        id="admin-email"
                         name="email"
                         type="email"
                         required
                         placeholder="admin@school.edu.tw"
-                        className="bg-white text-xs"
+                        className="bg-white text-xs h-8"
                       />
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div className="space-y-1">
+                      <Label htmlFor="admin-pass" className="text-xs">初始登入密碼</Label>
                       <Input
-                        label="初始登入密碼"
+                        id="admin-pass"
                         name="password"
                         type="password"
                         required
                         placeholder="至少 6 碼"
-                        className="bg-white text-xs"
+                        className="bg-white text-xs h-8"
                       />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="admin-phone" className="text-xs">聯絡分機 / 手機 (選填)</Label>
                       <Input
-                        label="聯絡分機 / 手機 (選填)"
+                        id="admin-phone"
                         name="phone"
                         placeholder="0912-345-678"
-                        className="bg-white text-xs"
+                        className="bg-white text-xs h-8"
                       />
                     </div>
+                  </div>
 
-                    <div className="flex justify-end space-x-2 pt-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowAddForm(false)}
-                        className="text-xs"
-                      >
-                        取消
-                      </Button>
-                      <Button
-                        type="submit"
-                        variant="primary"
-                        size="sm"
-                        disabled={loading}
-                        className="text-xs"
-                      >
-                        {loading ? '建立中...' : '確認指派主管'}
-                      </Button>
-                    </div>
-                  </form>
-                </div>
-              )}
-            </div>
-
-            {/* 彈窗底欄 */}
-            <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setIsOpen(false);
-                  setShowAddForm(false);
-                  setErrorMsg('');
-                }}
-              >
-                關閉
-              </Button>
-            </div>
+                  <div className="flex justify-end space-x-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAddForm(false)}
+                      className="text-xs"
+                    >
+                      取消
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="default"
+                      size="sm"
+                      disabled={loading}
+                      className="text-xs"
+                    >
+                      {loading ? '建立中...' : '確認指派主管'}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+
+          {/* 彈窗底欄 */}
+          <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsOpen(false);
+                setShowAddForm(false);
+                setErrorMsg('');
+              }}
+            >
+              關閉
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

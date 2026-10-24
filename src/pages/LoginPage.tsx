@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Camera, ArrowLeft, AlertCircle, LogIn } from 'lucide-react';
 
@@ -74,27 +75,33 @@ export function LoginPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <Input
-                label="電子信箱 (Email)"
-                name="email"
-                type="email"
-                required
-                placeholder="teacher@school.edu.tw 或 sysadmin@..."
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+              <div className="space-y-1.5">
+                <Label htmlFor="login-email">電子信箱 (Email)</Label>
+                <Input
+                  id="login-email"
+                  name="email"
+                  type="email"
+                  required
+                  placeholder="teacher@school.edu.tw 或 sysadmin@..."
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
 
-              <Input
-                label="密碼"
-                name="password"
-                type="password"
-                required
-                placeholder="請輸入密碼"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="space-y-1.5">
+                <Label htmlFor="login-password">密碼</Label>
+                <Input
+                  id="login-password"
+                  name="password"
+                  type="password"
+                  required
+                  placeholder="請輸入密碼"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
 
-              <Button type="submit" variant="primary" className="w-full mt-2" disabled={loading}>
+              <Button type="submit" variant="default" className="w-full mt-2" disabled={loading}>
                 {loading ? '驗證登入中...' : '登入系統'}
               </Button>
             </form>
