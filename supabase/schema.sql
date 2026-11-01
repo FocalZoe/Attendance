@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS public.class_teachers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     class_id UUID NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
     teacher_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'subject' CHECK (role IN ('homeroom', 'subject')),
     created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     UNIQUE (class_id, teacher_id)
 );
@@ -262,8 +263,19 @@ CREATE POLICY "Classes teacher read" ON public.classes
 -- Class Teachers 權限
 CREATE POLICY "Class teachers manage" ON public.class_teachers
     FOR ALL TO authenticated USING (
-        public.current_user_role() IN ('sys_admin', 'school_admin')
-        OR teacher_id = auth.uid()
+        public.current_user_role() = 'sys_admin'
+        OR (
+            public.current_user_role() = 'school_admin'
+            AND class_id IN (
+                SELECT c.id FROM public.classes c WHERE c.school_id = public.current_user_school_id()
+            )
+        )
+        OR (
+            teacher_id = auth.uid()
+            AND class_id IN (
+                SELECT c.id FROM public.classes c WHERE c.school_id = public.current_user_school_id()
+            )
+        )
     );
 
 -- Students 權限
@@ -372,10 +384,18 @@ BEGIN
     -- 取得呼叫者信箱
     SELECT email INTO v_user_email FROM auth.users WHERE id = v_user_id;
 
-    -- 檢查學校是否已存在（支援既有學校加入新主管）
+    -- 檢查學校是否已存在（防止越權竄改非所屬學校）
     SELECT id INTO v_school_id FROM public.schools WHERE code = v_clean_code;
 
-    IF v_school_id IS NULL THEN
+    IF v_school_id IS NOT NULL THEN
+        -- 若學校代碼已存在，僅允許本校既有成員更新，禁止任意帳號直接接管
+        IF NOT EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = v_user_id AND school_id = v_school_id
+        ) THEN
+            RAISE EXCEPTION '此學校代碼已被註冊，如需加入該校主管團隊，請聯繫系統總管指派';
+        END IF;
+    ELSE
         -- 學校不存在，建立新學校
         INSERT INTO public.schools (name, code)
         VALUES (TRIM(p_school_name), v_clean_code)
@@ -464,3 +484,24 @@ BEGIN
     END IF;
 END;
 $$;
+
+-- ------------------------------------------------------------------------------
+-- 16. 雲端存證照片儲存庫 (Storage Bucket)
+-- ------------------------------------------------------------------------------
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('attendance-snapshots', 'attendance-snapshots', false)
+ON CONFLICT (id) DO UPDATE SET public = false;
+
+CREATE POLICY "Allow authenticated staff to upload attendance snapshots"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (
+    bucket_id = 'attendance-snapshots'
+    AND public.current_user_role() IN ('sys_admin', 'school_admin', 'teacher')
+);
+
+CREATE POLICY "Allow school staff to read attendance snapshots"
+ON storage.objects FOR SELECT TO authenticated
+USING (
+    bucket_id = 'attendance-snapshots'
+    AND public.current_user_role() IN ('sys_admin', 'school_admin', 'teacher')
+);

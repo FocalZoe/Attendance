@@ -34,6 +34,7 @@ export interface ClassTeacher {
   id: string;
   class_id: string;
   teacher_id: string;
+  role: 'homeroom' | 'subject';
   created_at: string;
   teacher?: Profile;
   class?: SchoolClass;
