@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/lib/supabase';
 import { SeatingChart, SeatingBox, Student } from '@/types/database';
 import { generateGridSeats, NormalizedBox } from '@/services/seatOccupancyService';
+import { ZoomIn, ZoomOut, Trash2, PlusCircle, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface SeatMapEditorModalProps {
@@ -57,32 +58,49 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
 
   // 畫布參考
   const canvasContainerRef = useRef<HTMLDivElement>(null);
-  const isDraggingRef = useRef<{ index: number; startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const interactionRef = useRef<{
+    mode: 'drag' | 'resize';
+    index: number;
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+    origW: number;
+    origH: number;
+  } | null>(null);
 
-  // 全域滑鼠監聽，防範游標移出畫布範圍導致拖曳卡死
+  // 全域滑鼠監聽，防範游標移出畫布範圍導致拖曳或縮放卡死
   useEffect(() => {
     const handleGlobalMouseMove = (e: MouseEvent) => {
-      if (!isDraggingRef.current || !canvasContainerRef.current) return;
+      if (!interactionRef.current || !canvasContainerRef.current) return;
       const rect = canvasContainerRef.current.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
 
-      const deltaX = (e.clientX - isDraggingRef.current.startX) / rect.width;
-      const deltaY = (e.clientY - isDraggingRef.current.startY) / rect.height;
+      const deltaX = (e.clientX - interactionRef.current.startX) / rect.width;
+      const deltaY = (e.clientY - interactionRef.current.startY) / rect.height;
+      const idx = interactionRef.current.index;
 
-      const idx = isDraggingRef.current.index;
       setBoxes((prev) => {
         const copy = [...prev];
         const target = copy[idx];
         if (!target) return prev;
-        const newX = Math.max(0, Math.min(1 - target.w_ratio, isDraggingRef.current!.origX + deltaX));
-        const newY = Math.max(0, Math.min(1 - target.h_ratio, isDraggingRef.current!.origY + deltaY));
-        copy[idx] = { ...target, x_ratio: newX, y_ratio: newY };
+
+        if (interactionRef.current!.mode === 'drag') {
+          const newX = Math.max(0, Math.min(1 - target.w_ratio, interactionRef.current!.origX + deltaX));
+          const newY = Math.max(0, Math.min(1 - target.h_ratio, interactionRef.current!.origY + deltaY));
+          copy[idx] = { ...target, x_ratio: newX, y_ratio: newY };
+        } else {
+          // resize (拖曳右下角把手縮放寬度與高度)
+          const newW = Math.max(0.02, Math.min(1 - target.x_ratio, interactionRef.current!.origW + deltaX));
+          const newH = Math.max(0.02, Math.min(1 - target.y_ratio, interactionRef.current!.origH + deltaY));
+          copy[idx] = { ...target, w_ratio: newW, h_ratio: newH };
+        }
         return copy;
       });
     };
 
     const handleGlobalMouseUp = () => {
-      isDraggingRef.current = null;
+      interactionRef.current = null;
     };
 
     window.addEventListener('mousemove', handleGlobalMouseMove);
@@ -93,6 +111,25 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
       window.removeEventListener('mouseup', handleGlobalMouseUp);
     };
   }, []);
+
+  // 鍵盤 Delete / Backspace 快速刪除選取座位
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (selectedBoxIndex === null) return;
+      const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (targetTag === 'input' || targetTag === 'textarea' || targetTag === 'select') return;
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        setBoxes((prev) => prev.filter((_, i) => i !== selectedBoxIndex));
+        setSelectedBoxIndex(null);
+        toast.success('已刪除座位');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedBoxIndex]);
 
   // 載入當前班級的啟用座位表
   const loadSeatingChart = useCallback(async () => {
@@ -177,13 +214,91 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
     e.stopPropagation();
     setSelectedBoxIndex(index);
     const box = boxes[index];
-    isDraggingRef.current = {
+    interactionRef.current = {
+      mode: 'drag',
       index,
       startX: e.clientX,
       startY: e.clientY,
       origX: box.x_ratio,
       origY: box.y_ratio,
+      origW: box.w_ratio,
+      origH: box.h_ratio,
     };
+  };
+
+  // 滑鼠拖曳右下角縮放把手
+  const handleResizeMouseDown = (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    setSelectedBoxIndex(index);
+    const box = boxes[index];
+    interactionRef.current = {
+      mode: 'resize',
+      index,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: box.x_ratio,
+      origY: box.y_ratio,
+      origW: box.w_ratio,
+      origH: box.h_ratio,
+    };
+  };
+
+  // 放大 / 縮小特定比例（按鈕點擊）
+  const handleScaleSelectedBox = (factor: number) => {
+    if (selectedBoxIndex === null) return;
+    setBoxes((prev) => {
+      const copy = [...prev];
+      const target = copy[selectedBoxIndex];
+      if (!target) return prev;
+      const newW = Math.max(0.02, Math.min(1 - target.x_ratio, target.w_ratio * factor));
+      const newH = Math.max(0.02, Math.min(1 - target.y_ratio, target.h_ratio * factor));
+      copy[selectedBoxIndex] = { ...target, w_ratio: newW, h_ratio: newH };
+      return copy;
+    });
+  };
+
+  // 套用當前選中座位尺寸至全班座位
+  const handleApplySizeToAll = () => {
+    if (selectedBoxIndex === null) return;
+    const current = boxes[selectedBoxIndex];
+    if (!current) return;
+    setBoxes((prev) =>
+      prev.map((b) => ({
+        ...b,
+        w_ratio: Math.min(1 - b.x_ratio, current.w_ratio),
+        h_ratio: Math.min(1 - b.y_ratio, current.h_ratio),
+      }))
+    );
+    toast.success('已將當前座位尺寸套用至全班座位');
+  };
+
+  // 刪除選取座位
+  const handleDeleteSelectedBox = (idxToDelete: number) => {
+    setBoxes((prev) => prev.filter((_, i) => i !== idxToDelete));
+    setSelectedBoxIndex(null);
+    toast.success('已刪除座位');
+  };
+
+  // 新增單一座位
+  const handleAddSeat = () => {
+    const existingLabels = boxes
+      .map((b) => parseInt(b.seat_label || '0', 10))
+      .filter((n) => !isNaN(n));
+    const nextNum = existingLabels.length > 0 ? Math.max(...existingLabels) + 1 : boxes.length + 1;
+    const defaultW = boxes.length > 0 ? boxes[0].w_ratio : 0.12;
+    const defaultH = boxes.length > 0 ? boxes[0].h_ratio : 0.1;
+
+    const newBox: NormalizedBox = {
+      seat_label: String(nextNum),
+      student_id: null,
+      x_ratio: 0.44,
+      y_ratio: 0.44,
+      w_ratio: defaultW,
+      h_ratio: defaultH,
+    };
+    setBoxes((prev) => [...prev, newBox]);
+    setSelectedBoxIndex(boxes.length);
+    toast.success(`已新增座位 [${nextNum}]`);
   };
 
   // 更新選取框的學生綁定（自動防重：若其他座位已被指派此學生，自動解除綁定）
@@ -272,63 +387,128 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
         </DialogHeader>
 
         {/* 頂部操作工具列 */}
-        <div className="flex flex-wrap items-center justify-between gap-4 py-2 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold text-slate-600">產生網格：</span>
-            <div className="flex items-center gap-1.5">
-              <Label className="text-xs text-slate-500">列 (Rows)</Label>
-              <Input
-                type="number"
-                min={1}
-                max={10}
-                value={gridRows}
-                onChange={(e) => setGridRows(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-16 h-8 text-center text-xs"
-              />
+        <div className="space-y-2 py-2 border-b border-slate-100">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-600">產生網格：</span>
+              <div className="flex items-center gap-1">
+                <Label className="text-xs text-slate-500">列</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={gridRows}
+                  onChange={(e) => setGridRows(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-14 h-8 text-center text-xs"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <Label className="text-xs text-slate-500">行</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={gridCols}
+                  onChange={(e) => setGridCols(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-14 h-8 text-center text-xs"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleGenerateGrid}
+                className="h-8 text-xs font-medium"
+              >
+                重新產生網格
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddSeat}
+                className="h-8 text-xs font-medium text-emerald-700 hover:text-emerald-800"
+              >
+                <PlusCircle className="w-3.5 h-3.5 mr-1" />
+                新增座位
+              </Button>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Label className="text-xs text-slate-500">行 (Cols)</Label>
-              <Input
-                type="number"
-                min={1}
-                max={12}
-                value={gridCols}
-                onChange={(e) => setGridCols(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-16 h-8 text-center text-xs"
-              />
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleGenerateGrid}
-              className="h-8 text-xs font-medium"
-            >
-              重新產生網格
-            </Button>
           </div>
 
-          {selectedBoxIndex !== null && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-700">
-                座位 [{boxes[selectedBoxIndex]?.seat_label}] 綁定學生：
-              </span>
-              <Select
-                value={boxes[selectedBoxIndex]?.student_id || 'none'}
-                onValueChange={handleAssignStudent}
-              >
-                <SelectTrigger className="w-44 h-8 text-xs">
-                  <SelectValue placeholder="選擇學生" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">-- 無指定學生 --</SelectItem>
-                  {currentStudents.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.seat_number} 號 {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {selectedBoxIndex !== null && boxes[selectedBoxIndex] && (
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-700">
+                  座位 [{boxes[selectedBoxIndex]?.seat_label}]：
+                </span>
+                <Select
+                  value={boxes[selectedBoxIndex]?.student_id || 'none'}
+                  onValueChange={handleAssignStudent}
+                >
+                  <SelectTrigger className="w-40 h-8 text-xs bg-white">
+                    <SelectValue placeholder="綁定學生" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">-- 無指定學生 --</SelectItem>
+                    {currentStudents.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.seat_number} 號 {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* 縮放與尺寸調整群組 */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500 text-[11px]">
+                  寬 {Math.round(boxes[selectedBoxIndex].w_ratio * 100)}% × 高 {Math.round(boxes[selectedBoxIndex].h_ratio * 100)}%
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleScaleSelectedBox(1.1)}
+                  className="h-7 px-2 text-xs"
+                  title="放大座位 (或直接拖曳右下角把手)"
+                >
+                  <ZoomIn className="w-3.5 h-3.5 mr-1" />
+                  放大
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleScaleSelectedBox(0.9)}
+                  className="h-7 px-2 text-xs"
+                  title="縮小座位 (或直接拖曳右下角把手)"
+                >
+                  <ZoomOut className="w-3.5 h-3.5 mr-1" />
+                  縮小
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleApplySizeToAll}
+                  className="h-7 px-2 text-xs text-slate-600 hover:text-slate-900"
+                  title="將此座位的寬高套用至全班所有座位"
+                >
+                  <Copy className="w-3.5 h-3.5 mr-1" />
+                  套用全班
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleDeleteSelectedBox(selectedBoxIndex)}
+                  className="h-7 px-2.5 text-xs bg-rose-600 hover:bg-rose-700"
+                  title="刪除此座位 (可按鍵盤 Delete 鍵)"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                  刪除座位
+                </Button>
+              </div>
             </div>
           )}
         </div>
@@ -336,6 +516,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
         {/* 劃位畫布主體 (16:9 比例) */}
         <div
           ref={canvasContainerRef}
+          onClick={() => setSelectedBoxIndex(null)}
           className="relative w-full aspect-video bg-slate-900 border border-slate-300 rounded overflow-hidden select-none"
         >
           {/* 黑板 / 講台方向標示 */}
@@ -352,6 +533,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
               <div
                 key={box.id || index}
                 onMouseDown={(e) => handleMouseDown(e, index)}
+                onClick={(e) => e.stopPropagation()}
                 style={{
                   left: `${box.x_ratio * 100}%`,
                   top: `${box.y_ratio * 100}%`,
@@ -360,7 +542,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
                 }}
                 className={`absolute cursor-move flex flex-col items-center justify-center p-1 rounded border transition-colors ${
                   isSelected
-                    ? 'border-emerald-400 bg-emerald-500/30 ring-2 ring-emerald-400'
+                    ? 'border-emerald-400 bg-emerald-500/30 ring-2 ring-emerald-400 z-10'
                     : 'border-slate-500 bg-slate-800/80 hover:border-slate-400'
                 }`}
               >
@@ -370,6 +552,30 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
                 <span className="text-[11px] font-medium text-white truncate max-w-full">
                   {assignedStudent ? assignedStudent.name : '（空位）'}
                 </span>
+
+                {/* 右上角快速刪除按鈕 */}
+                {isSelected && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteSelectedBox(index);
+                    }}
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-600 hover:bg-rose-700 text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow-md z-20"
+                    title="刪除此座位 (Delete)"
+                  >
+                    ×
+                  </button>
+                )}
+
+                {/* 右下角拖曳縮放把手 */}
+                {isSelected && (
+                  <div
+                    onMouseDown={(e) => handleResizeMouseDown(e, index)}
+                    className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-white border-2 border-emerald-500 rounded-sm cursor-se-resize shadow-md hover:scale-125 transition-transform z-20"
+                    title="拖曳右下角把手以縮放座位尺寸"
+                  />
+                )}
               </div>
             );
           })}
@@ -377,7 +583,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
 
         <DialogFooter className="border-t border-slate-200 pt-3 flex justify-between items-center sm:justify-between">
           <span className="text-xs text-slate-500">
-            共 {boxes.length} 個座位 · 點擊並拖曳可微調座位位置
+            共 {boxes.length} 個座位 · 點選座位可拖曳移動、拉右下角可放大縮小、按 Delete 鍵可刪除
           </span>
           <div className="flex gap-2">
             <Button

@@ -54,6 +54,10 @@ CREATE TABLE IF NOT EXISTS public.class_teachers (
     UNIQUE (class_id, teacher_id)
 );
 
+-- 向後相容補丁：若 class_teachers 於舊版建立而缺少 role 欄位，自動補齊
+ALTER TABLE public.class_teachers 
+ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'subject' CHECK (role IN ('homeroom', 'subject'));
+
 -- ------------------------------------------------------------------------------
 -- 5. 學生名冊 (Students)
 -- ------------------------------------------------------------------------------
@@ -227,40 +231,56 @@ ALTER TABLE public.attendance_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_records ENABLE ROW LEVEL SECURITY;
 
 -- Schools 權限
+DROP POLICY IF EXISTS "Schools sys_admin full access" ON public.schools;
 CREATE POLICY "Schools sys_admin full access" ON public.schools
     FOR ALL USING (public.current_user_role() = 'sys_admin');
+
+DROP POLICY IF EXISTS "Schools authenticated read access" ON public.schools;
 CREATE POLICY "Schools authenticated read access" ON public.schools
     FOR SELECT TO authenticated USING (true);
 
 -- Profiles 權限
+DROP POLICY IF EXISTS "Profiles self access" ON public.profiles;
 CREATE POLICY "Profiles self access" ON public.profiles
     FOR ALL USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Profiles sys_admin full access" ON public.profiles;
 CREATE POLICY "Profiles sys_admin full access" ON public.profiles
     FOR ALL USING (public.current_user_role() = 'sys_admin');
+
+DROP POLICY IF EXISTS "Profiles school_admin read/manage in school" ON public.profiles;
 CREATE POLICY "Profiles school_admin read/manage in school" ON public.profiles
     FOR ALL USING (
         public.current_user_role() = 'school_admin'
         AND school_id = public.current_user_school_id()
     );
+
+DROP POLICY IF EXISTS "Profiles read in same school" ON public.profiles;
 CREATE POLICY "Profiles read in same school" ON public.profiles
     FOR SELECT TO authenticated USING (
         school_id = public.current_user_school_id()
     );
 
 -- Classes 權限
+DROP POLICY IF EXISTS "Classes sys_admin full" ON public.classes;
 CREATE POLICY "Classes sys_admin full" ON public.classes
     FOR ALL USING (public.current_user_role() = 'sys_admin');
+
+DROP POLICY IF EXISTS "Classes school_admin manage" ON public.classes;
 CREATE POLICY "Classes school_admin manage" ON public.classes
     FOR ALL USING (
         public.current_user_role() = 'school_admin'
         AND school_id = public.current_user_school_id()
     );
+
+DROP POLICY IF EXISTS "Classes teacher read" ON public.classes;
 CREATE POLICY "Classes teacher read" ON public.classes
     FOR SELECT TO authenticated USING (
         school_id = public.current_user_school_id()
     );
 
 -- Class Teachers 權限
+DROP POLICY IF EXISTS "Class teachers manage" ON public.class_teachers;
 CREATE POLICY "Class teachers manage" ON public.class_teachers
     FOR ALL TO authenticated USING (
         public.current_user_role() = 'sys_admin'
@@ -279,6 +299,7 @@ CREATE POLICY "Class teachers manage" ON public.class_teachers
     );
 
 -- Students 權限
+DROP POLICY IF EXISTS "Students manage" ON public.students;
 CREATE POLICY "Students manage" ON public.students
     FOR ALL TO authenticated USING (
         public.current_user_role() = 'sys_admin'
@@ -289,6 +310,7 @@ CREATE POLICY "Students manage" ON public.students
     );
 
 -- Seating Charts & Boxes 權限
+DROP POLICY IF EXISTS "Seating charts access" ON public.seating_charts;
 CREATE POLICY "Seating charts access" ON public.seating_charts
     FOR ALL TO authenticated USING (
         public.current_user_role() = 'sys_admin'
@@ -297,6 +319,7 @@ CREATE POLICY "Seating charts access" ON public.seating_charts
         )
     );
 
+DROP POLICY IF EXISTS "Seating boxes access" ON public.seating_boxes;
 CREATE POLICY "Seating boxes access" ON public.seating_boxes
     FOR ALL TO authenticated USING (
         public.current_user_role() = 'sys_admin'
@@ -308,6 +331,7 @@ CREATE POLICY "Seating boxes access" ON public.seating_boxes
     );
 
 -- Attendance Sessions & Records 權限
+DROP POLICY IF EXISTS "Attendance sessions access" ON public.attendance_sessions;
 CREATE POLICY "Attendance sessions access" ON public.attendance_sessions
     FOR ALL TO authenticated USING (
         public.current_user_role() = 'sys_admin'
@@ -316,6 +340,7 @@ CREATE POLICY "Attendance sessions access" ON public.attendance_sessions
         )
     );
 
+DROP POLICY IF EXISTS "Attendance records access" ON public.attendance_records;
 CREATE POLICY "Attendance records access" ON public.attendance_records
     FOR ALL TO authenticated USING (
         public.current_user_role() = 'sys_admin'
@@ -492,6 +517,7 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('attendance-snapshots', 'attendance-snapshots', false)
 ON CONFLICT (id) DO UPDATE SET public = false;
 
+DROP POLICY IF EXISTS "Allow authenticated staff to upload attendance snapshots" ON storage.objects;
 CREATE POLICY "Allow authenticated staff to upload attendance snapshots"
 ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (
@@ -499,9 +525,15 @@ WITH CHECK (
     AND public.current_user_role() IN ('sys_admin', 'school_admin', 'teacher')
 );
 
+DROP POLICY IF EXISTS "Allow school staff to read attendance snapshots" ON storage.objects;
 CREATE POLICY "Allow school staff to read attendance snapshots"
 ON storage.objects FOR SELECT TO authenticated
 USING (
     bucket_id = 'attendance-snapshots'
     AND public.current_user_role() IN ('sys_admin', 'school_admin', 'teacher')
 );
+
+-- ------------------------------------------------------------------------------
+-- 17. 重新載入 PostgREST 快取 (Schema Cache Reload)
+-- ------------------------------------------------------------------------------
+NOTIFY pgrst, 'reload schema';
