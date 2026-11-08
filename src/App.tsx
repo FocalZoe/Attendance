@@ -36,7 +36,7 @@ function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
+  if (allowedRoles && (!profile || !allowedRoles.includes(profile.role))) {
     return <Navigate to="/dashboard" replace />;
   }
 

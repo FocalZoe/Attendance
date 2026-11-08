@@ -16,6 +16,8 @@ interface AuthState {
   setProfile: (profile: Profile | null) => void;
 }
 
+let authSubscription: { unsubscribe: () => void } | null = null;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   profile: null,
@@ -35,15 +37,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ user: null, profile: null, session: null, isLoading: false, isInitialized: true });
       }
 
-      // 監聽後續登入/登出變化
-      supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      // 監聽後續登入/登出變化（僅保留單一訂閱，避免重複初始化造成多重監聽）
+      authSubscription?.unsubscribe();
+      const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
         if (newSession?.user) {
           set({ user: newSession.user, session: newSession });
-          await get().refreshProfile();
+          // 不可在 callback 內直接 await Supabase 呼叫（會造成 auth 鎖死），延後執行
+          setTimeout(() => {
+            void get().refreshProfile();
+          }, 0);
         } else {
           set({ user: null, profile: null, session: null, isLoading: false });
         }
       });
+      authSubscription = listener.subscription;
     } catch (err) {
       console.error('初始化認證狀態失敗:', err);
       set({ isLoading: false, isInitialized: true });
@@ -83,7 +90,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
-        password: password.trim(),
+        password,
       });
 
       if (error || !data.user) {

@@ -116,6 +116,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
   const animationFrameIdRef = useRef<number | null>(null);
   const trackerRef = useRef<SeatTemporalTracker>(new SeatTemporalTracker(800));
   const latestOccupancyRef = useRef<Map<string, boolean>>(new Map());
+  const openRef = useRef<boolean>(open);
 
   // 1. 初始化設備與 MediaPipe 檢測器
   useEffect(() => {
@@ -126,54 +127,52 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
       getDesktopCameraSources().then((sources) => {
         setCameraSources(sources);
         if (sources.length > 0) {
-          setSelectedDeviceId(sources[0].deviceId);
+          setSelectedDeviceId(sources[0].id);
         }
       });
     }
 
+    let cancelled = false;
+
     // 載入 MediaPipe ObjectDetector
+    const createDetector = async (delegate: 'GPU' | 'CPU') => {
+      const vision = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
+      );
+      return ObjectDetector.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath:
+            'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite',
+          delegate,
+        },
+        scoreThreshold: 0.15,
+        categoryAllowlist: ['person'],
+        runningMode: 'VIDEO',
+        maxResults: 50,
+      });
+    };
+
     const initDetector = async () => {
+      let detector: ObjectDetector | null = null;
       try {
-        const vision = await FilesetResolver.forVisionTasks(
-          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
-        );
-        const detector = await ObjectDetector.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath:
-              'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite',
-            delegate: 'GPU',
-          },
-          scoreThreshold: 0.15,
-          categoryAllowlist: ['person'],
-          runningMode: 'VIDEO',
-          maxResults: 50,
-        });
-        detectorRef.current = detector;
-        setDetectorReady(true);
+        detector = await createDetector('GPU');
       } catch (err) {
         console.warn('GPU delegate 初始化失敗，切換為 CPU:', err);
         try {
-          const vision = await FilesetResolver.forVisionTasks(
-            'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
-          );
-          const detector = await ObjectDetector.createFromOptions(vision, {
-            baseOptions: {
-              modelAssetPath:
-                'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite',
-              delegate: 'CPU',
-            },
-            scoreThreshold: 0.15,
-            categoryAllowlist: ['person'],
-            runningMode: 'VIDEO',
-            maxResults: 50,
-          });
-          detectorRef.current = detector;
-          setDetectorReady(true);
+          detector = await createDetector('CPU');
         } catch (cpuErr) {
           console.error('MediaPipe 初始化失敗:', cpuErr);
-          toast.error('無法載入 AI 影像模型，請檢查網路連線');
+          if (!cancelled) toast.error('無法載入 AI 影像模型，請檢查網路連線');
+          return;
         }
       }
+      // 初始化期間若已關閉或卸載，立即釋放，避免洩漏
+      if (cancelled) {
+        detector.close();
+        return;
+      }
+      detectorRef.current = detector;
+      setDetectorReady(true);
     };
 
     if (open) {
@@ -181,10 +180,12 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
     }
 
     return () => {
+      cancelled = true;
       if (detectorRef.current) {
         detectorRef.current.close();
         detectorRef.current = null;
       }
+      setDetectorReady(false);
     };
   }, [open]);
 
@@ -345,25 +346,29 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
 
   // 點名視窗中的快捷放大 / 縮小
   const handleScaleBoxInRollcall = (boxId: string, factor: number) => {
-    let updatedTarget: SeatingBox | null = null;
-    setSeatingBoxes((prev) => {
-      const copy = prev.map((box) => {
-        if (box.id !== boxId) return box;
-        const newW = Math.max(0.02, Math.min(1 - box.x_ratio, box.w_ratio * factor));
-        const newH = Math.max(0.02, Math.min(1 - box.y_ratio, box.h_ratio * factor));
-        updatedTarget = { ...box, w_ratio: newW, h_ratio: newH };
-        return updatedTarget;
-      });
-      seatingBoxesRef.current = copy;
-      return copy;
-    });
-    if (updatedTarget) {
-      autoSaveBox(updatedTarget);
-    }
+    const target = seatingBoxesRef.current.find((b) => b.id === boxId);
+    if (!target) return;
+    const updatedTarget: SeatingBox = {
+      ...target,
+      w_ratio: Math.max(0.02, Math.min(1 - target.x_ratio, target.w_ratio * factor)),
+      h_ratio: Math.max(0.02, Math.min(1 - target.y_ratio, target.h_ratio * factor)),
+    };
+    const next = seatingBoxesRef.current.map((b) => (b.id === boxId ? updatedTarget : b));
+    seatingBoxesRef.current = next;
+    setSeatingBoxes(next);
+    autoSaveBox(updatedTarget);
   };
 
   useEffect(() => {
+    openRef.current = open;
     if (open) {
+      // 重置上一場次殘留的偵測與選取狀態
+      setCameraActive(false);
+      setOccupancies({});
+      setPresentCount(0);
+      setSelectedBoxId(null);
+      lastOccupancyMapRef.current = {};
+      latestOccupancyRef.current = new Map();
       loadClassSeatingChart();
       trackerRef.current.reset();
     } else {
@@ -400,6 +405,11 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
       }
 
       const stream = await acquireCameraStream(selectedDeviceId, amebaIp);
+      // 等待授權期間對話框已關閉：立即釋放，避免鏡頭持續佔用
+      if (!openRef.current) {
+        stopMediaStream(stream);
+        return;
+      }
       streamRef.current = stream;
 
       if (videoRef.current) {
@@ -541,7 +551,8 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
 
     setIsSaving(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       const video = videoRef.current;
       let snapshotPath: string | null = null;
 
@@ -666,7 +677,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
                 </SelectTrigger>
                 <SelectContent>
                   {cameraSources.map((s) => (
-                    <SelectItem key={s.deviceId} value={s.deviceId}>
+                    <SelectItem key={s.id} value={s.id}>
                       {s.name}
                     </SelectItem>
                   ))}

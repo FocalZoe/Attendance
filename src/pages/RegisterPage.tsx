@@ -24,7 +24,7 @@ export function RegisterPage() {
     const schoolCode = (formData.get('school_code') as string)?.trim().toUpperCase();
     const adminName = (formData.get('admin_name') as string)?.trim();
     const email = (formData.get('email') as string)?.trim().toLowerCase();
-    const password = (formData.get('password') as string)?.trim();
+    const password = formData.get('password') as string;
     const phone = (formData.get('phone') as string)?.trim() || null;
 
     if (!schoolName || !schoolCode || !adminName || !email || !password) {

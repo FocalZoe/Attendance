@@ -4,6 +4,7 @@
 // ==============================================================================
 
 export const AMEBA_DEVICE_ID = 'device_ameba_network_cam';
+const WEBCAM_FALLBACK_PREFIX = 'webcam_';
 
 export interface CameraSource {
   id: string;
@@ -58,8 +59,9 @@ export const getDesktopCameraSources = async (): Promise<CameraSource[]> => {
       videoInputs.forEach((d, index) => {
         const rawLabel = d.label || '';
         const displayName = rawLabel ? `🎥 ${rawLabel}` : `🎥 Webcam 視訊鏡頭 #${index + 1}`;
+        // 授權前 deviceId 可能為空字串，改用穩定且非空的 id 作為選單值
         sources.push({
-          id: d.deviceId,
+          id: d.deviceId || `${WEBCAM_FALLBACK_PREFIX}${index}`,
           type: 'webcam',
           name: displayName,
           deviceId: d.deviceId,
@@ -84,7 +86,7 @@ export const getDesktopCameraSources = async (): Promise<CameraSource[]> => {
   sources.push({
     id: AMEBA_DEVICE_ID,
     type: 'ameba',
-    name: '📡 Ameba 網路相機 (Ameba IP Camera 測試串流)',
+    name: '📡 Ameba 網路相機（模擬測試串流，非實際 IP 影像）',
     deviceId: AMEBA_DEVICE_ID,
   });
 
@@ -143,7 +145,7 @@ export const createAmebaCanvasStream = (ipAddress: string = '192.168.1.100'): Me
     ctx.fillStyle = '#38bdf8';
     ctx.font = 'bold 36px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('📡 AMEBA IP CAMERA STREAM', canvas.width / 2, canvas.height / 2 - 40);
+    ctx.fillText(`📡 AMEBA SIMULATED STREAM · ${ipAddress}`, canvas.width / 2, canvas.height / 2 - 40);
 
     ctx.fillStyle = '#10b981';
     ctx.font = '22px monospace';
@@ -196,7 +198,8 @@ export const acquireCameraStream = async (sourceId: string, amebaIp: string = '1
   }
 
   // 2. 若選擇實體 Webcam (三層容錯降級)
-  const isDefault = !sourceId || sourceId === 'default_webcam';
+  const isDefault =
+    !sourceId || sourceId === 'default_webcam' || sourceId.startsWith(WEBCAM_FALLBACK_PREFIX);
 
   // 第一層：exact deviceId 理想 1080p
   try {
