@@ -13,6 +13,16 @@ describe('availableSteps', () => {
   });
 });
 
+describe('TOUR_STEPS', () => {
+  it('no longer sends teachers to a schedule editor', () => {
+    expect(TOUR_STEPS.teacher.some((s) => s.selector.includes('"schedule"'))).toBe(false);
+  });
+
+  it('points school admins to the schedule button', () => {
+    expect(TOUR_STEPS.school_admin.some((s) => s.selector === '[data-tour="sa-schedule"]')).toBe(true);
+  });
+});
+
 describe('tourStorageKey', () => {
   it('is scoped by role and user', () => {
     expect(tourStorageKey('teacher', 'u1')).toBe('attendance:tour:teacher:u1');

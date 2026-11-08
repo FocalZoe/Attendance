@@ -13,12 +13,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconButton } from '@/components/ui/icon-button';
 import { ListSkeleton } from '@/components/ui/skeleton';
-import { Bell, Camera, Clock, Grid3X3, PlusCircle, Trash2 } from 'lucide-react';
+import { Bell, Camera, Grid3X3, PlusCircle, Trash2 } from 'lucide-react';
 import type { SchoolClass, Student } from '@/types/database';
 import { SeatMapEditorModal } from '@/components/attendance/SeatMapEditorModal';
 import { LiveAttendanceRollcall } from '@/components/attendance/LiveAttendanceRollcall';
 import { AttendanceHistoryView } from '@/components/attendance/AttendanceHistoryView';
-import { ClassScheduleDialog } from '@/components/attendance/ClassScheduleDialog';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useRollcallReminders } from '@/hooks/useRollcallReminders';
 import { formatTime, getNextSchedule, getTodaySchedules, WEEKDAY_LABELS, weekdayOf } from '@/lib/schedule';
@@ -27,6 +26,8 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/errors';
 import { useProductTour } from '@/hooks/useProductTour';
+import { useCameraPermission } from '@/hooks/useCameraPermission';
+import { CAMERA_BLOCKED_STEPS } from '@/lib/camera-permission';
 
 interface AssignedClassItem {
   class: SchoolClass;
@@ -50,6 +51,7 @@ export function TeacherDashboard() {
   const [classStudents, setClassStudents] = React.useState<Student[]>([]);
   const [loading, setLoading] = React.useState<boolean>(true);
   useProductTour({ role: 'teacher', userId: profile?.id, ready: !loading });
+  const cameraPermission = useCameraPermission();
   const [attendanceRefreshKey, setAttendanceRefreshKey] = React.useState<number>(0);
   const [now, setNow] = React.useState<Date>(() => new Date());
 
@@ -57,7 +59,6 @@ export function TeacherDashboard() {
   const [seatingEditorOpen, setSeatingEditorOpen] = React.useState<boolean>(false);
   const [liveRollcallOpen, setLiveRollcallOpen] = React.useState<boolean>(false);
   const [activeModalClass, setActiveModalClass] = React.useState<{ id: string; name: string } | null>(null);
-  const [scheduleOpen, setScheduleOpen] = React.useState<boolean>(false);
   const [rollcallPeriod, setRollcallPeriod] = React.useState<string | undefined>(undefined);
   const { request: requestConfirm, dialog: confirmDialog } = useConfirm();
 
@@ -166,12 +167,6 @@ export function TeacherDashboard() {
     setLiveRollcallOpen(true);
   };
 
-  const handleOpenSchedule = (cls: SchoolClass) => {
-    setSelectedClassId(cls.id);
-    setActiveModalClass({ id: cls.id, name: cls.name });
-    setScheduleOpen(true);
-  };
-
   // 導師新增在籍學生
   const handleCreateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -236,7 +231,7 @@ export function TeacherDashboard() {
     [assignedClasses]
   );
 
-  const { schedules, reload: reloadSchedules, permission, requestPermission } = useRollcallReminders({
+  const { schedules, permission, requestPermission } = useRollcallReminders({
     teacherId: profile?.id,
     onStart: handleReminderStart,
   });
@@ -292,21 +287,49 @@ export function TeacherDashboard() {
           ) : (
             <EmptyState
               className="mt-5"
-              title={schedules.length === 0 ? '還沒有設定課表' : '今天沒有其他點名時段了'}
+              title={schedules.length === 0 ? '學校主管還沒有為你設定點名時間' : '今天沒有其他點名時段了'}
               description={
                 schedules.length === 0
-                  ? '設定每週的上課時間後，到點前這裡會提醒你並讓你一鍵開始點名。也可以直接從下方選一個班級點名。'
+                  ? '點名時間由學校主管設定，設定好後時間快到時這裡會提醒你。想臨時點名，可以從下方選一個班級直接開始。'
                   : '想臨時點名，可以從下方選一個班級直接開始。'
               }
-              action={
-                assignedClasses[0] ? (
-                  <Button variant="outline" onClick={() => handleOpenSchedule(currentAssigned?.class ?? assignedClasses[0].class)}>
-                    <Clock aria-hidden="true" />
-                    設定課表
-                  </Button>
-                ) : undefined
-              }
             />
+          )}
+
+          {(cameraPermission.state === 'prompt' || cameraPermission.state === 'denied') && (
+            <div
+              data-tour="camera-permission"
+              className="mt-5 flex flex-col gap-3 rounded-lg border border-border bg-secondary p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              {cameraPermission.state === 'prompt' ? (
+                <>
+                  <div>
+                    <p className="font-bold text-foreground">先允許使用鏡頭</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      第一次使用請先允許鏡頭，之後點名時才能自動辨識座位上有沒有人。
+                    </p>
+                  </div>
+                  <Button type="button" onClick={() => cameraPermission.request()}>
+                    <Camera aria-hidden="true" />
+                    允許使用鏡頭
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <p className="font-bold text-foreground">鏡頭被瀏覽器擋住了</p>
+                    <ol className="mt-1 list-inside list-decimal text-sm text-muted-foreground">
+                      {CAMERA_BLOCKED_STEPS.map((step) => (
+                        <li key={step}>{step}</li>
+                      ))}
+                    </ol>
+                  </div>
+                  <Button type="button" variant="outline" onClick={() => cameraPermission.recheck()}>
+                    我改好了，重新檢查
+                  </Button>
+                </>
+              )}
+            </div>
           )}
 
           {laterToday.length > 0 && (
@@ -386,10 +409,6 @@ export function TeacherDashboard() {
                       <Button size="sm" variant="outline" data-tour={index === 0 ? 'seat' : undefined} onClick={() => handleOpenSeating(item.class)}>
                         <Grid3X3 aria-hidden="true" />
                         座位
-                      </Button>
-                      <Button size="sm" variant="outline" data-tour={index === 0 ? 'schedule' : undefined} onClick={() => handleOpenSchedule(item.class)}>
-                        <Clock aria-hidden="true" />
-                        課表
                       </Button>
                     </div>
                   </li>
@@ -534,18 +553,6 @@ export function TeacherDashboard() {
             onAttendanceCompleted={() => {
               setAttendanceRefreshKey((k) => k + 1);
             }}
-          />
-        )}
-
-        {/* 課表與點名提醒設定 */}
-        {activeModalClass && profile && (
-          <ClassScheduleDialog
-            open={scheduleOpen}
-            onOpenChange={setScheduleOpen}
-            classId={activeModalClass.id}
-            className={activeModalClass.name}
-            teacherId={profile.id}
-            onChanged={reloadSchedules}
           />
         )}
 

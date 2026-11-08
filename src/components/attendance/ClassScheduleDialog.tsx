@@ -21,12 +21,18 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+export interface ScheduleTeacher {
+  id: string;
+  name: string;
+}
+
 interface ClassScheduleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   classId: string;
   className: string;
-  teacherId: string;
+  /** Teachers already assigned to this class (homeroom and subject) */
+  teachers: ScheduleTeacher[];
   onChanged?: () => void;
 }
 
@@ -35,10 +41,11 @@ export function ClassScheduleDialog({
   onOpenChange,
   classId,
   className,
-  teacherId,
+  teachers,
   onChanged,
 }: ClassScheduleDialogProps) {
   const [items, setItems] = React.useState<ClassSchedule[]>([]);
+  const [teacherId, setTeacherId] = React.useState('');
   const [weekday, setWeekday] = React.useState('1');
   const [period, setPeriod] = React.useState('1');
   const [startTime, setStartTime] = React.useState('08:00');
@@ -50,7 +57,6 @@ export function ClassScheduleDialog({
       .from('class_schedules')
       .select('*')
       .eq('class_id', classId)
-      .eq('teacher_id', teacherId)
       .order('weekday', { ascending: true })
       .order('start_time', { ascending: true });
 
@@ -59,15 +65,25 @@ export function ClassScheduleDialog({
       return;
     }
     setItems((data || []) as ClassSchedule[]);
-  }, [classId, teacherId]);
+  }, [classId]);
 
   React.useEffect(() => {
     if (open) load();
   }, [open, load]);
 
+  // Default to the first assigned teacher; reset if the chosen one is no longer assigned
+  React.useEffect(() => {
+    if (!teachers.some((t) => t.id === teacherId)) setTeacherId(teachers[0]?.id ?? '');
+  }, [teachers, teacherId]);
+
+  const teacherName = React.useCallback(
+    (id: string) => teachers.find((t) => t.id === id)?.name ?? '已移除的教師',
+    [teachers]
+  );
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!startTime) return;
+    if (!startTime || !teacherId) return;
 
     setSaving(true);
     try {
@@ -82,9 +98,9 @@ export function ClassScheduleDialog({
 
       if (error) {
         if (error.code === '23505') {
-          toast.error('這個星期的這一節已經設定過了。');
+          toast.error('這位教師這一天的這一節已經設定過了。');
         } else if (error.code === '42501') {
-          toast.error('你不是這個班的任課教師，無法設定課表。請聯繫學校主管確認指派。');
+          toast.error('這位教師還沒有被指派到這個班，或你沒有權限設定課表。請先在「指派導師與科任老師」加入教師。');
         } else {
           toastError(error, '新增失敗。請稍後再試。');
         }
@@ -114,11 +130,31 @@ export function ClassScheduleDialog({
         <DialogHeader>
           <DialogTitle>{className}　每週點名時間</DialogTitle>
           <DialogDescription>
-            設定每週哪一天、哪一節要點名。時間快到時，這個網頁會提醒你，並讓你一鍵開始點名（提醒只在網頁開著時出現）。
+            設定每位老師每週哪一天、哪一節要點名。時間快到時，老師的網頁會提醒他，並讓他一鍵開始點名（提醒只在網頁開著時出現）。
           </DialogDescription>
         </DialogHeader>
 
+        {teachers.length === 0 ? (
+          <p className="rounded-md border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+            這個班還沒有指派任何教師。請先到「指派導師與科任老師」把教師加入這個班級，再回來設定時間。
+          </p>
+        ) : (
         <form onSubmit={handleAdd} className="space-y-4 border-t border-border pt-4">
+          <div className="space-y-2">
+            <Label htmlFor="sch-teacher">哪位老師</Label>
+            <Select value={teacherId} onValueChange={setTeacherId}>
+              <SelectTrigger id="sch-teacher">
+                <SelectValue placeholder="選擇教師" />
+              </SelectTrigger>
+              <SelectContent>
+                {teachers.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-4">
             <div className="space-y-2">
               <Label htmlFor="sch-weekday">星期</Label>
@@ -177,10 +213,11 @@ export function ClassScheduleDialog({
             加入課表
           </Button>
         </form>
+        )}
 
         {items.length === 0 ? (
           <p className="rounded-md border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-            還沒有設定任何時間。用上面的表單加入第一筆。
+            這個班還沒有設定任何點名時間。
           </p>
         ) : (
           <ScrollArea className="rounded-md border border-border" viewportClassName="max-h-56">
@@ -191,6 +228,7 @@ export function ClassScheduleDialog({
                     <span className="font-bold">{WEEKDAY_LABELS[item.weekday]}</span>
                     <span className="mx-2 text-muted-foreground">{periodLabel(item.period)}</span>
                     <span className="tabular">{formatTime(item.start_time)}</span>
+                    <span className="ml-2 font-medium">{teacherName(item.teacher_id)}</span>
                     <span className="ml-2 text-muted-foreground">提前 {item.remind_before_min} 分鐘提醒</span>
                   </span>
                   <IconButton label="刪除這個時間" onClick={() => handleDelete(item.id)}>

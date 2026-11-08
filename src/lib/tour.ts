@@ -19,6 +19,12 @@ export const TOUR_STEPS: Record<TourRole, TourStep[]> = {
       side: 'bottom',
     },
     {
+      selector: '[data-tour="camera-permission"]',
+      title: '先允許使用鏡頭',
+      description: '按「允許使用鏡頭」，瀏覽器詢問時選「允許」。只要允許一次，以後點名就會自動開啟鏡頭。',
+      side: 'bottom',
+    },
+    {
       selector: '[data-tour="classes"]',
       title: '你的班級',
       description: '你負責的班級都在這裡。每個班級右邊有三個按鈕，下面一個一個介紹。',
@@ -31,21 +37,15 @@ export const TOUR_STEPS: Record<TourRole, TourStep[]> = {
       side: 'left',
     },
     {
-      selector: '[data-tour="schedule"]',
-      title: '第二步：設定每週點名時間',
-      description: '按「課表」，設定每週哪一天、哪一節要點名。時間快到時，網頁會提醒你。',
-      side: 'left',
-    },
-    {
       selector: '[data-tour="rollcall"]',
-      title: '第三步：開始點名',
+      title: '第二步：開始點名',
       description: '按「點名」會開啟鏡頭，系統自動看每個座位有沒有人。你確認後按「完成點名」就存檔了。',
       side: 'left',
     },
     {
       selector: '[data-tour="records"]',
       title: '看點名結果',
-      description: '每一列是一次點名，每一欄是一位學生。圖示不對的話，直接點它就能更正。',
+      description: '每一欄是一次點名，每一列是一位學生。圖示不對的話，直接點它就能更正。',
       side: 'bottom',
     },
     {
@@ -61,6 +61,12 @@ export const TOUR_STEPS: Record<TourRole, TourStep[]> = {
       title: '建立班級與教師',
       description: '先在「班級與教師」建立班級、新增教師帳號，再指派誰是導師或科任老師。',
       side: 'bottom',
+    },
+    {
+      selector: '[data-tour="sa-schedule"]',
+      title: '設定每位老師的點名時間',
+      description: '在班級列按「課表」，選老師、星期與節次。時間快到時，老師的網頁會提醒他點名。',
+      side: 'left',
     },
     {
       selector: '[data-tour="sa-students"]',

@@ -256,10 +256,13 @@ ALTER TABLE public.attendance_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.class_schedules ENABLE ROW LEVEL SECURITY;
 
--- Class Schedules 權限：系統總管全權、學校主管限本校班級、教師限自己任課之班級
+-- Class Schedules 權限：課表由系統總管與學校主管管理；教師只能讀取自己的課表（供提醒使用）
 DROP POLICY IF EXISTS "Class schedules access" ON public.class_schedules;
-CREATE POLICY "Class schedules access" ON public.class_schedules
-    FOR ALL TO authenticated
+DROP POLICY IF EXISTS "Class schedules read" ON public.class_schedules;
+DROP POLICY IF EXISTS "Class schedules admin write" ON public.class_schedules;
+
+CREATE POLICY "Class schedules read" ON public.class_schedules
+    FOR SELECT TO authenticated
     USING (
         public.current_user_role() = 'sys_admin'
         OR (
@@ -274,8 +277,12 @@ CREATE POLICY "Class schedules access" ON public.class_schedules
             public.current_user_role() = 'teacher'
             AND teacher_id = auth.uid()
         )
-    )
-    WITH CHECK (
+    );
+
+-- 寫入：僅系統總管與學校主管；教師必須已被指派到該班
+CREATE POLICY "Class schedules admin write" ON public.class_schedules
+    FOR ALL TO authenticated
+    USING (
         public.current_user_role() = 'sys_admin'
         OR (
             public.current_user_role() = 'school_admin'
@@ -285,14 +292,23 @@ CREATE POLICY "Class schedules access" ON public.class_schedules
                   AND c.school_id = public.current_user_school_id()
             )
         )
-        OR (
-            public.current_user_role() = 'teacher'
-            AND teacher_id = auth.uid()
-            AND EXISTS (
-                SELECT 1 FROM public.class_teachers ct
-                WHERE ct.class_id = class_schedules.class_id
-                  AND ct.teacher_id = auth.uid()
+    )
+    WITH CHECK (
+        (
+            public.current_user_role() = 'sys_admin'
+            OR (
+                public.current_user_role() = 'school_admin'
+                AND EXISTS (
+                    SELECT 1 FROM public.classes c
+                    WHERE c.id = class_schedules.class_id
+                      AND c.school_id = public.current_user_school_id()
+                )
             )
+        )
+        AND EXISTS (
+            SELECT 1 FROM public.class_teachers ct
+            WHERE ct.class_id = class_schedules.class_id
+              AND ct.teacher_id = class_schedules.teacher_id
         )
     );
 

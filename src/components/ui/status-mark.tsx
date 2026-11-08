@@ -12,6 +12,14 @@ export const STAMP: Record<AttendanceStatus, { glyph: string; className: string 
   absent: { glyph: '缺', className: 'border-absent bg-absent-soft text-absent' },
 };
 
+/** Overlay on a photo: translucent fill so the picture stays visible, solid border for the state */
+export const OVERLAY_STYLE: Record<AttendanceStatus, string> = {
+  present: 'border-present bg-present/15',
+  late: 'border-late bg-late/15',
+  leave: 'border-leave bg-leave/15',
+  absent: 'border-absent bg-absent/15',
+};
+
 export const ATTENDANCE_STATUS_ORDER: AttendanceStatus[] = ['present', 'late', 'leave', 'absent'];
 
 interface StatusMarkProps extends React.HTMLAttributes<HTMLSpanElement> {

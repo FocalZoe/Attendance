@@ -17,7 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ListSkeleton } from '@/components/ui/skeleton';
-import { STAMP, StatusLegend, StatusMark, ATTENDANCE_STATUS_ORDER } from '@/components/ui/status-mark';
+import { OVERLAY_STYLE, STAMP, StatusLegend, StatusMark, ATTENDANCE_STATUS_ORDER } from '@/components/ui/status-mark';
 import { formatFullPeriodMessage } from '@/services/seatOccupancyService';
 import { periodLabel } from '@/lib/periods';
 import { toCsv, downloadCsv } from '@/lib/csv';
@@ -178,17 +178,21 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
 
   const sessionLabel = (s: AttendanceSession) => formatFullPeriodMessage(s.session_date, s.period);
 
-  // 下載目前這一頁：每列一次點名、每欄一位學生（UTF-8 BOM，Excel 可直接開啟）
+  // 下載目前這一頁：每欄一次點名、每列一位學生（UTF-8 BOM，Excel 可直接開啟）
   const handleExportCsv = () => {
     if (sessions.length === 0 || students.length === 0) {
       toast.error('目前沒有可下載的紀錄。');
       return;
     }
-    const header = ['日期', '節次', ...students.map((s) => `${s.seat_number} ${s.name}`)];
-    const rows = sessions.map((s) => [
-      s.session_date,
-      s.period ? periodLabel(s.period) : '',
-      ...students.map((st) => {
+    const header = [
+      '座號',
+      '姓名',
+      ...sessions.map((s) => `${s.session_date} ${s.period ? periodLabel(s.period) : ''}`.trim()),
+    ];
+    const rows = students.map((st) => [
+      st.seat_number,
+      st.name,
+      ...sessions.map((s) => {
         const rec = recordMap[s.id]?.[st.id];
         return rec ? ATTENDANCE_STATUS_LABEL[rec.status] : '';
       }),
@@ -285,8 +289,8 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
         <StatusLegend />
         <p className="text-sm text-muted-foreground">
           {isEditable
-            ? '每一列是一次點名，每一欄是一位學生。想更正，直接點那個圖示。'
-            : '每一列是一次點名，每一欄是一位學生。'}
+            ? '每一欄是一次點名，每一列是一位學生。想更正，直接點那個圖示。'
+            : '每一欄是一次點名，每一列是一位學生。'}
         </p>
       </div>
 
@@ -306,32 +310,37 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="sticky left-0 z-10 min-w-44 bg-secondary">點名時間</TableHead>
-                {students.map((st) => (
-                  <TableHead key={st.id} className="w-16 min-w-16 px-1 text-center">
-                    <span className="tabular block text-xs text-muted-foreground">{st.seat_number}</span>
-                    <span className="block truncate text-foreground">{st.name}</span>
+                <TableHead className="sticky left-0 z-10 min-w-36 bg-secondary">學生</TableHead>
+                {sessions.map((s) => (
+                  <TableHead key={s.id} className="min-w-28 px-2 text-center">
+                    <span className="tabular block text-sm text-foreground">{s.session_date}</span>
+                    <span className="flex items-center justify-center gap-1 text-xs font-normal text-muted-foreground">
+                      {s.period ? periodLabel(s.period) : '一般'}
+                      {s.snapshot_path && (
+                        <IconButton
+                          label="看這次點名拍的照片"
+                          className="h-8 w-8"
+                          onClick={() => handleOpenSnapshot(s)}
+                        >
+                          <Camera aria-hidden="true" />
+                        </IconButton>
+                      )}
+                    </span>
                   </TableHead>
                 ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sessions.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell className="sticky left-0 z-10 min-w-44 bg-card p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="tabular text-sm font-medium text-foreground">{sessionLabel(s)}</span>
-                      {s.snapshot_path && (
-                        <IconButton label="看這次點名拍的照片" onClick={() => handleOpenSnapshot(s)}>
-                          <Camera aria-hidden="true" />
-                        </IconButton>
-                      )}
-                    </div>
+              {students.map((st) => (
+                <TableRow key={st.id}>
+                  <TableCell className="sticky left-0 z-10 min-w-36 bg-card p-3">
+                    <span className="tabular mr-2 text-muted-foreground">{st.seat_number}</span>
+                    <span className="font-medium text-foreground">{st.name}</span>
                   </TableCell>
-                  {students.map((st) => {
+                  {sessions.map((s) => {
                     const rec = recordMap[s.id]?.[st.id];
                     return (
-                      <TableCell key={st.id} className="p-1 text-center">
+                      <TableCell key={s.id} className="p-1 text-center">
                         {rec ? (
                           <StatusCell
                             record={rec}
@@ -489,8 +498,8 @@ function SeatOverlay({
             <div
               key={box.id}
               className={cn(
-                'absolute flex flex-col items-center justify-center overflow-hidden rounded-sm border-2 text-center text-[10px] leading-tight sm:text-xs',
-                stamp ? stamp.className : 'border-border bg-card/70 text-muted-foreground'
+                'absolute flex items-start justify-start overflow-hidden rounded-sm border-2 p-0.5',
+                rec ? OVERLAY_STYLE[rec.status] : 'border-border bg-card/10'
               )}
               style={{
                 left: `${box.x_ratio * 100}%`,
@@ -500,8 +509,15 @@ function SeatOverlay({
               }}
               title={student ? `${student.name}：${rec ? ATTENDANCE_STATUS_LABEL[rec.status] : '沒有紀錄'}` : '空位'}
             >
-              {stamp && <span className="font-bold">{stamp.glyph}</span>}
-              <span className="max-w-full truncate px-0.5">{student?.name ?? box.seat_label}</span>
+              <span
+                className={cn(
+                  'inline-flex max-w-full items-center gap-1 rounded-sm bg-card/90 px-1 py-0.5 text-[10px] font-medium leading-none text-foreground sm:text-xs',
+                  stamp && stamp.className.split(' ').find((c) => c.startsWith('text-'))
+                )}
+              >
+                {stamp && <span className="font-bold">{stamp.glyph}</span>}
+                <span className="truncate text-foreground">{student?.name ?? box.seat_label}</span>
+              </span>
             </div>
           );
         })}

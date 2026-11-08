@@ -36,6 +36,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/errors';
+import { useCameraPermission } from '@/hooks/useCameraPermission';
+import { CAMERA_BLOCKED_STEPS, shouldAutoStartCamera } from '@/lib/camera-permission';
 
 interface LiveAttendanceRollcallProps {
   open: boolean;
@@ -397,6 +399,8 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
     };
   }, [open, loadClassSeatingChart, initialPeriod]);
 
+  const cameraPermission = useCameraPermission();
+
   // 3. 啟動鏡頭串流
   const handleStartCamera = async () => {
     try {
@@ -411,6 +415,8 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
         return;
       }
       streamRef.current = stream;
+      cameraPermission.recheck();
+      if (!isMobile) getDesktopCameraSources().then(setCameraSources);
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -431,6 +437,25 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
       setCameraActive(false);
     }
   };
+
+  // 已經允許過鏡頭：偵測模型就緒後自動開啟，老師不用再按按鈕
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      autoStartedRef.current = false;
+      return;
+    }
+    if (
+      detectorReady &&
+      !cameraActive &&
+      !autoStartedRef.current &&
+      shouldAutoStartCamera(cameraPermission.state, !isMobile && selectedDeviceId === AMEBA_DEVICE_ID)
+    ) {
+      autoStartedRef.current = true;
+      handleStartCamera();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, detectorReady, cameraActive, cameraPermission.state, isMobile, selectedDeviceId]);
 
   // 4. 影像辨識主循環與 Canvas 即時渲染
   useEffect(() => {
@@ -802,13 +827,34 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
             })}
 
           {!cameraActive && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-neutral-950/90 p-4 text-center text-white">
-              <p className="max-w-xs text-sm text-white/80">
-                {detectorReady ? '還沒有開啟鏡頭。開啟後，系統會即時判斷每個座位有沒有人。' : '正在載入辨識模型，請稍候。'}
-              </p>
-              <Button type="button" onClick={handleStartCamera} disabled={!detectorReady}>
-                {detectorReady ? '開啟鏡頭' : '載入中'}
-              </Button>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 overflow-y-auto bg-neutral-950/90 p-4 text-center text-white">
+              {!detectorReady ? (
+                <p className="max-w-xs text-sm text-white/80">正在載入鏡頭辨識功能，請稍候。</p>
+              ) : cameraPermission.state === 'denied' && !(!isMobile && selectedDeviceId === AMEBA_DEVICE_ID) ? (
+                <>
+                  <p className="text-base font-bold">鏡頭被瀏覽器擋住了</p>
+                  <ol className="max-w-xs list-inside list-decimal space-y-1 text-left text-sm text-white/80">
+                    {CAMERA_BLOCKED_STEPS.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                  <Button type="button" variant="secondary" onClick={() => cameraPermission.recheck()}>
+                    我改好了，重新檢查
+                  </Button>
+                </>
+              ) : cameraPermission.state === 'granted' ? (
+                <p className="max-w-xs text-sm text-white/80">正在開啟鏡頭…</p>
+              ) : (
+                <>
+                  <p className="text-base font-bold">第一次點名，要先允許使用鏡頭</p>
+                  <p className="max-w-xs text-sm text-white/80">
+                    按下按鈕後，瀏覽器會跳出詢問，請選「允許」。允許一次之後，以後打開點名就會自動開啟鏡頭。
+                  </p>
+                  <Button type="button" onClick={handleStartCamera}>
+                    允許並開啟鏡頭
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>
