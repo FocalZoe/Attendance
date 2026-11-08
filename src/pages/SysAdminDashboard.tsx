@@ -20,6 +20,14 @@ import {
 import { SchoolAdminModal, type SchoolAdminInfo } from '@/components/sys-admin/school-admin-modal';
 import type { School as SchoolType } from '@/types/database';
 import { toast } from 'sonner';
+import { Trash2 } from 'lucide-react';
+import { IconButton } from '@/components/ui/icon-button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DangerConfirmDialog } from '@/components/ui/danger-confirm-dialog';
+import { AccountsPanel } from '@/components/sys-admin/accounts-panel';
+import { DataPanel } from '@/components/sys-admin/data-panel';
+import { deleteSchoolEverything } from '@/lib/hard-delete';
+import { toastError } from '@/lib/errors';
 import { friendlyError } from '@/lib/errors';
 
 type AdminRow = SchoolAdminInfo & { school_id: string | null };
@@ -40,6 +48,9 @@ export function SysAdminDashboard() {
   const [schoolName, setSchoolName] = React.useState('');
   const [schoolCode, setSchoolCode] = React.useState('');
   const [errorMsg, setErrorMsg] = React.useState('');
+  const [deleteTarget, setDeleteTarget] = React.useState<SchoolType | null>(null);
+  const [deleteAccounts, setDeleteAccounts] = React.useState(true);
+  const [impact, setImpact] = React.useState<{ classes: number; students: number; accounts: number } | null>(null);
 
   const loadData = React.useCallback(async () => {
     try {
@@ -101,6 +112,44 @@ export function SysAdminDashboard() {
     }
   };
 
+  // Count what a school delete would remove so the dialog can say it plainly
+  React.useEffect(() => {
+    if (!deleteTarget) {
+      setImpact(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [c, st, a] = await Promise.all([
+        supabase.from('classes').select('*', { count: 'exact', head: true }).eq('school_id', deleteTarget.id),
+        supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', deleteTarget.id),
+        supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('school_id', deleteTarget.id)
+          .neq('role', 'sys_admin'),
+      ]);
+      if (!cancelled) setImpact({ classes: c.count ?? 0, students: st.count ?? 0, accounts: a.count ?? 0 });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [deleteTarget]);
+
+  const handleDeleteSchool = async () => {
+    if (!deleteTarget) return;
+    try {
+      const result = await deleteSchoolEverything(deleteTarget.id, { deleteAccounts });
+      toast.success(
+        `已永久刪除「${deleteTarget.name}」：${result.classes} 個班級、${result.students} 位學生、${result.snapshots} 張照片`
+      );
+      await loadData();
+    } catch (err) {
+      toastError(err, '刪除學校失敗。請稍後再試。');
+      throw err;
+    }
+  };
+
   const stats = [
     { label: '學校', value: schools.length },
     { label: '帳號', value: totalUsers },
@@ -128,6 +177,14 @@ export function SysAdminDashboard() {
           </dl>
         </section>
 
+        <Tabs defaultValue="schools">
+          <TabsList>
+            <TabsTrigger value="schools">學校組織</TabsTrigger>
+            <TabsTrigger value="accounts">帳號</TabsTrigger>
+            <TabsTrigger value="data">班級與學生</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="schools" className="mt-6">
         <div className="grid gap-10 lg:grid-cols-[20rem_1fr]">
           {/* 新增學校 */}
           <section className="space-y-4">
@@ -186,11 +243,16 @@ export function SysAdminDashboard() {
                             <p className="font-medium text-foreground">{s.name}</p>
                             <p className="tabular text-sm text-muted-foreground">{s.code}</p>
                           </div>
-                          <SchoolAdminModal
-                            school={{ id: s.id, name: s.name, code: s.code }}
-                            admins={schoolAdmins}
-                            onRefresh={loadData}
-                          />
+                          <div className="flex shrink-0 items-center gap-1">
+                            <SchoolAdminModal
+                              school={{ id: s.id, name: s.name, code: s.code }}
+                              admins={schoolAdmins}
+                              onRefresh={loadData}
+                            />
+                            <IconButton label={`永久刪除 ${s.name}`} onClick={() => setDeleteTarget(s)} className="text-absent hover:text-absent">
+                              <Trash2 aria-hidden="true" />
+                            </IconButton>
+                          </div>
                         </div>
                         <p className="text-sm text-muted-foreground">
                           主管：{summary || <span className="font-medium text-late">還沒有主管</span>}
@@ -227,11 +289,16 @@ export function SysAdminDashboard() {
                               {new Date(s.created_at).toLocaleDateString()}
                             </TableCell>
                             <TableCell className="text-right">
-                              <SchoolAdminModal
-                                school={{ id: s.id, name: s.name, code: s.code }}
-                                admins={schoolAdmins}
-                                onRefresh={loadData}
-                              />
+                              <div className="flex items-center justify-end gap-1">
+                                <SchoolAdminModal
+                                  school={{ id: s.id, name: s.name, code: s.code }}
+                                  admins={schoolAdmins}
+                                  onRefresh={loadData}
+                                />
+                                <IconButton label={`永久刪除 ${s.name}`} onClick={() => setDeleteTarget(s)} className="text-absent hover:text-absent">
+                                  <Trash2 aria-hidden="true" />
+                                </IconButton>
+                              </div>
                             </TableCell>
                           </TableRow>
                         );
@@ -243,6 +310,40 @@ export function SysAdminDashboard() {
             )}
           </section>
         </div>
+          </TabsContent>
+
+          <TabsContent value="accounts" className="mt-6">
+            <AccountsPanel />
+          </TabsContent>
+
+          <TabsContent value="data" className="mt-6">
+            <DataPanel schools={schools} onChanged={loadData} />
+          </TabsContent>
+        </Tabs>
+
+        <DangerConfirmDialog
+          open={!!deleteTarget}
+          onOpenChange={(o) => !o && setDeleteTarget(null)}
+          title={`永久刪除學校「${deleteTarget?.name ?? ''}」？`}
+          confirmText={deleteTarget?.name ?? ''}
+          consequences={[
+            impact ? `${impact.classes} 個班級、${impact.students} 位學生` : '正在計算要刪除的內容…',
+            '所有座位表、點名紀錄和課表',
+            '所有點名時拍的照片',
+            ...(deleteAccounts ? [impact ? `這間學校的 ${impact.accounts} 個教師與主管帳號` : '這間學校的教師與主管帳號'] : []),
+          ]}
+          onConfirm={handleDeleteSchool}
+        >
+          <label className="flex items-start gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={deleteAccounts}
+              onChange={(e) => setDeleteAccounts(e.target.checked)}
+              className="mt-1 h-4 w-4 accent-[var(--primary)]"
+            />
+            <span>同時刪除這間學校的所有教師與主管帳號（不勾選的話，帳號會保留但不屬於任何學校）</span>
+          </label>
+        </DangerConfirmDialog>
       </main>
     </div>
   );

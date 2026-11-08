@@ -26,7 +26,9 @@ function asErrorLike(error: unknown): ErrorLike {
  * PostgrestError is a plain object (not an Error instance), so inspect fields.
  */
 export function friendlyError(error: unknown, fallback: string): FriendlyError {
-  const e = asErrorLike(error);
+  // Wrapped errors (e.g. HardDeleteError) carry the original Supabase error as `cause`
+  const inner = error && typeof error === 'object' && 'cause' in error && (error as { cause?: unknown }).cause;
+  const e = asErrorLike(inner || error);
   const code = typeof e.code === 'string' ? e.code : undefined;
   const raw = typeof e.message === 'string' ? e.message : undefined;
   const lower = (raw ?? '').toLowerCase();

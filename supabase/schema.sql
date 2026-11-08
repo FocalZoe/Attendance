@@ -742,6 +742,135 @@ END;
 $$;
 
 -- ------------------------------------------------------------------------------
+-- 15b. 平台系統總管：永久刪除（帳號、學校）與稽核紀錄
+-- 刪除不可復原。照片檔案由前端以 Storage API 先行清除，再呼叫這些函式。
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.deletion_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    actor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    kind TEXT NOT NULL,
+    target_label TEXT NOT NULL,
+    detail JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+ALTER TABLE public.deletion_log ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Deletion log sys_admin read" ON public.deletion_log;
+CREATE POLICY "Deletion log sys_admin read" ON public.deletion_log
+    FOR SELECT TO authenticated USING (public.current_user_role() = 'sys_admin');
+
+-- 永久刪除單一帳號（含登入身分）。不可刪除自己或其他系統總管。
+CREATE OR REPLACE FUNCTION public.delete_user_account(p_profile_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_target public.profiles%ROWTYPE;
+BEGIN
+    IF public.current_user_role() IS DISTINCT FROM 'sys_admin' THEN
+        RAISE EXCEPTION '權限不足，僅系統總管可永久刪除帳號';
+    END IF;
+
+    IF p_profile_id = auth.uid() THEN
+        RAISE EXCEPTION '不可刪除自己的帳號';
+    END IF;
+
+    SELECT * INTO v_target FROM public.profiles WHERE id = p_profile_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION '查無此帳號';
+    END IF;
+
+    IF v_target.role = 'sys_admin' THEN
+        RAISE EXCEPTION '不可刪除系統總管帳號';
+    END IF;
+
+    INSERT INTO public.deletion_log (actor_id, kind, target_label, detail)
+    VALUES (
+        auth.uid(),
+        'account',
+        v_target.email,
+        jsonb_build_object('name', v_target.name, 'role', v_target.role, 'school_id', v_target.school_id)
+    );
+
+    -- profiles.id 以 ON DELETE CASCADE 參照 auth.users，連帶刪除 profile、class_teachers、class_schedules；
+    -- attendance_sessions.teacher_id 與 seating_charts.created_by 為 SET NULL，歷史紀錄保留
+    DELETE FROM auth.users WHERE id = p_profile_id;
+
+    RETURN jsonb_build_object('success', true, 'email', v_target.email);
+END;
+$$;
+
+-- 永久刪除整間學校：班級、學生、座位表、點名紀錄、課表；可選擇連同該校所有帳號一併刪除
+CREATE OR REPLACE FUNCTION public.delete_school_cascade(p_school_id UUID, p_delete_accounts BOOLEAN DEFAULT true)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_school public.schools%ROWTYPE;
+    v_classes INTEGER;
+    v_students INTEGER;
+    v_accounts INTEGER := 0;
+BEGIN
+    IF public.current_user_role() IS DISTINCT FROM 'sys_admin' THEN
+        RAISE EXCEPTION '權限不足，僅系統總管可永久刪除學校';
+    END IF;
+
+    SELECT * INTO v_school FROM public.schools WHERE id = p_school_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION '查無此學校';
+    END IF;
+
+    SELECT COUNT(*) INTO v_classes FROM public.classes WHERE school_id = p_school_id;
+    SELECT COUNT(*) INTO v_students FROM public.students WHERE school_id = p_school_id;
+
+    IF p_delete_accounts THEN
+        SELECT COUNT(*) INTO v_accounts
+        FROM public.profiles
+        WHERE school_id = p_school_id AND role <> 'sys_admin' AND id <> auth.uid();
+
+        DELETE FROM auth.users
+        WHERE id IN (
+            SELECT id FROM public.profiles
+            WHERE school_id = p_school_id AND role <> 'sys_admin' AND id <> auth.uid()
+        );
+    END IF;
+
+    INSERT INTO public.deletion_log (actor_id, kind, target_label, detail)
+    VALUES (
+        auth.uid(),
+        'school',
+        v_school.name,
+        jsonb_build_object(
+            'code', v_school.code,
+            'classes', v_classes,
+            'students', v_students,
+            'accounts', v_accounts,
+            'accounts_deleted', p_delete_accounts
+        )
+    );
+
+    DELETE FROM public.schools WHERE id = p_school_id;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'classes', v_classes,
+        'students', v_students,
+        'accounts', v_accounts
+    );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.delete_user_account(UUID) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.delete_school_cascade(UUID, BOOLEAN) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.delete_user_account(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_school_cascade(UUID, BOOLEAN) TO authenticated;
+
+-- ------------------------------------------------------------------------------
 -- 16. 雲端存證照片儲存庫 (Storage Bucket)
 -- ------------------------------------------------------------------------------
 INSERT INTO storage.buckets (id, name, public)
@@ -780,6 +909,15 @@ USING (
             )
         )
     )
+);
+
+-- 系統總管可刪除照片檔案（永久刪除班級或學校時，由前端以 Storage API 清除）
+DROP POLICY IF EXISTS "Allow sys_admin to delete attendance snapshots" ON storage.objects;
+CREATE POLICY "Allow sys_admin to delete attendance snapshots"
+ON storage.objects FOR DELETE TO authenticated
+USING (
+    bucket_id = 'attendance-snapshots'
+    AND public.current_user_role() = 'sys_admin'
 );
 
 -- ------------------------------------------------------------------------------
