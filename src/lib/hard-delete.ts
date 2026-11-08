@@ -87,6 +87,16 @@ export async function deleteClassEverything(classId: string): Promise<{ snapshot
   return { snapshots };
 }
 
+/** Delete one rollcall: its photo first, then the row (student records cascade). Row stays if photo removal fails. */
+export async function deleteSessionRecord(sessionId: string, snapshotPath: string | null): Promise<void> {
+  if (snapshotPath) {
+    const { error: removeError } = await supabase.storage.from(BUCKET).remove([snapshotPath]);
+    if (removeError) throw new HardDeleteError('remove-snapshot', removeError);
+  }
+  const { error } = await supabase.from('attendance_sessions').delete().eq('id', sessionId);
+  if (error) throw new HardDeleteError('delete-session', error);
+}
+
 /** Delete one student; attendance records cascade */
 export async function deleteStudentRecord(studentId: string): Promise<void> {
   const { error } = await supabase.from('students').delete().eq('id', studentId);

@@ -16,7 +16,7 @@ vi.mock('@/lib/supabase', () => ({
   },
 }));
 
-import { deleteSchoolEverything, removeClassSnapshots, HardDeleteError } from './hard-delete';
+import { deleteSessionRecord, deleteSchoolEverything, removeClassSnapshots, HardDeleteError } from './hard-delete';
 
 const file = (name: string) => ({ name, id: `id-${name}` });
 
@@ -79,5 +79,23 @@ describe('deleteSchoolEverything', () => {
     expect(list).toHaveBeenCalledTimes(2);
     expect(rpc).toHaveBeenCalledWith('delete_school_cascade', { p_school_id: 's1', p_delete_accounts: false });
     expect(result).toEqual({ classes: 2, students: 30, accounts: 4, snapshots: 0 });
+  });
+});
+
+describe('deleteSessionRecord', () => {
+  it('removes the photo and then deletes the row', async () => {
+    remove.mockResolvedValue({ error: null });
+    await deleteSessionRecord('sess1', 'c1/photo.jpg');
+    expect(remove).toHaveBeenCalledWith(['c1/photo.jpg']);
+  });
+
+  it('skips storage when there is no photo', async () => {
+    await deleteSessionRecord('sess1', null);
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('keeps the row when the photo cannot be removed', async () => {
+    remove.mockResolvedValue({ error: { message: 'denied' } });
+    await expect(deleteSessionRecord('sess1', 'c1/photo.jpg')).rejects.toBeInstanceOf(HardDeleteError);
   });
 });

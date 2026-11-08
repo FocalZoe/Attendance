@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { supabase } from '@/lib/supabase';
-import { deleteClassEverything, deleteStudentRecord } from '@/lib/hard-delete';
+import { deleteClassEverything, deleteSessionRecord, deleteStudentRecord } from '@/lib/hard-delete';
+import { periodLabel } from '@/lib/periods';
 import { toastError } from '@/lib/errors';
 import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { DangerConfirmDialog } from '@/components/ui/danger-confirm-dialog';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { School, SchoolClass, Student } from '@/types/database';
+import type { AttendanceSession, School, SchoolClass, Student } from '@/types/database';
 
 interface DataPanelProps {
   schools: School[];
@@ -22,13 +23,15 @@ interface DataPanelProps {
 
 type Target =
   | { kind: 'class'; item: SchoolClass }
-  | { kind: 'student'; item: Student };
+  | { kind: 'student'; item: Student }
+  | { kind: 'session'; item: AttendanceSession };
 
 export function DataPanel({ schools, onChanged }: DataPanelProps) {
   const [schoolId, setSchoolId] = React.useState('');
   const [classes, setClasses] = React.useState<SchoolClass[]>([]);
   const [classId, setClassId] = React.useState('');
   const [students, setStudents] = React.useState<Student[]>([]);
+  const [sessions, setSessions] = React.useState<AttendanceSession[]>([]);
   const [studentSearch, setStudentSearch] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [target, setTarget] = React.useState<Target | null>(null);
@@ -67,6 +70,26 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
     setStudents((data ?? []) as Student[]);
   }, [classId]);
 
+  const loadSessions = React.useCallback(async () => {
+    if (!classId) {
+      setSessions([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('attendance_sessions')
+      .select('*')
+      .eq('class_id', classId)
+      .order('session_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) toastError(error, '讀取點名紀錄失敗。請重新整理頁面。');
+    setSessions((data ?? []) as AttendanceSession[]);
+  }, [classId]);
+
+  React.useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
+
   React.useEffect(() => {
     loadClasses();
   }, [loadClasses]);
@@ -88,6 +111,10 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
         const { snapshots } = await deleteClassEverything(target.item.id);
         toast.success(`已永久刪除班級「${target.item.name}」，並清除 ${snapshots} 張照片`);
         await loadClasses();
+      } else if (target.kind === 'session') {
+        await deleteSessionRecord(target.item.id, target.item.snapshot_path);
+        toast.success('已永久刪除這次點名紀錄');
+        setSessions((list) => list.filter((x) => x.id !== target.item.id));
       } else {
         await deleteStudentRecord(target.item.id);
         toast.success(`已永久刪除學生「${target.item.name}」`);
@@ -196,6 +223,39 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
               </ScrollArea>
             )}
           </div>
+
+          <div className="space-y-3 lg:col-span-2">
+            <h3 className="text-base font-bold text-foreground">點名紀錄（{sessions.length}）</h3>
+            <p className="text-sm text-muted-foreground">
+              選好上方的班級後，可以單獨刪除某一次點名。刪除會一併刪除當次所有學生的出缺席與點名照片。
+            </p>
+            {sessions.length === 0 ? (
+              <EmptyState title="這個班還沒有點名紀錄" description="老師完成點名後會出現在這裡。" />
+            ) : (
+              <ScrollArea className="rounded-lg border border-border" viewportClassName="max-h-96">
+                <ul className="divide-y divide-border">
+                  {sessions.map((sess) => (
+                    <li key={sess.id} className="flex items-center justify-between gap-3 px-3 py-3">
+                      <p className="tabular font-medium text-foreground">
+                        {sess.session_date}
+                        <span className="ml-3 text-muted-foreground">
+                          {sess.period ? periodLabel(sess.period) : '一般'}
+                        </span>
+                        {!sess.snapshot_path && <span className="ml-3 text-sm text-muted-foreground">沒有照片</span>}
+                      </p>
+                      <IconButton
+                        label={`永久刪除 ${sess.session_date} 這次點名`}
+                        onClick={() => setTarget({ kind: 'session', item: sess })}
+                        className="text-absent hover:text-absent"
+                      >
+                        <Trash2 aria-hidden="true" />
+                      </IconButton>
+                    </li>
+                  ))}
+                </ul>
+              </ScrollArea>
+            )}
+          </div>
         </div>
       )}
 
@@ -205,12 +265,18 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
         title={
           target?.kind === 'class'
             ? `永久刪除班級「${target.item.name}」？`
+            : target?.kind === 'session'
+            ? `永久刪除 ${target.item.session_date} 的這次點名？`
             : `永久刪除學生「${target?.item.name ?? ''}」？`
         }
-        confirmText={target?.item.name ?? ''}
+        confirmText={
+          target?.kind === 'session' ? target.item.session_date : (target as { item: { name: string } } | null)?.item.name ?? ''
+        }
         consequences={
           target?.kind === 'class'
             ? ['班級裡所有學生', '這個班所有點名紀錄與座位表', '這個班所有點名時拍的照片', '這個班的課表']
+            : target?.kind === 'session'
+            ? ['這次點名所有學生的出缺席', '這次點名時拍的照片']
             : ['這位學生的資料', '這位學生所有出缺席紀錄']
         }
         onConfirm={handleDelete}
