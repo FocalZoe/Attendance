@@ -11,7 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, Grid3X3, Users, History, PlusCircle, Trash2 } from 'lucide-react';
+import { Camera, Grid3X3, Users, History, PlusCircle, Trash2, Clock, Bell } from 'lucide-react';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import { ClassScheduleDialog } from '@/components/attendance/ClassScheduleDialog';
+import { useRollcallReminders } from '@/hooks/useRollcallReminders';
 import type { SchoolClass, Student, ClassTeacher } from '@/types/database';
 import { SeatMapEditorModal } from '@/components/attendance/SeatMapEditorModal';
 import { LiveAttendanceRollcall } from '@/components/attendance/LiveAttendanceRollcall';
@@ -37,6 +40,9 @@ export function TeacherDashboard() {
   const [seatingEditorOpen, setSeatingEditorOpen] = React.useState<boolean>(false);
   const [liveRollcallOpen, setLiveRollcallOpen] = React.useState<boolean>(false);
   const [activeModalClass, setActiveModalClass] = React.useState<{ id: string; name: string } | null>(null);
+  const [scheduleOpen, setScheduleOpen] = React.useState<boolean>(false);
+  const [rollcallPeriod, setRollcallPeriod] = React.useState<string | undefined>(undefined);
+  const { request: requestConfirm, dialog: confirmDialog } = useConfirm();
 
   // 班級學生管理 Modal (導師專用)
   const [studentModalOpen, setStudentModalOpen] = React.useState<boolean>(false);
@@ -138,7 +144,14 @@ export function TeacherDashboard() {
   const handleOpenRollcall = (cls: SchoolClass) => {
     setSelectedClassId(cls.id);
     setActiveModalClass({ id: cls.id, name: cls.name });
+    setRollcallPeriod(undefined);
     setLiveRollcallOpen(true);
+  };
+
+  const handleOpenSchedule = (cls: SchoolClass) => {
+    setSelectedClassId(cls.id);
+    setActiveModalClass({ id: cls.id, name: cls.name });
+    setScheduleOpen(true);
   };
 
   // 導師新增在籍學生
@@ -176,8 +189,7 @@ export function TeacherDashboard() {
   };
 
   // 導師刪除在籍學生
-  const handleDeleteStudent = async (studentId: string) => {
-    if (!confirm('確定要自班級名冊中移除此學生嗎？')) return;
+  const deleteStudent = async (studentId: string) => {
     try {
       const { error } = await supabase.from('students').delete().eq('id', studentId);
       if (error) throw error;
@@ -188,6 +200,34 @@ export function TeacherDashboard() {
       toast.error(msg);
     }
   };
+
+  const handleDeleteStudent = (studentId: string, studentName: string) => {
+    requestConfirm({
+      title: `移除學生「${studentName}」？`,
+      description: '將自班級名冊移除，該學生的出缺勤紀錄也會一併刪除，無法復原。',
+      confirmLabel: '確認移除',
+      destructive: true,
+      action: () => deleteStudent(studentId),
+    });
+  };
+
+  // 課表提醒觸發：切換到該班並開啟點名（節次預選，不自動開鏡頭）
+  const handleReminderStart = React.useCallback(
+    (classId: string, period: string) => {
+      const target = assignedClasses.find((item) => item.class.id === classId);
+      if (!target) return;
+      setSelectedClassId(classId);
+      setActiveModalClass({ id: classId, name: target.class.name });
+      setRollcallPeriod(period);
+      setLiveRollcallOpen(true);
+    },
+    [assignedClasses]
+  );
+
+  const { reload: reloadSchedules, permission, requestPermission } = useRollcallReminders({
+    teacherId: profile?.id,
+    onStart: handleReminderStart,
+  });
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -226,9 +266,17 @@ export function TeacherDashboard() {
             <h2 className="text-base font-bold text-slate-900">
               您任教之班級 ({assignedClasses.length})
             </h2>
-            <span className="text-xs text-slate-500">
-              點擊可切換當前主工作班級
-            </span>
+            <div className="flex items-center gap-3">
+              {permission === 'default' && (
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={requestPermission}>
+                  <Bell className="w-3 h-3 mr-1" />
+                  開啟桌面提醒
+                </Button>
+              )}
+              <span className="text-xs text-slate-500">
+                點擊可切換當前主工作班級
+              </span>
+            </div>
           </div>
 
           {loading ? (
@@ -285,6 +333,18 @@ export function TeacherDashboard() {
                         >
                           <Grid3X3 className="w-3 h-3 mr-1" />
                           劃位
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenSchedule(item.class);
+                          }}
+                          className="text-xs flex-1 h-7"
+                        >
+                          <Clock className="w-3 h-3 mr-1" />
+                          課表
                         </Button>
                         <Button
                           variant="default"
@@ -425,7 +485,7 @@ export function TeacherDashboard() {
                                     type="button"
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => handleDeleteStudent(st.id)}
+                                    onClick={() => handleDeleteStudent(st.id, st.name)}
                                     className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -467,11 +527,26 @@ export function TeacherDashboard() {
             className={activeModalClass.name}
             teacherId={profile.id}
             students={classStudents}
+            initialPeriod={rollcallPeriod}
             onAttendanceCompleted={() => {
               setAttendanceRefreshKey((k) => k + 1);
             }}
           />
         )}
+
+        {/* 課表與點名提醒設定 */}
+        {activeModalClass && profile && (
+          <ClassScheduleDialog
+            open={scheduleOpen}
+            onOpenChange={setScheduleOpen}
+            classId={activeModalClass.id}
+            className={activeModalClass.name}
+            teacherId={profile.id}
+            onChanged={reloadSchedules}
+          />
+        )}
+
+        {confirmDialog}
 
         {/* 導師新增學生 Modal */}
         <Dialog open={studentModalOpen} onOpenChange={setStudentModalOpen}>

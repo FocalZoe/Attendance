@@ -7,7 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatFullPeriodMessage } from '@/services/seatOccupancyService';
+import { toCsv, downloadCsv } from '@/lib/csv';
+import { ATTENDANCE_STATUS_LABEL, ATTENDANCE_STATUS_OPTIONS } from '@/lib/attendance-status';
 import { toast } from 'sonner';
+
+const PAGE_SIZE = 30;
 
 interface AttendanceHistoryViewProps {
   classId?: string;
@@ -27,17 +31,26 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [selectedSnapshot, setSelectedSnapshot] = useState<string | null>(null);
+  const [page, setPage] = useState<number>(0);
+  const [totalSessions, setTotalSessions] = useState<number>(0);
 
-  // 1. 載入點名批次紀錄 (包含所屬班級名稱)
+  const totalPages = Math.max(1, Math.ceil(totalSessions / PAGE_SIZE));
+
+  // 切換班級 / 學校範圍時回到第一頁
+  useEffect(() => {
+    setPage(0);
+  }, [classId, schoolId]);
+
+  // 1. 載入點名批次紀錄 (包含所屬班級名稱)，分頁載入避免一次載入全部歷史
   const loadSessions = useCallback(async () => {
     setLoading(true);
     try {
       let query = supabase
         .from('attendance_sessions')
-        .select('*, class:classes(name)')
+        .select('*, class:classes(name)', { count: 'exact' })
         .order('session_date', { ascending: false })
         .order('created_at', { ascending: false })
-        .limit(30);
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
       if (classId) {
         query = query.eq('class_id', classId);
@@ -53,16 +66,18 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
           query = query.in('class_id', classIds);
         } else {
           setSessions([]);
+          setTotalSessions(0);
           setLoading(false);
           return;
         }
       }
 
-      const { data, error } = await query;
+      const { data, error, count } = await query;
       if (error) throw error;
 
       const mapped = (data || []) as unknown as SessionWithClass[];
       setSessions(mapped);
+      setTotalSessions(count ?? mapped.length);
       if (mapped.length > 0) {
         setSelectedSessionId(mapped[0].id);
       } else {
@@ -75,7 +90,7 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [classId, schoolId]);
+  }, [classId, schoolId, page]);
 
   useEffect(() => {
     loadSessions();
@@ -138,6 +153,31 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
 
   const currentSession = sessions.find((s) => s.id === selectedSessionId);
 
+  // 匯出目前所選場次之出缺席明細 (UTF-8 BOM，Excel 可直接開啟)
+  const handleExportCsv = () => {
+    if (!currentSession || records.length === 0) {
+      toast.error('目前沒有可匯出的出缺席明細');
+      return;
+    }
+
+    const header = ['日期', '節次', '班級', '座號', '學號', '姓名', 'AI 初判', '最終狀態', '手動覆寫', '備註'];
+    const rows = records.map((rec) => [
+      currentSession.session_date,
+      formatFullPeriodMessage(currentSession.session_date, currentSession.period),
+      currentSession.class?.name ?? '',
+      rec.student?.seat_number ?? '',
+      rec.student?.student_number ?? '',
+      rec.student?.name ?? '',
+      rec.ai_detected_status ? ATTENDANCE_STATUS_LABEL[rec.ai_detected_status] : '',
+      ATTENDANCE_STATUS_LABEL[rec.status],
+      rec.is_overridden ? '是' : '否',
+      rec.note ?? '',
+    ]);
+
+    const safePeriod = (currentSession.period ?? 'all').replace(/[^\w-]/g, '_');
+    downloadCsv(`attendance_${currentSession.session_date}_${safePeriod}.csv`, toCsv([header, ...rows]));
+  };
+
   // 取得快照安全簽名 URL (有效時效 1 小時，嚴格防範無效與公開洩漏)
   const handleOpenSnapshot = async (path: string | null) => {
     if (!path) return;
@@ -183,17 +223,56 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
           )}
         </div>
 
-        {currentSession?.snapshot_path && (
+        <div className="flex items-center gap-2">
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1 text-xs text-slate-600">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                disabled={page === 0 || loading}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                上一頁
+              </Button>
+              <span className="px-1">
+                {page + 1} / {totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                disabled={page >= totalPages - 1 || loading}
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              >
+                下一頁
+              </Button>
+            </div>
+          )}
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => handleOpenSnapshot(currentSession.snapshot_path)}
+            onClick={handleExportCsv}
+            disabled={!currentSession || records.length === 0}
             className="h-8 text-xs"
           >
-            檢視全景快照存證
+            匯出 CSV
           </Button>
-        )}
+          {currentSession?.snapshot_path && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleOpenSnapshot(currentSession.snapshot_path)}
+              className="h-8 text-xs"
+            >
+              檢視全景快照存證
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* 點名出缺席明細表格 */}
@@ -247,18 +326,16 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="present">出席 (在座)</SelectItem>
-                            <SelectItem value="absent">缺席 (曠課)</SelectItem>
-                            <SelectItem value="late">遲到</SelectItem>
-                            <SelectItem value="leave">請假</SelectItem>
+                            {ATTENDANCE_STATUS_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       ) : (
                         <span className="font-semibold text-slate-700">
-                          {rec.status === 'present' && '出席'}
-                          {rec.status === 'absent' && '缺席'}
-                          {rec.status === 'late' && '遲到'}
-                          {rec.status === 'leave' && '請假'}
+                          {ATTENDANCE_STATUS_LABEL[rec.status]}
                         </span>
                       )}
                     </TableCell>

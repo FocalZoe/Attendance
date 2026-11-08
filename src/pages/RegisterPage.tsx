@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
+import { validatePassword } from '@/lib/password';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Camera, School, ArrowLeft, ShieldCheck, AlertCircle } from 'lucide-react';
@@ -33,8 +35,9 @@ export function RegisterPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMsg('密碼長度至少需 6 個字元');
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setErrorMsg(passwordError);
       setLoading(false);
       return;
     }
@@ -207,10 +210,9 @@ export function RegisterPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="reg-admin-password">設定密碼</Label>
-                    <Input
+                    <PasswordInput
                       id="reg-admin-password"
                       name="password"
-                      type="password"
                       required
                       placeholder="至少 6 個字元"
                     />

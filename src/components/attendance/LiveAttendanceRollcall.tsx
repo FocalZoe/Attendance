@@ -22,6 +22,7 @@ import {
   formatFullPeriodMessage,
   compileAttendanceRecords,
 } from '@/services/seatOccupancyService';
+import { PERIOD_OPTIONS } from '@/lib/periods';
 import { Loader2, CheckCircle2, ZoomIn, ZoomOut } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -32,6 +33,8 @@ interface LiveAttendanceRollcallProps {
   className: string;
   teacherId: string;
   students: Student[];
+  /** 由課表提醒開啟時預選的節次 */
+  initialPeriod?: string;
   onAttendanceCompleted?: () => void;
 }
 
@@ -42,6 +45,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
   className,
   teacherId,
   students,
+  initialPeriod,
   onAttendanceCompleted,
 }) => {
   // 鏡頭來源清單與選取
@@ -363,6 +367,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
     openRef.current = open;
     if (open) {
       // 重置上一場次殘留的偵測與選取狀態
+      if (initialPeriod) setPeriod(initialPeriod);
       setCameraActive(false);
       setOccupancies({});
       setPresentCount(0);
@@ -395,7 +400,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
         animationFrameIdRef.current = null;
       }
     };
-  }, [open, loadClassSeatingChart]);
+  }, [open, loadClassSeatingChart, initialPeriod]);
 
   // 3. 啟動鏡頭串流
   const handleStartCamera = async () => {
@@ -706,16 +711,11 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
                 <SelectValue placeholder="選擇節次" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="morning">晨間點名</SelectItem>
-                <SelectItem value="1">第 1 節</SelectItem>
-                <SelectItem value="2">第 2 節</SelectItem>
-                <SelectItem value="3">第 3 節</SelectItem>
-                <SelectItem value="4">第 4 節</SelectItem>
-                <SelectItem value="afternoon">午後點名</SelectItem>
-                <SelectItem value="5">第 5 節</SelectItem>
-                <SelectItem value="6">第 6 節</SelectItem>
-                <SelectItem value="7">第 7 節</SelectItem>
-                <SelectItem value="8">第 8 節</SelectItem>
+                {PERIOD_OPTIONS.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

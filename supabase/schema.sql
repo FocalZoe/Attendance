@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
+-- 帳號停用旗標：離職人員以軟停用處理，保留其歷史點名紀錄（見 deactivate_user / reactivate_user）
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
+
 -- ------------------------------------------------------------------------------
 -- 3. 班級實體 (Classes)
 -- ------------------------------------------------------------------------------
@@ -109,7 +112,7 @@ CREATE TABLE IF NOT EXISTS public.seating_boxes (
 CREATE TABLE IF NOT EXISTS public.attendance_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     class_id UUID NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
-    teacher_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    teacher_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     chart_id UUID REFERENCES public.seating_charts(id) ON DELETE SET NULL,
     session_date DATE NOT NULL DEFAULT CURRENT_DATE,
     period TEXT,
@@ -117,6 +120,13 @@ CREATE TABLE IF NOT EXISTS public.attendance_sessions (
     detection_raw_json JSONB,
     created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
+
+-- 向後相容：舊版 teacher_id 為 NOT NULL + ON DELETE CASCADE，刪除教師會連帶刪除點名歷史，改為 SET NULL 保留紀錄
+ALTER TABLE public.attendance_sessions ALTER COLUMN teacher_id DROP NOT NULL;
+ALTER TABLE public.attendance_sessions DROP CONSTRAINT IF EXISTS attendance_sessions_teacher_id_fkey;
+ALTER TABLE public.attendance_sessions
+    ADD CONSTRAINT attendance_sessions_teacher_id_fkey
+    FOREIGN KEY (teacher_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
 
 -- ------------------------------------------------------------------------------
 -- 9. 學生個別出勤紀錄 (Attendance Records)
@@ -133,8 +143,23 @@ CREATE TABLE IF NOT EXISTS public.attendance_records (
     UNIQUE (session_id, student_id)
 );
 
+-- 9b. 課表（定時點名提醒）
+CREATE TABLE IF NOT EXISTS public.class_schedules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    class_id UUID NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
+    teacher_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    weekday SMALLINT NOT NULL CHECK (weekday BETWEEN 1 AND 7),
+    period TEXT NOT NULL,
+    start_time TIME NOT NULL,
+    remind_before_min INTEGER NOT NULL DEFAULT 5 CHECK (remind_before_min BETWEEN 0 AND 60),
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    UNIQUE (class_id, teacher_id, weekday, period)
+);
+
 -- ------------------------------------------------------------------------------
 -- 10. 輔助函式：取得目前使用者之角色與學校識別碼
+-- 已停用帳號 (is_active = false) 回傳 NULL，所有依賴此函式的 RLS 政策即自動拒絕
 -- ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.current_user_role()
 RETURNS TEXT
@@ -142,7 +167,7 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 AS $$
-  SELECT role FROM public.profiles WHERE id = auth.uid();
+  SELECT role FROM public.profiles WHERE id = auth.uid() AND is_active;
 $$;
 
 CREATE OR REPLACE FUNCTION public.current_user_school_id()
@@ -151,7 +176,7 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 AS $$
-  SELECT school_id FROM public.profiles WHERE id = auth.uid();
+  SELECT school_id FROM public.profiles WHERE id = auth.uid() AND is_active;
 $$;
 
 -- ------------------------------------------------------------------------------
@@ -229,6 +254,26 @@ ALTER TABLE public.seating_charts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.seating_boxes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.class_schedules ENABLE ROW LEVEL SECURITY;
+
+-- Class Schedules 權限：系統總管全權、學校主管限本校班級、教師限自己任課之班級
+DROP POLICY IF EXISTS "Class schedules access" ON public.class_schedules;
+CREATE POLICY "Class schedules access" ON public.class_schedules
+    FOR ALL TO authenticated USING (
+        public.current_user_role() = 'sys_admin'
+        OR (
+            public.current_user_role() = 'school_admin'
+            AND class_id IN (
+                SELECT c.id FROM public.classes c WHERE c.school_id = public.current_user_school_id()
+            )
+        )
+        OR (
+            teacher_id = auth.uid()
+            AND class_id IN (
+                SELECT ct.class_id FROM public.class_teachers ct WHERE ct.teacher_id = auth.uid()
+            )
+        )
+    );
 
 -- Schools 權限
 DROP POLICY IF EXISTS "Schools sys_admin full access" ON public.schools;
@@ -276,8 +321,9 @@ BEGIN
     IF NEW.id IS DISTINCT FROM OLD.id
        OR NEW.role IS DISTINCT FROM OLD.role
        OR NEW.school_id IS DISTINCT FROM OLD.school_id
-       OR NEW.email IS DISTINCT FROM OLD.email THEN
-        RAISE EXCEPTION '權限不足，無法變更角色、所屬學校或信箱';
+       OR NEW.email IS DISTINCT FROM OLD.email
+       OR NEW.is_active IS DISTINCT FROM OLD.is_active THEN
+        RAISE EXCEPTION '權限不足，無法變更角色、所屬學校、信箱或停用狀態';
     END IF;
 
     RETURN NEW;
@@ -453,6 +499,11 @@ BEGIN
 
     v_clean_code := UPPER(TRIM(p_school_code));
 
+    -- 已停用帳號不得自行重新開通
+    IF EXISTS (SELECT 1 FROM public.profiles WHERE id = v_user_id AND NOT is_active) THEN
+        RAISE EXCEPTION '此帳號已停用，無法開通學校';
+    END IF;
+
     -- 取得呼叫者信箱
     SELECT email INTO v_user_email FROM auth.users WHERE id = v_user_id;
 
@@ -557,6 +608,59 @@ BEGIN
 END;
 $$;
 
+-- 停用 / 啟用帳號（離職移除，保留歷史紀錄）
+-- sys_admin：可處理 school_admin 與 teacher；school_admin：僅可處理本校 teacher；不可處理自己
+CREATE OR REPLACE FUNCTION public.set_user_active(p_profile_id UUID, p_active BOOLEAN)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_caller_role TEXT := public.current_user_role();
+    v_caller_school UUID := public.current_user_school_id();
+    v_target_role TEXT;
+    v_target_school UUID;
+BEGIN
+    IF v_caller_role IS NULL OR v_caller_role NOT IN ('sys_admin', 'school_admin') THEN
+        RAISE EXCEPTION '權限不足，無法停用或啟用帳號';
+    END IF;
+
+    IF p_profile_id = auth.uid() THEN
+        RAISE EXCEPTION '不可停用或啟用自己的帳號';
+    END IF;
+
+    SELECT role, school_id INTO v_target_role, v_target_school
+    FROM public.profiles WHERE id = p_profile_id;
+
+    IF v_target_role IS NULL THEN
+        RAISE EXCEPTION '查無此帳號';
+    END IF;
+
+    IF v_caller_role = 'sys_admin' THEN
+        IF v_target_role = 'sys_admin' THEN
+            RAISE EXCEPTION '不可變更系統總管帳號';
+        END IF;
+    ELSE
+        IF v_target_role <> 'teacher' OR v_target_school IS DISTINCT FROM v_caller_school THEN
+            RAISE EXCEPTION '權限不足，僅可處理本校教師帳號';
+        END IF;
+    END IF;
+
+    UPDATE public.profiles
+    SET is_active = p_active,
+        updated_at = TIMEZONE('utc'::text, NOW())
+    WHERE id = p_profile_id;
+
+    IF NOT p_active THEN
+        DELETE FROM public.class_teachers WHERE teacher_id = p_profile_id;
+        DELETE FROM public.class_schedules WHERE teacher_id = p_profile_id;
+    END IF;
+
+    RETURN jsonb_build_object('success', true, 'is_active', p_active);
+END;
+$$;
+
 -- 學校主管將新建立（尚未綁定學校）的教師帳號納入本校
 CREATE OR REPLACE FUNCTION public.assign_teacher_to_school(
     p_teacher_id UUID,
@@ -588,6 +692,7 @@ BEGIN
         updated_at = TIMEZONE('utc'::text, NOW())
     WHERE id = p_teacher_id
       AND role = 'teacher'
+      AND is_active
       AND (school_id IS NULL OR school_id = v_school_id);
 
     GET DIAGNOSTICS v_updated = ROW_COUNT;

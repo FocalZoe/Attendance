@@ -16,9 +16,23 @@ export interface Profile {
   name: string;
   email: string;
   phone: string | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
   school?: School;
+}
+
+export interface ClassSchedule {
+  id: string;
+  class_id: string;
+  teacher_id: string;
+  weekday: number; // 1 (Mon) - 7 (Sun)
+  period: string;
+  start_time: string; // HH:MM:SS
+  remind_before_min: number;
+  is_active: boolean;
+  created_at: string;
+  class?: SchoolClass;
 }
 
 export interface SchoolClass {
@@ -79,7 +93,7 @@ export interface SeatingBox {
 export interface AttendanceSession {
   id: string;
   class_id: string;
-  teacher_id: string;
+  teacher_id: string | null;
   chart_id: string | null;
   session_date: string;
   period: string | null;

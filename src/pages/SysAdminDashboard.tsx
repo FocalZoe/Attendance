@@ -35,7 +35,7 @@ export function SysAdminDashboard() {
     try {
       const [schoolsRes, adminsRes, usersCountRes, classesCountRes] = await Promise.all([
         supabase.from('schools').select('*').order('created_at', { ascending: false }),
-        supabase.from('profiles').select('id, name, email, phone, school_id, created_at').eq('role', 'school_admin'),
+        supabase.from('profiles').select('id, name, email, phone, school_id, is_active, created_at').eq('role', 'school_admin'),
         supabase.from('profiles').select('*', { count: 'exact', head: true }),
         supabase.from('classes').select('*', { count: 'exact', head: true }),
       ]);

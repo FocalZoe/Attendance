@@ -6,6 +6,9 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import { validatePassword } from '@/lib/password';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -23,6 +26,7 @@ import {
   Mail,
   UserPlus,
   UserCheck,
+  UserX,
   History,
   Trash2,
   Grid3X3,
@@ -75,6 +79,12 @@ export function SchoolAdminDashboard() {
   const [teacherPassword, setTeacherPassword] = React.useState('');
   const [creatingTeacher, setCreatingTeacher] = React.useState(false);
   const [teacherError, setTeacherError] = React.useState('');
+
+  const { request: requestConfirm, dialog: confirmDialog } = useConfirm();
+  const activeTeachers = React.useMemo(
+    () => teachers.filter((t) => t.is_active !== false),
+    [teachers]
+  );
 
   const loadData = React.useCallback(async () => {
     if (!schoolId) {
@@ -186,6 +196,12 @@ export function SchoolAdminDashboard() {
     e.preventDefault();
     if (!teacherName || !teacherEmail || !teacherPassword || !schoolId) return;
 
+    const passwordError = validatePassword(teacherPassword);
+    if (passwordError) {
+      setTeacherError(passwordError);
+      return;
+    }
+
     setCreatingTeacher(true);
     setTeacherError('');
 
@@ -193,7 +209,7 @@ export function SchoolAdminDashboard() {
       const isolated = createIsolatedClient();
       const { data, error } = await isolated.auth.signUp({
         email: teacherEmail.trim(),
-        password: teacherPassword.trim(),
+        password: teacherPassword,
         options: {
           data: {
             name: teacherName.trim(),
@@ -310,8 +326,7 @@ export function SchoolAdminDashboard() {
   };
 
   // 刪除在籍學生
-  const handleDeleteStudent = async (studentId: string) => {
-    if (!confirm('確定要自班級名冊中移除此學生嗎？')) return;
+  const deleteStudent = async (studentId: string) => {
     try {
       const { error } = await supabase.from('students').delete().eq('id', studentId);
       if (error) throw error;
@@ -322,6 +337,42 @@ export function SchoolAdminDashboard() {
       const msg = err instanceof Error ? err.message : '移除失敗';
       toast.error(msg);
     }
+  };
+
+  const handleDeleteStudent = (studentId: string, studentName: string) => {
+    requestConfirm({
+      title: `移除學生「${studentName}」？`,
+      description: '將自班級名冊移除，該學生的出缺勤紀錄也會一併刪除，無法復原。',
+      confirmLabel: '確認移除',
+      destructive: true,
+      action: () => deleteStudent(studentId),
+    });
+  };
+
+  // 教師帳號停用 / 啟用（離職移除，保留歷史點名紀錄）
+  const setTeacherActive = async (teacherId: string, active: boolean) => {
+    try {
+      const { error } = await supabase.rpc('set_user_active', {
+        p_profile_id: teacherId,
+        p_active: active,
+      });
+      if (error) throw error;
+      toast.success(active ? '已重新啟用教師帳號' : '已停用教師帳號，歷史點名紀錄已保留');
+      await loadData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '帳號狀態變更失敗';
+      toast.error(msg);
+    }
+  };
+
+  const handleDeactivateTeacher = (teacherId: string, teacherName: string) => {
+    requestConfirm({
+      title: `停用教師「${teacherName}」？`,
+      description: '停用後該教師無法登入，並會解除所有班級指派與課表；歷史點名紀錄會保留，之後可重新啟用。',
+      confirmLabel: '確認停用',
+      destructive: true,
+      action: () => setTeacherActive(teacherId, false),
+    });
   };
 
   return (
@@ -378,7 +429,7 @@ export function SchoolAdminDashboard() {
                   任課教師人數
                 </p>
                 <p className="text-3xl font-black text-slate-900 mt-1">
-                  {teachers.length}
+                  {activeTeachers.length}
                 </p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
@@ -572,10 +623,9 @@ export function SchoolAdminDashboard() {
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="teacher-password">初始密碼</Label>
-                          <Input
+                          <PasswordInput
                             id="teacher-password"
                             name="password"
-                            type="password"
                             required
                             placeholder="至少 6 個字元"
                             value={teacherPassword}
@@ -587,6 +637,63 @@ export function SchoolAdminDashboard() {
                         {creatingTeacher ? '派發中...' : '開通教師帳號'}
                       </Button>
                     </form>
+                  </CardContent>
+                </Card>
+
+                {/* 教師帳號名冊與離職停用 */}
+                <Card className="border-slate-300">
+                  <CardHeader className="pb-3 border-b border-slate-200">
+                    <CardTitle className="text-base flex items-center">
+                      <Users className="w-4 h-4 mr-2 text-slate-600" />
+                      教師帳號名冊 ({teachers.length})
+                    </CardTitle>
+                    <CardDescription>
+                      離職教師可停用帳號；歷史點名紀錄會保留，日後可重新啟用
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                      {teachers.length === 0 ? (
+                        <div className="p-4 text-center text-xs text-slate-500">尚無教師帳號</div>
+                      ) : (
+                        teachers.map((t) => (
+                          <div key={t.id} className="p-2.5 flex items-center justify-between text-xs hover:bg-slate-50">
+                            <div className="min-w-0">
+                              <span className="font-bold text-slate-800">{t.name}</span>
+                              <span className="ml-2 text-slate-500 truncate">{t.email}</span>
+                              {t.is_active === false && (
+                                <Badge variant="outline" className="ml-2 text-[10px] text-rose-600 border-rose-300">
+                                  已停用
+                                </Badge>
+                              )}
+                            </div>
+                            {t.is_active === false ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setTeacherActive(t.id, true)}
+                                className="h-7 px-2 text-emerald-700 hover:bg-emerald-50"
+                              >
+                                <UserCheck className="w-3.5 h-3.5 mr-1" />
+                                啟用
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeactivateTeacher(t.id, t.name)}
+                                className="h-7 px-2 text-rose-600 hover:bg-rose-50"
+                              >
+                                <UserX className="w-3.5 h-3.5 mr-1" />
+                                停用
+                              </Button>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -627,7 +734,7 @@ export function SchoolAdminDashboard() {
                               <SelectValue placeholder="選擇教師" />
                             </SelectTrigger>
                             <SelectContent>
-                              {teachers.map((t) => (
+                              {activeTeachers.map((t) => (
                                 <SelectItem key={t.id} value={t.id}>
                                   {t.name}
                                 </SelectItem>
@@ -776,7 +883,7 @@ export function SchoolAdminDashboard() {
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDeleteStudent(st.id)}
+                              onClick={() => handleDeleteStudent(st.id, st.name)}
                               className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -919,6 +1026,8 @@ export function SchoolAdminDashboard() {
             students={classStudents}
           />
         )}
+
+        {confirmDialog}
       </main>
     </div>
   );

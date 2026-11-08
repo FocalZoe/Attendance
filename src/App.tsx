@@ -7,6 +7,7 @@ import { HomePage } from '@/pages/HomePage';
 import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { ParentQueryPage } from '@/pages/ParentQueryPage';
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { DashboardRedirect } from '@/pages/DashboardRedirect';
 import { SysAdminDashboard } from '@/pages/SysAdminDashboard';
 import { SchoolAdminDashboard } from '@/pages/SchoolAdminDashboard';
@@ -57,6 +58,7 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/parent-query" element={<ParentQueryPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         {/* 需認證之控制台路由 */}
         <Route

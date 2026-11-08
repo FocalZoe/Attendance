@@ -4,7 +4,8 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { Profile } from '@/types/database';
-import { Camera, LogOut, School, Shield, User, Search } from 'lucide-react';
+import { ChangePasswordDialog } from '@/components/ui/change-password-dialog';
+import { Camera, LogOut, School, Shield, User, Search, KeyRound } from 'lucide-react';
 
 interface NavbarProps {
   profile?: Profile | null;
@@ -14,6 +15,7 @@ export function Navbar({ profile: propProfile }: NavbarProps) {
   const navigate = useNavigate();
   const { profile: storeProfile, signOut } = useAuthStore();
   const profile = propProfile !== undefined ? propProfile : storeProfile;
+  const [passwordDialogOpen, setPasswordDialogOpen] = React.useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -118,6 +120,9 @@ export function Navbar({ profile: propProfile }: NavbarProps) {
                 <span className="text-xs text-slate-500">{profile.school?.name || profile.email}</span>
               </div>
               {getRoleBadge(profile.role)}
+              <Button variant="ghost" size="sm" onClick={() => setPasswordDialogOpen(true)} title="修改密碼">
+                <KeyRound className="w-4 h-4 text-slate-600" />
+              </Button>
               <Button variant="ghost" size="sm" onClick={handleSignOut} title="登出系統">
                 <LogOut className="w-4 h-4 text-slate-600" />
               </Button>
@@ -138,6 +143,13 @@ export function Navbar({ profile: propProfile }: NavbarProps) {
           )}
         </div>
       </div>
+      {profile && (
+        <ChangePasswordDialog
+          open={passwordDialogOpen}
+          onOpenChange={setPasswordDialogOpen}
+          email={profile.email}
+        />
+      )}
     </header>
   );
 }

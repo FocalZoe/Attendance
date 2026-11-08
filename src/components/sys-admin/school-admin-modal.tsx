@@ -11,13 +11,17 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Users, UserX, UserPlus, Shield, Phone, Mail, Calendar, AlertCircle } from 'lucide-react';
+import { PasswordInput } from '@/components/ui/password-input';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import { validatePassword } from '@/lib/password';
+import { Users, UserX, UserCheck, UserPlus, Shield, Phone, Mail, Calendar, AlertCircle } from 'lucide-react';
 
 export interface SchoolAdminInfo {
   id: string;
   name: string;
   email: string;
   phone: string | null;
+  is_active?: boolean;
   created_at: string;
 }
 
@@ -37,38 +41,39 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
   const [loading, setLoading] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState('');
 
-  const handleRemove = async (adminId: string, adminName: string) => {
-    if (!confirm(`確定要解除「${adminName}」的學校主管職務嗎？`)) {
-      return;
-    }
+  const { request: requestConfirm, dialog: confirmDialog } = useConfirm();
 
+  const setActive = async (adminId: string, active: boolean) => {
     setLoading(true);
     setErrorMsg('');
     try {
-      const { error: rpcError } = await supabase.rpc('remove_school_admin', {
+      const { error: rpcError } = await supabase.rpc('set_user_active', {
         p_profile_id: adminId,
+        p_active: active,
       });
 
       if (rpcError) {
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ school_id: null, role: 'teacher' })
-          .eq('id', adminId);
-
-        if (updateError) {
-          setErrorMsg(updateError.message || '解任失敗');
-          setLoading(false);
-          return;
-        }
+        setErrorMsg(rpcError.message || (active ? '啟用失敗' : '停用失敗'));
+        return;
       }
 
       onRefresh?.();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '解任操作失敗';
+      const msg = err instanceof Error ? err.message : '帳號狀態變更失敗';
       setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeactivate = (adminId: string, adminName: string) => {
+    requestConfirm({
+      title: `停用「${adminName}」的帳號？`,
+      description: '停用後該主管將無法登入，歷史點名紀錄會保留，之後可重新啟用。',
+      confirmLabel: '確認停用',
+      destructive: true,
+      action: () => setActive(adminId, false),
+    });
   };
 
   const handleAdd = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -79,11 +84,18 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
     const formData = new FormData(e.currentTarget);
     const name = (formData.get('name') as string)?.trim();
     const email = (formData.get('email') as string)?.trim().toLowerCase();
-    const password = (formData.get('password') as string)?.trim();
+    const password = formData.get('password') as string;
     const phone = (formData.get('phone') as string)?.trim() || null;
 
     if (!name || !email || !password) {
       setErrorMsg('請填寫完整的主管姓名、信箱與預設密碼');
+      setLoading(false);
+      return;
+    }
+
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setErrorMsg(passwordError);
       setLoading(false);
       return;
     }
@@ -241,6 +253,11 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
                         <div className="flex items-center space-x-2">
                           <span className="font-bold text-sm text-slate-900">{admin.name}</span>
                           <Badge variant="success" className="text-[10px] py-0">主管職</Badge>
+                          {admin.is_active === false && (
+                            <Badge variant="outline" className="text-[10px] py-0 text-rose-600 border-rose-300">
+                              已停用
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
                           <span className="inline-flex items-center">
@@ -260,17 +277,31 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
                         </div>
                       </div>
 
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemove(admin.id, admin.name)}
-                        disabled={loading}
-                        className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 h-8 px-2"
-                        title="解除主管職務"
-                      >
-                        <UserX className="w-4 h-4 mr-1" />
-                        <span className="text-xs">解任</span>
-                      </Button>
+                      {admin.is_active === false ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setActive(admin.id, true)}
+                          disabled={loading}
+                          className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 h-8 px-2"
+                          title="重新啟用帳號"
+                        >
+                          <UserCheck className="w-4 h-4 mr-1" />
+                          <span className="text-xs">啟用</span>
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeactivate(admin.id, admin.name)}
+                          disabled={loading}
+                          className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 h-8 px-2"
+                          title="停用帳號"
+                        >
+                          <UserX className="w-4 h-4 mr-1" />
+                          <span className="text-xs">停用</span>
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -321,10 +352,9 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div className="space-y-1">
                       <Label htmlFor="admin-pass" className="text-xs">初始登入密碼</Label>
-                      <Input
+                      <PasswordInput
                         id="admin-pass"
                         name="password"
-                        type="password"
                         required
                         placeholder="至少 6 碼"
                         className="bg-white text-xs h-8"
@@ -382,6 +412,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
           </div>
         </DialogContent>
       </Dialog>
+      {confirmDialog}
     </>
   );
 }

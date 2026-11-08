@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
+import { supabase } from '@/lib/supabase';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Camera, ArrowLeft, AlertCircle, LogIn } from 'lucide-react';
@@ -15,6 +17,8 @@ export function LoginPage() {
   const [password, setPassword] = React.useState('');
   const [errorMsg, setErrorMsg] = React.useState('');
   const [loading, setLoading] = React.useState(false);
+  const [infoMsg, setInfoMsg] = React.useState('');
+  const [resetSending, setResetSending] = React.useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -35,6 +39,29 @@ export function LoginPage() {
     } catch {
       setErrorMsg('認證過程發生未預期錯誤，請檢查網路連線或稍後再試。');
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setErrorMsg('');
+    setInfoMsg('');
+    const target = email.trim();
+    if (!target) {
+      setErrorMsg('請先於上方輸入電子信箱，再點選忘記密碼');
+      return;
+    }
+
+    setResetSending(true);
+    try {
+      await supabase.auth.resetPasswordForEmail(target, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+    } catch (err) {
+      console.error('寄送重設密碼信失敗:', err);
+    } finally {
+      setResetSending(false);
+      // 不論信箱是否存在皆顯示相同訊息，避免洩漏帳號是否註冊
+      setInfoMsg('若此信箱已註冊，重設密碼連結將寄送至該信箱，請於信件中點選連結。');
     }
   };
 
@@ -74,6 +101,12 @@ export function LoginPage() {
               </div>
             )}
 
+            {infoMsg && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-md text-emerald-800 text-sm font-medium">
+                {infoMsg}
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="login-email">電子信箱 (Email)</Label>
@@ -90,15 +123,24 @@ export function LoginPage() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="login-password">密碼</Label>
-                <Input
+                <PasswordInput
                   id="login-password"
                   name="password"
-                  type="password"
                   required
                   placeholder="請輸入密碼"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
+                <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={resetSending}
+                    className="text-xs text-blue-600 hover:text-blue-800 underline disabled:opacity-50"
+                  >
+                    {resetSending ? '寄送中...' : '忘記密碼？'}
+                  </button>
+                </div>
               </div>
 
               <Button type="submit" variant="default" className="w-full mt-2" disabled={loading}>

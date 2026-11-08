@@ -9,6 +9,7 @@ interface AuthState {
   session: Session | null;
   isLoading: boolean;
   isInitialized: boolean;
+  accessError: string | null;
   initialize: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string; redirectTo?: string }>;
   signOut: () => Promise<void>;
@@ -24,6 +25,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   session: null,
   isLoading: true,
   isInitialized: false,
+  accessError: null,
 
   initialize: async () => {
     try {
@@ -76,6 +78,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const userProfile = (data as Profile) || null;
+
+      // 已停用帳號：立即登出，避免殘留可用的前端狀態
+      if (userProfile && userProfile.is_active === false) {
+        try {
+          await supabase.auth.signOut();
+        } catch (signOutErr) {
+          console.error('停用帳號登出異常:', signOutErr);
+        }
+        set({
+          user: null,
+          profile: null,
+          session: null,
+          isLoading: false,
+          isInitialized: true,
+          accessError: '此帳號已停用，請聯繫學校主管或系統管理員',
+        });
+        return null;
+      }
+
       set({ profile: userProfile, isLoading: false, isInitialized: true });
       return userProfile;
     } catch (err) {
@@ -86,7 +107,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signIn: async (email: string, password: string) => {
-    set({ isLoading: true });
+    set({ isLoading: true, accessError: null });
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
@@ -105,6 +126,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ user: data.user, session: data.session });
       const fetchedProfile = await get().refreshProfile();
+
+      const accessError = get().accessError;
+      if (accessError) {
+        return { success: false, error: accessError };
+      }
 
       let targetRoute = '/dashboard';
       if (fetchedProfile?.role === 'sys_admin') {
