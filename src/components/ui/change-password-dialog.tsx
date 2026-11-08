@@ -82,13 +82,13 @@ export function ChangePasswordDialog({ open, onOpenChange, email }: ChangePasswo
 
   return (
     <Dialog open={open} onOpenChange={(o) => !loading && onOpenChange(o)}>
-      <DialogContent className="max-w-sm p-6 bg-white border border-slate-300">
-        <DialogHeader className="border-b border-slate-200 pb-3">
-          <DialogTitle className="text-base font-bold text-slate-800">修改密碼</DialogTitle>
+      <DialogContent className="max-w-sm p-6 bg-card border border-border">
+        <DialogHeader className="border-b border-border pb-3">
+          <DialogTitle className="text-base font-bold text-foreground">修改密碼</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3 pt-2">
           {errorMsg && (
-            <div className="p-2 bg-rose-50 border border-rose-200 rounded text-rose-700 text-xs font-medium">
+            <div className="p-2 bg-absent-soft border border-absent/40 rounded text-absent text-xs font-medium">
               {errorMsg}
             </div>
           )}
@@ -125,7 +125,7 @@ export function ChangePasswordDialog({ open, onOpenChange, email }: ChangePasswo
               className="h-9 text-sm"
             />
           </div>
-          <DialogFooter className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+          <DialogFooter className="pt-3 border-t border-border flex justify-end gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={loading}>
               取消
             </Button>

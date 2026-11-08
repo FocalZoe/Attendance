@@ -1,26 +1,297 @@
 @import "tailwindcss";
 
+/* 深色模式以 <html class="dark"> 驅動（見 index.html 內聯腳本與 useTheme） */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ==========================================================================
+   設計 token：米白紙面 × 咖啡色，Flat（無陰影、無漸層）
+   - 語意 token（--background / --primary ...）給新程式碼使用。
+   - Tailwind 色階（slate / blue / emerald / rose / amber / sky / indigo / purple）
+     被重新映射為同一組暖色，舊的 bg-slate-100、text-blue-600 等類別會自動跟著換色，
+     深色模式則整組反轉，因此不需逐檔改色也能切換主題。
+   ========================================================================== */
+
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
-  --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #2563eb;
-  --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #f1f5f9;
-  --accent-foreground: #0f172a;
-  --destructive: #e11d48;
-  --destructive-foreground: #ffffff;
-  --border: #e2e8f0;
-  --input: #cbd5e1;
-  --ring: #2563eb;
+  color-scheme: light;
+
+  --background: #f6f0e4;
+  --foreground: #2b1d16;
+  --card: #fffbf3;
+  --card-foreground: #2b1d16;
+  --popover: #fffbf3;
+  --popover-foreground: #2b1d16;
+  --primary: #6b4a35;
+  --primary-foreground: #fffbf3;
+  --secondary: #ede4d2;
+  --secondary-foreground: #2b1d16;
+  --muted: #ede4d2;
+  --muted-foreground: #6f5c4e;
+  --accent: #ede4d2;
+  --accent-foreground: #2b1d16;
+  --destructive: #a63d2f;
+  --destructive-foreground: #fffbf3;
+  --border: #e2d6c3;
+  --input: #948069;
+  --ring: #6b4a35;
   --radius: 0.375rem;
+
+  /* 出勤四態：全站唯一語意（強色用於文字與符號，soft 為底色） */
+  --present: #3f6b3a;
+  --present-soft: #e3ede0;
+  --late: #8f5e12;
+  --late-soft: #f6e8c8;
+  --leave: #3f5f85;
+  --leave-soft: #dfe7f0;
+  --absent: #a63d2f;
+  --absent-soft: #f6dcd6;
+}
+
+html.dark {
+  color-scheme: dark;
+
+  --background: #1c1410;
+  --foreground: #efe4d3;
+  --card: #261b15;
+  --card-foreground: #efe4d3;
+  --popover: #261b15;
+  --popover-foreground: #efe4d3;
+  --primary: #c9a27e;
+  --primary-foreground: #1c1410;
+  --secondary: #2e221a;
+  --secondary-foreground: #efe4d3;
+  --muted: #2e221a;
+  --muted-foreground: #b5a08e;
+  --accent: #2e221a;
+  --accent-foreground: #efe4d3;
+  --destructive: #e0917f;
+  --destructive-foreground: #1c1410;
+  --border: #3a2c23;
+  --input: #7f6c5b;
+  --ring: #c9a27e;
+
+  --present: #8fba87;
+  --present-soft: #25361f;
+  --late: #ddb466;
+  --late-soft: #3b2c14;
+  --leave: #a4b8d0;
+  --leave-soft: #1f2b3a;
+  --absent: #e0917f;
+  --absent-soft: #3f1d18;
+}
+
+@theme {
+  --font-sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  /* 楷體：台灣教科書與黑板的字形，作為標題字型 */
+  --font-display: "LXGW WenKai TC", "DFKai-SB", "BiauKai", "標楷體", serif;
+
+  /* 中性（文字、邊框、面板）：暖灰褐 */
+  --color-slate-50: #f6f0e4;
+  --color-slate-100: #ede4d2;
+  --color-slate-200: #e2d6c3;
+  --color-slate-300: #d3c4ac;
+  --color-slate-400: #a8957f;
+  --color-slate-500: #766352;
+  --color-slate-600: #5f4e40;
+  --color-slate-700: #4a3b30;
+  --color-slate-800: #372b23;
+  --color-slate-900: #2b1d16;
+  --color-slate-950: #1e140f;
+
+  /* 主色：咖啡 */
+  --color-blue-50: #f6eee6;
+  --color-blue-100: #ebdccd;
+  --color-blue-200: #d9bfa6;
+  --color-blue-300: #c29e7e;
+  --color-blue-400: #a67c58;
+  --color-blue-500: #8a5f3f;
+  --color-blue-600: #6b4a35;
+  --color-blue-700: #583b2a;
+  --color-blue-800: #452e21;
+  --color-blue-900: #322119;
+  --color-blue-950: #1f140e;
+
+  /* 出席：苔綠 */
+  --color-emerald-50: #eef4ec;
+  --color-emerald-100: #dce8d8;
+  --color-emerald-200: #bcd3b5;
+  --color-emerald-300: #93b58a;
+  --color-emerald-400: #6e9965;
+  --color-emerald-500: #5b8656;
+  --color-emerald-600: #4a7a44;
+  --color-emerald-700: #3f6b3a;
+  --color-emerald-800: #32492e;
+  --color-emerald-900: #263a24;
+  --color-green-50: #eef4ec;
+  --color-green-100: #dce8d8;
+  --color-green-200: #bcd3b5;
+  --color-green-500: #5b8656;
+  --color-green-600: #4a7a44;
+  --color-green-700: #3f6b3a;
+
+  /* 缺席與錯誤：磚紅 */
+  --color-rose-50: #f9ece9;
+  --color-rose-100: #f2d6d0;
+  --color-rose-200: #e4b1a7;
+  --color-rose-300: #d18579;
+  --color-rose-400: #bc5b4d;
+  --color-rose-500: #ad4a3c;
+  --color-rose-600: #a63d2f;
+  --color-rose-700: #8a3226;
+  --color-rose-800: #6e281f;
+  --color-rose-900: #521e17;
+  --color-red-50: #f9ece9;
+  --color-red-100: #f2d6d0;
+  --color-red-200: #e4b1a7;
+  --color-red-500: #ad4a3c;
+  --color-red-600: #a63d2f;
+  --color-red-700: #8a3226;
+
+  /* 遲到與提醒：赭黃 */
+  --color-amber-50: #fbf1de;
+  --color-amber-100: #f5e2b8;
+  --color-amber-200: #eacb84;
+  --color-amber-300: #dbae4f;
+  --color-amber-400: #c9942f;
+  --color-amber-500: #b7791f;
+  --color-amber-600: #9c6518;
+  --color-amber-700: #7d5113;
+  --color-amber-800: #603e0f;
+  --color-amber-900: #472e0b;
+  --color-yellow-50: #fbf1de;
+  --color-yellow-100: #f5e2b8;
+  --color-yellow-400: #c9942f;
+  --color-yellow-600: #9c6518;
+
+  /* 請假與資訊：灰藍 */
+  --color-sky-50: #edf1f6;
+  --color-sky-100: #d9e2ed;
+  --color-sky-200: #b5c6da;
+  --color-sky-300: #8ca4c2;
+  --color-sky-400: #6685ab;
+  --color-sky-500: #55739a;
+  --color-sky-600: #4b6a8f;
+  --color-sky-700: #3c5575;
+  --color-sky-800: #2e425b;
+  --color-sky-900: #223244;
+
+  /* 少量點綴：梅褐 */
+  --color-indigo-50: #f4ecf0;
+  --color-indigo-100: #e8d8e0;
+  --color-indigo-200: #d2b4c3;
+  --color-indigo-500: #8d5f78;
+  --color-indigo-600: #7a4d66;
+  --color-indigo-700: #623e52;
+  --color-purple-50: #f4ecf0;
+  --color-purple-100: #e8d8e0;
+  --color-purple-200: #d2b4c3;
+  --color-purple-500: #8d5f78;
+  --color-purple-600: #7a4d66;
+  --color-purple-700: #623e52;
+
+  /* 表面色：bg-white 為卡片紙面（淺色為暖白、深色為深咖啡） */
+  --color-white: #fffbf3;
+}
+
+/* 深色模式：色階整組反轉，使 bg-slate-100 / text-slate-900 等類別自動換成深色對應 */
+html.dark {
+  --color-slate-50: #1c1410;
+  --color-slate-100: #2e221a;
+  --color-slate-200: #3a2c23;
+  --color-slate-300: #4d3c30;
+  --color-slate-400: #7f6c5b;
+  --color-slate-500: #a18e7c;
+  --color-slate-600: #b8a593;
+  --color-slate-700: #d0c0ae;
+  --color-slate-800: #e3d6c4;
+  --color-slate-900: #efe4d3;
+  --color-slate-950: #f8f0e3;
+
+  --color-blue-50: #2e2119;
+  --color-blue-100: #3d2b20;
+  --color-blue-200: #5a402e;
+  --color-blue-300: #7c5a40;
+  --color-blue-400: #a27a58;
+  --color-blue-500: #bc9170;
+  --color-blue-600: #c9a27e;
+  --color-blue-700: #d8b997;
+  --color-blue-800: #e6d0b8;
+  --color-blue-900: #f1e3d2;
+  --color-blue-950: #f8efe4;
+
+  --color-emerald-50: #1f2a1e;
+  --color-emerald-100: #2a3a28;
+  --color-emerald-200: #3d5538;
+  --color-emerald-300: #55774f;
+  --color-emerald-400: #6f9a68;
+  --color-emerald-500: #86b07e;
+  --color-emerald-600: #8fba87;
+  --color-emerald-700: #a7cba0;
+  --color-emerald-800: #c2dcbd;
+  --color-emerald-900: #ddecd9;
+  --color-green-50: #1f2a1e;
+  --color-green-100: #2a3a28;
+  --color-green-200: #3d5538;
+  --color-green-500: #86b07e;
+  --color-green-600: #8fba87;
+  --color-green-700: #a7cba0;
+
+  --color-rose-50: #2e1815;
+  --color-rose-100: #43211c;
+  --color-rose-200: #6b3329;
+  --color-rose-300: #944a3d;
+  --color-rose-400: #ba6a5a;
+  --color-rose-500: #d4806f;
+  --color-rose-600: #e0917f;
+  --color-rose-700: #eba99a;
+  --color-rose-800: #f2c4b9;
+  --color-rose-900: #f8ddd6;
+  --color-red-50: #2e1815;
+  --color-red-100: #43211c;
+  --color-red-200: #6b3329;
+  --color-red-500: #d4806f;
+  --color-red-600: #e0917f;
+  --color-red-700: #eba99a;
+
+  --color-amber-50: #2d2210;
+  --color-amber-100: #43321a;
+  --color-amber-200: #664d25;
+  --color-amber-300: #8f6c30;
+  --color-amber-400: #be9040;
+  --color-amber-500: #d3a64f;
+  --color-amber-600: #ddb466;
+  --color-amber-700: #e8c98b;
+  --color-amber-800: #f0dcb0;
+  --color-amber-900: #f7ebd0;
+  --color-yellow-50: #2d2210;
+  --color-yellow-100: #43321a;
+  --color-yellow-400: #be9040;
+  --color-yellow-600: #ddb466;
+
+  --color-sky-50: #1b2430;
+  --color-sky-100: #243244;
+  --color-sky-200: #3a5170;
+  --color-sky-300: #587396;
+  --color-sky-400: #7a94b5;
+  --color-sky-500: #94aac6;
+  --color-sky-600: #a4b8d0;
+  --color-sky-700: #bccbdd;
+  --color-sky-800: #d3dde9;
+  --color-sky-900: #e8eef5;
+
+  --color-indigo-50: #2b1d25;
+  --color-indigo-100: #3d2a36;
+  --color-indigo-200: #5e4153;
+  --color-indigo-500: #c08aa6;
+  --color-indigo-600: #cf9db8;
+  --color-indigo-700: #dcb7cb;
+  --color-purple-50: #2b1d25;
+  --color-purple-100: #3d2a36;
+  --color-purple-200: #5e4153;
+  --color-purple-500: #c08aa6;
+  --color-purple-600: #cf9db8;
+  --color-purple-700: #dcb7cb;
+
+  --color-white: #261b15;
 }
 
 @theme inline {
@@ -43,14 +314,68 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 2px);
-  --radius-md: calc(var(--radius));
-  --radius-lg: calc(var(--radius) + 2px);
+
+  --color-present: var(--present);
+  --color-present-soft: var(--present-soft);
+  --color-late: var(--late);
+  --color-late-soft: var(--late-soft);
+  --color-leave: var(--leave);
+  --color-leave-soft: var(--leave-soft);
+  --color-absent: var(--absent);
+  --color-absent-soft: var(--absent-soft);
+
+  /* 兩級圓角：控制項 6px、容器 10px */
+  --radius-sm: 0.25rem;
+  --radius-md: var(--radius);
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.625rem;
 }
 
-body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  min-height: 100vh;
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* 標題使用楷體；數字一律等寬 */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: 0;
+  }
+
+  table,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

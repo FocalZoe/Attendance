@@ -1,154 +1,194 @@
 import * as React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/useAuthStore';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { Profile } from '@/types/database';
 import { ChangePasswordDialog } from '@/components/ui/change-password-dialog';
-import { Camera, LogOut, School, Shield, User, Search, KeyRound } from 'lucide-react';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import type { Profile } from '@/types/database';
+import { Camera, KeyRound, LogOut, Menu, Search } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface NavbarProps {
   profile?: Profile | null;
+}
+
+const ROLE_LABEL: Record<Profile['role'], string> = {
+  sys_admin: '系統總管',
+  school_admin: '學校主管',
+  teacher: '任課教師',
+};
+
+const ROLE_BADGE: Record<Profile['role'], 'default' | 'success' | 'info'> = {
+  sys_admin: 'default',
+  school_admin: 'success',
+  teacher: 'info',
+};
+
+function dashboardPath(role: Profile['role']): string {
+  if (role === 'sys_admin') return '/dashboard/sys-admin';
+  if (role === 'school_admin') return '/dashboard/school-admin';
+  return '/dashboard/teacher';
 }
 
 export function Navbar({ profile: propProfile }: NavbarProps) {
   const navigate = useNavigate();
   const { profile: storeProfile, signOut } = useAuthStore();
   const profile = propProfile !== undefined ? propProfile : storeProfile;
+
+  const [menuOpen, setMenuOpen] = React.useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = React.useState(false);
 
   const handleSignOut = async () => {
+    setMenuOpen(false);
     await signOut();
     navigate('/login');
   };
 
-  const getRoleBadge = (role?: string) => {
-    switch (role) {
-      case 'sys_admin':
-        return (
-          <Badge variant="default" className="bg-slate-900 text-white border-transparent">
-            <Shield className="w-3 h-3 mr-1 inline" /> 系統總管
-          </Badge>
-        );
-      case 'school_admin':
-        return (
-          <Badge variant="success">
-            <School className="w-3 h-3 mr-1 inline" /> 學校主管
-          </Badge>
-        );
-      case 'teacher':
-        return (
-          <Badge variant="info">
-            <User className="w-3 h-3 mr-1 inline" /> 任課教師
-          </Badge>
-        );
-      default:
-        return null;
-    }
-  };
+  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    cn(
+      'inline-flex h-10 items-center border-b-2 px-1 text-sm font-medium transition-colors',
+      isActive
+        ? 'border-primary text-foreground'
+        : 'border-transparent text-muted-foreground hover:text-foreground'
+    );
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <div className="flex items-center space-x-6">
-          <Link to="/" className="flex items-center space-x-2.5 group">
-            <div className="w-9 h-9 rounded-md bg-blue-600 flex items-center justify-center text-white font-bold transition-transform group-hover:scale-105">
-              <Camera className="w-5 h-5" />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-extrabold text-base tracking-tight text-slate-900 leading-tight">
-                班級自動化點名系統
-              </span>
-              <span className="text-[10px] text-slate-500 font-medium">校園智慧出勤平台</span>
-            </div>
+    <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur-0">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center gap-6">
+          <Link to="/" className="flex min-w-0 items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <Camera className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <span className="truncate font-display text-lg font-bold leading-tight text-foreground">
+              班級自動化點名系統
+            </span>
           </Link>
 
           {profile && (
-            <nav className="hidden md:flex items-center space-x-4 pl-4 border-l border-slate-200 text-sm font-semibold">
-              <Link
-                to={
-                  profile.role === 'sys_admin'
-                    ? '/dashboard/sys-admin'
-                    : profile.role === 'school_admin'
-                    ? '/dashboard/school-admin'
-                    : '/dashboard/teacher'
-                }
-                className="text-slate-700 hover:text-blue-600 px-2 py-1 rounded transition-colors"
-              >
-                控制台
-              </Link>
-              {profile.role === 'teacher' && (
-                <Link
-                  to="/dashboard/teacher"
-                  className="text-slate-700 hover:text-blue-600 px-2 py-1 rounded transition-colors"
-                >
-                  任教班級與點名
-                </Link>
-              )}
-              {profile.role === 'school_admin' && (
-                <Link
-                  to="/dashboard/school-admin"
-                  className="text-slate-700 hover:text-blue-600 px-2 py-1 rounded transition-colors"
-                >
-                  校務名冊管理
-                </Link>
-              )}
-              {profile.role === 'sys_admin' && (
-                <Link
-                  to="/dashboard/sys-admin"
-                  className="text-slate-700 hover:text-blue-600 px-2 py-1 rounded transition-colors"
-                >
-                  學校組織總覽
-                </Link>
-              )}
+            <nav className="hidden items-center gap-5 md:flex" aria-label="主要導覽">
+              <NavLink to={dashboardPath(profile.role)} className={navLinkClass} end>
+                {profile.role === 'sys_admin'
+                  ? '學校組織'
+                  : profile.role === 'school_admin'
+                  ? '校務管理'
+                  : '今日點名'}
+              </NavLink>
             </nav>
           )}
         </div>
 
-        <div className="flex items-center space-x-3">
-          <Link to="/parent-query">
-            <Button variant="outline" size="sm" className="hidden sm:inline-flex">
-              <Search className="w-3.5 h-3.5 mr-1.5" />
+        <div className="flex items-center gap-1.5">
+          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+            <Link to="/parent-query">
+              <Search aria-hidden="true" />
               家長查勤
-            </Button>
-          </Link>
+            </Link>
+          </Button>
+
+          <ThemeToggle />
 
           {profile ? (
-            <div className="flex items-center space-x-3">
-              <div className="hidden md:flex flex-col text-right">
-                <span className="text-sm font-bold text-slate-900">{profile.name}</span>
-                <span className="text-xs text-slate-500">{profile.school?.name || profile.email}</span>
+            <>
+              <div className="hidden items-center gap-3 pl-2 md:flex">
+                <div className="flex flex-col text-right leading-tight">
+                  <span className="text-sm font-bold text-foreground">{profile.name}</span>
+                  <span className="text-xs text-muted-foreground">{profile.school?.name || profile.email}</span>
+                </div>
+                <Badge variant={ROLE_BADGE[profile.role]}>{ROLE_LABEL[profile.role]}</Badge>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setPasswordDialogOpen(true)}
+                  title="修改密碼"
+                  aria-label="修改密碼"
+                >
+                  <KeyRound aria-hidden="true" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={handleSignOut} title="登出" aria-label="登出">
+                  <LogOut aria-hidden="true" />
+                </Button>
               </div>
-              {getRoleBadge(profile.role)}
-              <Button variant="ghost" size="sm" onClick={() => setPasswordDialogOpen(true)} title="修改密碼">
-                <KeyRound className="w-4 h-4 text-slate-600" />
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden"
+                onClick={() => setMenuOpen(true)}
+                aria-label="開啟選單"
+              >
+                <Menu aria-hidden="true" />
               </Button>
-              <Button variant="ghost" size="sm" onClick={handleSignOut} title="登出系統">
-                <LogOut className="w-4 h-4 text-slate-600" />
-              </Button>
-            </div>
+            </>
           ) : (
-            <div className="flex items-center space-x-2">
-              <Link to="/register">
-                <Button variant="outline" size="sm" className="hidden sm:inline-flex">
-                  開通學校
-                </Button>
-              </Link>
-              <Link to="/login">
-                <Button variant="default" size="sm">
-                  教職員登入
-                </Button>
-              </Link>
+            <div className="flex items-center gap-1.5">
+              <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+                <Link to="/register">開通學校</Link>
+              </Button>
+              <Button asChild size="sm">
+                <Link to="/login">教職員登入</Link>
+              </Button>
             </div>
           )}
         </div>
       </div>
+
       {profile && (
-        <ChangePasswordDialog
-          open={passwordDialogOpen}
-          onOpenChange={setPasswordDialogOpen}
-          email={profile.email}
-        />
+        <>
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            <SheetContent side="right" className="flex flex-col gap-6">
+              <SheetHeader className="text-left">
+                <SheetTitle>{profile.name}</SheetTitle>
+                <SheetDescription>{profile.school?.name || profile.email}</SheetDescription>
+                <div>
+                  <Badge variant={ROLE_BADGE[profile.role]}>{ROLE_LABEL[profile.role]}</Badge>
+                </div>
+              </SheetHeader>
+
+              <nav className="flex flex-col gap-1" aria-label="行動版選單">
+                <Button asChild variant="ghost" className="justify-start" onClick={() => setMenuOpen(false)}>
+                  <Link to={dashboardPath(profile.role)}>我的控制台</Link>
+                </Button>
+                <Button asChild variant="ghost" className="justify-start" onClick={() => setMenuOpen(false)}>
+                  <Link to="/parent-query">
+                    <Search aria-hidden="true" />
+                    家長查勤
+                  </Link>
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setPasswordDialogOpen(true);
+                  }}
+                >
+                  <KeyRound aria-hidden="true" />
+                  修改密碼
+                </Button>
+              </nav>
+
+              <Button variant="outline" className="mt-auto justify-start" onClick={handleSignOut}>
+                <LogOut aria-hidden="true" />
+                登出
+              </Button>
+            </SheetContent>
+          </Sheet>
+
+          <ChangePasswordDialog
+            open={passwordDialogOpen}
+            onOpenChange={setPasswordDialogOpen}
+            email={profile.email}
+          />
+        </>
       )}
     </header>
   );

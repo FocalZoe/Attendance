@@ -2,11 +2,12 @@ import * as React from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Navbar } from '@/components/ui/navbar';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { InlineAlert } from '@/components/ui/inline-alert';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableHeader,
@@ -15,14 +16,21 @@ import {
   TableHead,
   TableCell,
 } from '@/components/ui/table';
-import { SchoolAdminModal } from '@/components/sys-admin/school-admin-modal';
-import { School, Shield, PlusCircle, Building, Users } from 'lucide-react';
+import { SchoolAdminModal, type SchoolAdminInfo } from '@/components/sys-admin/school-admin-modal';
 import type { School as SchoolType } from '@/types/database';
+import { toast } from 'sonner';
+
+type AdminRow = SchoolAdminInfo & { school_id: string | null };
+
+function adminSummary(admins: AdminRow[]): string {
+  const active = admins.filter((a) => a.is_active !== false);
+  return active.length === 0 ? '' : active.map((a) => a.name).join('、');
+}
 
 export function SysAdminDashboard() {
   const { profile } = useAuthStore();
   const [schools, setSchools] = React.useState<SchoolType[]>([]);
-  const [allAdmins, setAllAdmins] = React.useState<{ id: string; name: string; email: string; phone: string | null; school_id: string | null; created_at: string }[]>([]);
+  const [allAdmins, setAllAdmins] = React.useState<AdminRow[]>([]);
   const [totalUsers, setTotalUsers] = React.useState(0);
   const [totalClasses, setTotalClasses] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
@@ -44,12 +52,13 @@ export function SysAdminDashboard() {
         setSchools(schoolsRes.data);
       }
       if (adminsRes.data) {
-        setAllAdmins(adminsRes.data);
+        setAllAdmins(adminsRes.data as AdminRow[]);
       }
       setTotalUsers(usersCountRes.count || 0);
       setTotalClasses(classesCountRes.count || 0);
     } catch (err) {
       console.error('載入系統總管數據失敗:', err);
+      toast.error('無法載入平台資料。請重新整理頁面再試一次。');
     } finally {
       setLoading(false);
     }
@@ -73,207 +82,145 @@ export function SysAdminDashboard() {
       });
 
       if (error) {
-        setErrorMsg(error.message);
+        setErrorMsg(
+          error.code === '23505' ? '這個學校代碼已經被使用。請換一個代碼。' : error.message
+        );
       } else {
         setSchoolName('');
         setSchoolCode('');
+        toast.success('已建立學校');
         await loadData();
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '建立學校發生錯誤';
+      const msg = err instanceof Error ? err.message : '建立學校失敗。請稍後再試。';
       setErrorMsg(msg);
     } finally {
       setCreatingSchool(false);
     }
   };
 
+  const stats = [
+    { label: '學校', value: schools.length },
+    { label: '帳號', value: totalUsers },
+    { label: '班級', value: totalClasses },
+  ];
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="flex min-h-screen flex-col bg-background">
       <Navbar profile={profile} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* 頁面標題列 */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-slate-200">
+      <main className="mx-auto w-full max-w-7xl flex-1 space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+        <section className="flex flex-col gap-6 border-b border-border pb-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="flex items-center space-x-2">
-              <Shield className="w-6 h-6 text-slate-800" />
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                系統總管理員控制台
-              </h1>
-            </div>
-            <p className="mt-1 text-sm text-slate-500">
-              平台全域管理 · 多校租戶監控、學校機構開通與主管名冊授權維護
+            <h1 className="text-3xl font-bold text-foreground">學校組織</h1>
+            <p className="mt-1 text-sm text-muted-foreground">開通學校、指派學校主管，查看平台整體狀況。</p>
+          </div>
+
+          <dl className="grid grid-cols-3 divide-x divide-border">
+            {stats.map((item) => (
+              <div key={item.label} className="px-4 first:pl-0 sm:px-6">
+                <dd className="tabular font-display text-3xl font-bold text-foreground">{item.value}</dd>
+                <dt className="text-sm text-muted-foreground">{item.label}</dt>
+              </div>
+            ))}
+          </dl>
+        </section>
+
+        <div className="grid gap-10 lg:grid-cols-[20rem_1fr]">
+          {/* 新增學校 */}
+          <section className="space-y-4">
+            <h2 className="font-display text-lg font-bold text-foreground">新增學校</h2>
+            <p className="text-sm text-muted-foreground">
+              學校代碼是學校的唯一識別，建立後主管註冊時會用到。
             </p>
-          </div>
-          <div className="mt-4 sm:mt-0 flex items-center space-x-2">
-            <Badge variant="default" className="bg-slate-900 text-white">
-              平台超級權限 (Super Admin)
-            </Badge>
-          </div>
-        </div>
+            {errorMsg && <InlineAlert>{errorMsg}</InlineAlert>}
+            <form onSubmit={handleCreateSchool} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="sys-school-name">學校全名</Label>
+                <Input
+                  id="sys-school-name"
+                  required
+                  placeholder="例如：示範科技大學"
+                  value={schoolName}
+                  onChange={(e) => setSchoolName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sys-school-code">學校代碼</Label>
+                <Input
+                  id="sys-school-code"
+                  required
+                  placeholder="例如：DEMO-TECH"
+                  value={schoolCode}
+                  onChange={(e) => setSchoolCode(e.target.value)}
+                />
+              </div>
+              <Button type="submit" disabled={creatingSchool}>
+                {creatingSchool ? '建立中' : '建立學校'}
+              </Button>
+            </form>
+          </section>
 
-        {/* 統計指標卡片 (Flat Cards) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-          <Card className="border-slate-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-slate-500 tracking-wider">
-                  已開通學校數
-                </p>
-                <p className="text-3xl font-black text-slate-900 mt-1">
-                  {schools.length}
-                </p>
-              </div>
-              <div className="w-12 h-12 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-                <School className="w-6 h-6" />
-              </div>
-            </div>
-          </Card>
+          {/* 學校列表 */}
+          <section className="space-y-4">
+            <h2 className="font-display text-lg font-bold text-foreground">所有學校（{schools.length}）</h2>
 
-          <Card className="border-slate-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-slate-500 tracking-wider">
-                  全平台註冊教職數
-                </p>
-                <p className="text-3xl font-black text-slate-900 mt-1">
-                  {totalUsers}
-                </p>
-              </div>
-              <div className="w-12 h-12 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
-                <Users className="w-6 h-6" />
-              </div>
-            </div>
-          </Card>
+            {loading ? (
+              <ListSkeleton rows={4} />
+            ) : schools.length === 0 ? (
+              <EmptyState title="還沒有學校" description="先在左側建立第一所學校。" />
+            ) : (
+              <>
+                {/* 手機：列表 */}
+                <ul className="divide-y divide-border border-y border-border md:hidden">
+                  {schools.map((s) => {
+                    const schoolAdmins = allAdmins.filter((a) => a.school_id === s.id);
+                    const summary = adminSummary(schoolAdmins);
+                    return (
+                      <li key={s.id} className="space-y-2 py-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium text-foreground">{s.name}</p>
+                            <p className="tabular text-sm text-muted-foreground">{s.code}</p>
+                          </div>
+                          <SchoolAdminModal
+                            school={{ id: s.id, name: s.name, code: s.code }}
+                            admins={schoolAdmins}
+                            onRefresh={loadData}
+                          />
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          主管：{summary || <span className="font-medium text-late">還沒有主管</span>}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
 
-          <Card className="border-slate-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-slate-500 tracking-wider">
-                  全平台班級總數
-                </p>
-                <p className="text-3xl font-black text-slate-900 mt-1">
-                  {totalClasses}
-                </p>
-              </div>
-              <div className="w-12 h-12 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
-                <Building className="w-6 h-6" />
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* 學校機構管理區塊 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* 左側：快速新增學校機構 (Flat Card) */}
-          <div className="lg:col-span-1">
-            <Card className="border-slate-300">
-              <CardHeader className="pb-3 border-b border-slate-200">
-                <CardTitle className="text-base flex items-center">
-                  <PlusCircle className="w-4 h-4 mr-2 text-blue-600" />
-                  建立新學校機構
-                </CardTitle>
-                <CardDescription>
-                  為新合作之大專院校或高級中學配置專屬多租戶代碼
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-4">
-                {errorMsg && (
-                  <div className="mb-4 p-2 bg-rose-50 border border-rose-200 rounded text-rose-700 text-xs font-medium">
-                    {errorMsg}
-                  </div>
-                )}
-                <form onSubmit={handleCreateSchool} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="sys-school-name">學校全名</Label>
-                    <Input
-                      id="sys-school-name"
-                      name="name"
-                      required
-                      placeholder="例如：國立示範科技大學"
-                      value={schoolName}
-                      onChange={(e) => setSchoolName(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="sys-school-code">學校代碼 (大寫英文/數字)</Label>
-                    <Input
-                      id="sys-school-code"
-                      name="code"
-                      required
-                      placeholder="例如：DEMO-TECH"
-                      value={schoolCode}
-                      onChange={(e) => setSchoolCode(e.target.value)}
-                    />
-                  </div>
-                  <Button type="submit" variant="default" className="w-full" disabled={creatingSchool}>
-                    <PlusCircle className="w-4 h-4 mr-1.5" />
-                    {creatingSchool ? '建立中...' : '確認開通學校'}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* 右側：學校清單列表 */}
-          <div className="lg:col-span-2">
-            <Card className="border-slate-300">
-              <CardHeader className="pb-3 border-b border-slate-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base">全域學校租戶列表</CardTitle>
-                    <CardDescription>
-                      檢視已註冊之各校代碼、加入日期及指派管理主管名冊
-                    </CardDescription>
-                  </div>
-                  <Badge variant="outline">{schools.length} 所學校</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {loading ? (
-                  <div className="p-8 text-center text-slate-500 text-sm">
-                    載入學校清單中...
-                  </div>
-                ) : schools.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500 text-sm">
-                    目前尚未建立任何學校單位。請由左側表單新增第一所學校。
-                  </div>
-                ) : (
+                {/* 桌機：表格 */}
+                <div className="hidden overflow-hidden rounded-lg border border-border md:block">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>學校全稱</TableHead>
-                        <TableHead>專屬代碼</TableHead>
-                        <TableHead>管理團隊 (主管數)</TableHead>
-                        <TableHead>開通時間</TableHead>
-                        <TableHead className="text-right">管理操作</TableHead>
+                        <TableHead>學校</TableHead>
+                        <TableHead>代碼</TableHead>
+                        <TableHead>主管</TableHead>
+                        <TableHead>開通日</TableHead>
+                        <TableHead className="text-right">操作</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {schools.map((s) => {
                         const schoolAdmins = allAdmins.filter((a) => a.school_id === s.id);
+                        const summary = adminSummary(schoolAdmins);
                         return (
                           <TableRow key={s.id}>
-                            <TableCell className="font-bold text-slate-900">
-                              {s.name}
-                            </TableCell>
-                            <TableCell className="font-mono text-slate-600">
-                              <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-bold">
-                                {s.code}
-                              </span>
-                            </TableCell>
+                            <TableCell className="font-medium text-foreground">{s.name}</TableCell>
+                            <TableCell className="tabular text-muted-foreground">{s.code}</TableCell>
                             <TableCell>
-                              {schoolAdmins.length === 0 ? (
-                                <span className="text-amber-600 font-medium">尚未配置</span>
-                              ) : (
-                                <div className="flex items-center space-x-1.5">
-                                  <span className="font-semibold text-slate-800">
-                                    {schoolAdmins.map((a) => a.name).join(', ')}
-                                  </span>
-                                </div>
-                              )}
+                              {summary || <span className="font-medium text-late">還沒有主管</span>}
                             </TableCell>
-                            <TableCell className="text-slate-500 font-mono">
+                            <TableCell className="tabular text-muted-foreground">
                               {new Date(s.created_at).toLocaleDateString()}
                             </TableCell>
                             <TableCell className="text-right">
@@ -288,10 +235,10 @@ export function SysAdminDashboard() {
                       })}
                     </TableBody>
                   </Table>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                </div>
+              </>
+            )}
+          </section>
         </div>
       </main>
     </div>

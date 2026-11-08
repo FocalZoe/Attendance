@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FilesetResolver, ObjectDetector, Detection } from '@mediapipe/tasks-vision';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -653,32 +661,36 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
     }
   };
 
+  const selectedBox = seatingBoxes.find((b) => b.id === selectedBoxId);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-6 bg-white border border-slate-300">
-        <DialogHeader className="border-b border-slate-200 pb-3">
-          <DialogTitle className="text-lg font-bold text-slate-800">
-            AI 視覺即時點名系統 · {className}
-          </DialogTitle>
+      {/* 手機與平板直式：滿版；寬螢幕：置中對話框 */}
+      <DialogContent className="flex h-[100dvh] max-h-none w-screen max-w-none flex-col gap-4 rounded-none p-4 sm:h-auto sm:max-h-[calc(100dvh-1.5rem)] sm:w-[calc(100%-1.5rem)] sm:max-w-4xl sm:rounded-lg sm:p-6">
+        <DialogHeader>
+          <DialogTitle>{className}　點名</DialogTitle>
+          <DialogDescription>
+            開啟鏡頭後，系統會標出每個座位有沒有人。確認無誤再按「完成點名」。
+          </DialogDescription>
         </DialogHeader>
 
-        {/* 控制工具列 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 py-2 border-b border-slate-100">
-          <div>
-            <Label className="text-xs text-slate-500 mb-1 block">鏡頭來源</Label>
+        {/* 設定列 */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="rc-camera">鏡頭</Label>
             {isMobile ? (
               <Select value="mobile_env" onValueChange={() => {}}>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger id="rc-camera">
                   <SelectValue placeholder="行動裝置鏡頭" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="mobile_env">行動後置鏡頭 (環境)</SelectItem>
+                  <SelectItem value="mobile_env">後置鏡頭</SelectItem>
                 </SelectContent>
               </Select>
             ) : (
               <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="選擇鏡頭設備" />
+                <SelectTrigger id="rc-camera">
+                  <SelectValue placeholder="選擇鏡頭" />
                 </SelectTrigger>
                 <SelectContent>
                   {cameraSources.map((s) => (
@@ -692,22 +704,22 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
           </div>
 
           {!isMobile && selectedDeviceId === AMEBA_DEVICE_ID && (
-            <div>
-              <Label className="text-xs text-slate-500 mb-1 block">Ameba 鏡頭 IP</Label>
+            <div className="space-y-2">
+              <Label htmlFor="rc-ameba-ip">網路相機 IP</Label>
               <Input
+                id="rc-ameba-ip"
                 type="text"
                 value={amebaIp}
                 onChange={(e) => setAmebaIp(e.target.value)}
                 placeholder="192.168.1.100"
-                className="h-8 text-xs"
               />
             </div>
           )}
 
-          <div>
-            <Label className="text-xs text-slate-500 mb-1 block">點名節次</Label>
+          <div className="space-y-2">
+            <Label htmlFor="rc-period">節次</Label>
             <Select value={period} onValueChange={setPeriod}>
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger id="rc-period">
                 <SelectValue placeholder="選擇節次" />
               </SelectTrigger>
               <SelectContent>
@@ -721,147 +733,128 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
           </div>
         </div>
 
-        {/* 正在微調選取座位時之快捷控制列 */}
-        {selectedBoxId && (
-          <div className="flex items-center justify-between bg-blue-50/90 border border-blue-200 px-3 py-1.5 rounded text-xs">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-blue-900">
-                微調座位 [{seatingBoxes.find((b) => b.id === selectedBoxId)?.seat_label}]：
-              </span>
-              <span className="text-blue-700 text-[11px]">
-                在畫面上拖曳可移動位置，拉右下角把手可縮放，放開後自動儲存
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
+        {/* 選取座位時的微調列 */}
+        {selectedBox && (
+          <div className="flex flex-col gap-2 rounded-md border border-border bg-secondary px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-foreground">
+              <span className="font-bold">座位 {selectedBox.seat_label}</span>
+              <span className="ml-2 text-muted-foreground">拖曳移動，拉右下角縮放，放開後自動儲存。</span>
+            </p>
+            <div className="flex gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => handleScaleBoxInRollcall(selectedBoxId, 1.1)}
-                className="h-7 px-2 text-xs bg-white text-blue-700 hover:bg-blue-100"
-                title="放大此座位"
+                onClick={() => handleScaleBoxInRollcall(selectedBox.id, 1.1)}
               >
-                <ZoomIn className="w-3.5 h-3.5 mr-1" />
+                <ZoomIn aria-hidden="true" />
                 放大
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => handleScaleBoxInRollcall(selectedBoxId, 0.9)}
-                className="h-7 px-2 text-xs bg-white text-blue-700 hover:bg-blue-100"
-                title="縮小此座位"
+                onClick={() => handleScaleBoxInRollcall(selectedBox.id, 0.9)}
               >
-                <ZoomOut className="w-3.5 h-3.5 mr-1" />
+                <ZoomOut aria-hidden="true" />
                 縮小
               </Button>
             </div>
           </div>
         )}
 
-        {/* 視訊預覽與檢測繪製區 (16:9) */}
+        {/* 影像與座位疊圖：影像區固定使用深色，不隨主題變動 */}
         <div
           ref={videoContainerRef}
           onClick={() => setSelectedBoxId(null)}
-          className="relative w-full aspect-video bg-slate-950 border border-slate-300 rounded overflow-hidden select-none"
+          className="relative aspect-video w-full select-none overflow-hidden rounded-lg border border-border bg-neutral-950 touch-none"
         >
-          <video
-            ref={videoRef}
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-          />
-          <canvas
-            ref={canvasRef}
-            className="absolute inset-0 w-full h-full pointer-events-none"
-          />
+          <video ref={videoRef} playsInline muted className="h-full w-full object-cover" />
+          <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
 
-          {/* 鏡頭啟用時的即時劃位互動圖層 */}
-          {cameraActive && seatingBoxes.map((box) => {
-            const isSelected = selectedBoxId === box.id;
-            const isOccupied = occupancies[box.id] || false;
-            const assignedStudent = currentStudents.find((s) => s.id === box.student_id);
+          {cameraActive &&
+            seatingBoxes.map((box) => {
+              const isSelected = selectedBoxId === box.id;
+              const isOccupied = occupancies[box.id] || false;
+              const assignedStudent = currentStudents.find((s) => s.id === box.student_id);
 
-            return (
-              <div
-                key={box.id}
-                onPointerDown={(e) => handleBoxPointerDown(e, box.id)}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedBoxId(box.id);
-                }}
-                style={{
-                  left: `${box.x_ratio * 100}%`,
-                  top: `${box.y_ratio * 100}%`,
-                  width: `${box.w_ratio * 100}%`,
-                  height: `${box.h_ratio * 100}%`,
-                }}
-                className={`absolute cursor-move flex flex-col justify-between p-1 rounded border transition-colors select-none ${
-                  isSelected
-                    ? 'border-blue-400 bg-blue-500/25 ring-2 ring-blue-400 z-20'
-                    : isOccupied
-                    ? 'border-emerald-500 bg-emerald-500/20 hover:border-emerald-400 z-10'
-                    : 'border-slate-500 bg-slate-900/40 hover:border-slate-400 z-10'
-                }`}
-              >
-                <div className="flex items-center justify-between pointer-events-none">
-                  <span className="text-[10px] font-mono font-bold text-slate-200">
-                    {box.seat_label}
-                  </span>
-                  <span
-                    className={`text-[9px] font-mono px-1 rounded ${
-                      isOccupied ? 'bg-emerald-600/90 text-white font-bold' : 'bg-slate-700/80 text-slate-300'
-                    }`}
-                  >
-                    {isOccupied ? '● 在座' : '○ 缺席'}
-                  </span>
+              return (
+                <div
+                  key={box.id}
+                  onPointerDown={(e) => handleBoxPointerDown(e, box.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedBoxId(box.id);
+                  }}
+                  style={{
+                    left: `${box.x_ratio * 100}%`,
+                    top: `${box.y_ratio * 100}%`,
+                    width: `${box.w_ratio * 100}%`,
+                    height: `${box.h_ratio * 100}%`,
+                  }}
+                  className={cn(
+                    'absolute flex cursor-move select-none flex-col justify-between rounded-sm border-2 p-1 transition-colors',
+                    isSelected
+                      ? 'z-20 border-[#e8c98b] bg-[#e8c98b]/25'
+                      : isOccupied
+                      ? 'z-10 border-[#8fba87] bg-[#8fba87]/25'
+                      : 'z-10 border-white/60 bg-black/40'
+                  )}
+                >
+                  <div className="pointer-events-none flex items-center justify-between gap-1">
+                    <span className="tabular text-[11px] font-bold text-white">{box.seat_label}</span>
+                    <span
+                      className={cn(
+                        'rounded-sm px-1 text-[10px] font-bold',
+                        isOccupied ? 'bg-[#3f6b3a] text-white' : 'bg-black/70 text-white'
+                      )}
+                    >
+                      {isOccupied ? '在座' : '無人'}
+                    </span>
+                  </div>
+                  <div className="pointer-events-none max-w-full truncate text-xs font-medium text-white">
+                    {assignedStudent ? assignedStudent.name : '空位'}
+                  </div>
+
+                  {isSelected && (
+                    <div
+                      onPointerDown={(e) => handleResizePointerDown(e, box.id)}
+                      className="pointer-events-auto absolute -bottom-2 -right-2 z-30 h-5 w-5 cursor-se-resize rounded-sm border-2 border-[#e8c98b] bg-white"
+                      title="拖曳以縮放座位"
+                    />
+                  )}
                 </div>
-                <div className="text-[11px] font-medium text-white truncate max-w-full pointer-events-none">
-                  {assignedStudent ? assignedStudent.name : '（空位）'}
-                </div>
-
-                {/* 右下角拖曳縮放把手 */}
-                {isSelected && (
-                  <div
-                    onPointerDown={(e) => handleResizePointerDown(e, box.id)}
-                    className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-white border-2 border-blue-500 rounded-sm cursor-se-resize shadow-md hover:scale-125 transition-transform z-30 pointer-events-auto"
-                    title="拖曳右下角把手以縮放座位尺寸（放開後自動儲存）"
-                  />
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
 
           {!cameraActive && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90 text-slate-300">
-              <span className="text-sm mb-3">鏡頭尚未啟動</span>
-              <Button
-                type="button"
-                onClick={handleStartCamera}
-                disabled={!detectorReady}
-                className="text-xs"
-              >
-                {detectorReady ? '開啟鏡頭並啟動 AI' : 'AI 引擎載入中...'}
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-neutral-950/90 p-4 text-center text-white">
+              <p className="max-w-xs text-sm text-white/80">
+                {detectorReady ? '還沒有開啟鏡頭。開啟後，系統會即時判斷每個座位有沒有人。' : '正在載入辨識模型，請稍候。'}
+              </p>
+              <Button type="button" onClick={handleStartCamera} disabled={!detectorReady}>
+                {detectorReady ? '開啟鏡頭' : '載入中'}
               </Button>
             </div>
           )}
         </div>
 
-        <DialogFooter className="border-t border-slate-200 pt-3 flex justify-between items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold text-slate-700">
-              偵測到出席：<span className="text-emerald-600 font-bold">{presentCount}</span> / 總座位 {seatingBoxes.length}
-            </span>
+        <DialogFooter className="mt-auto flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between sm:space-x-0">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <p className="text-sm text-foreground">
+              <span className="tabular font-display text-2xl font-bold text-present">{presentCount}</span>
+              <span className="tabular text-muted-foreground"> / {seatingBoxes.length} 個座位有人</span>
+            </p>
             {autoSaveStatus === 'saving' && (
-              <span className="text-xs text-amber-600 flex items-center font-medium">
-                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-                劃位自動儲存中...
+              <span className="flex items-center text-sm text-muted-foreground">
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" />
+                正在儲存座位
               </span>
             )}
             {autoSaveStatus === 'saved' && (
-              <span className="text-xs text-emerald-600 flex items-center font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                劃位已自動儲存
+              <span className="flex items-center text-sm text-present">
+                <CheckCircle2 className="mr-1 h-4 w-4" aria-hidden="true" />
+                座位已儲存
               </span>
             )}
           </div>
@@ -871,7 +864,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={isSaving}
-              className="text-xs"
+              className="flex-1 sm:flex-none"
             >
               取消
             </Button>
@@ -879,9 +872,9 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
               type="button"
               onClick={handleConfirmAttendance}
               disabled={!cameraActive || isSaving}
-              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="flex-1 sm:flex-none"
             >
-              {isSaving ? '儲存中...' : '確認完成點名'}
+              {isSaving ? '儲存中' : '完成點名'}
             </Button>
           </div>
         </DialogFooter>

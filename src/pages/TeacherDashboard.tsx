@@ -2,7 +2,6 @@ import * as React from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Navbar } from '@/components/ui/navbar';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -11,20 +10,33 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, Grid3X3, Users, History, PlusCircle, Trash2, Clock, Bell } from 'lucide-react';
-import { useConfirm } from '@/components/ui/confirm-dialog';
-import { ClassScheduleDialog } from '@/components/attendance/ClassScheduleDialog';
-import { useRollcallReminders } from '@/hooks/useRollcallReminders';
-import type { SchoolClass, Student, ClassTeacher } from '@/types/database';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ListSkeleton } from '@/components/ui/skeleton';
+import { Bell, Camera, Clock, Grid3X3, PlusCircle, Trash2 } from 'lucide-react';
+import type { SchoolClass, Student } from '@/types/database';
 import { SeatMapEditorModal } from '@/components/attendance/SeatMapEditorModal';
 import { LiveAttendanceRollcall } from '@/components/attendance/LiveAttendanceRollcall';
 import { AttendanceHistoryView } from '@/components/attendance/AttendanceHistoryView';
+import { ClassScheduleDialog } from '@/components/attendance/ClassScheduleDialog';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import { useRollcallReminders } from '@/hooks/useRollcallReminders';
+import { formatTime, getNextSchedule, getTodaySchedules, WEEKDAY_LABELS, weekdayOf } from '@/lib/schedule';
+import { periodLabel } from '@/lib/periods';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface AssignedClassItem {
   class: SchoolClass;
   role: 'homeroom' | 'subject';
 }
+
+const EMPTY_STUDENT_FORM = {
+  student_number: '',
+  name: '',
+  seat_number: 1,
+  gender: '未填',
+  parent_phone: '',
+};
 
 export function TeacherDashboard() {
   const { profile } = useAuthStore();
@@ -35,6 +47,7 @@ export function TeacherDashboard() {
   const [classStudents, setClassStudents] = React.useState<Student[]>([]);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [attendanceRefreshKey, setAttendanceRefreshKey] = React.useState<number>(0);
+  const [now, setNow] = React.useState<Date>(() => new Date());
 
   // 模態視窗狀態
   const [seatingEditorOpen, setSeatingEditorOpen] = React.useState<boolean>(false);
@@ -46,13 +59,13 @@ export function TeacherDashboard() {
 
   // 班級學生管理 Modal (導師專用)
   const [studentModalOpen, setStudentModalOpen] = React.useState<boolean>(false);
-  const [studentForm, setStudentForm] = React.useState({
-    student_number: '',
-    name: '',
-    seat_number: 1,
-    gender: '未填',
-    parent_phone: '',
-  });
+  const [studentForm, setStudentForm] = React.useState(EMPTY_STUDENT_FORM);
+
+  // 每分鐘更新目前時間，讓「下一節」自動前進
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // 1. 載入當前教師所被指派之所有班級 (包含導師與科任)
   const loadAssignedClasses = React.useCallback(async () => {
@@ -98,6 +111,7 @@ export function TeacherDashboard() {
       }
     } catch (err: unknown) {
       console.error('載入教師班級失敗:', err);
+      toast.error('無法載入你的班級。請重新整理頁面，若仍失敗請聯繫學校主管。');
     } finally {
       setLoading(false);
     }
@@ -141,10 +155,10 @@ export function TeacherDashboard() {
   };
 
   // 快速啟動點名
-  const handleOpenRollcall = (cls: SchoolClass) => {
+  const handleOpenRollcall = (cls: SchoolClass, period?: string) => {
     setSelectedClassId(cls.id);
     setActiveModalClass({ id: cls.id, name: cls.name });
-    setRollcallPeriod(undefined);
+    setRollcallPeriod(period);
     setLiveRollcallOpen(true);
   };
 
@@ -172,18 +186,12 @@ export function TeacherDashboard() {
 
       if (error) throw error;
 
-      toast.success('已成功新增在籍學生');
+      toast.success('已新增學生');
       setStudentModalOpen(false);
-      setStudentForm({
-        student_number: '',
-        name: '',
-        seat_number: classStudents.length + 2,
-        gender: '未填',
-        parent_phone: '',
-      });
+      setStudentForm({ ...EMPTY_STUDENT_FORM, seat_number: classStudents.length + 2 });
       loadStudents(selectedClassId);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '新增學生失敗';
+      const msg = err instanceof Error ? err.message : '新增學生失敗。請確認學號沒有重複後再試一次。';
       toast.error(msg);
     }
   };
@@ -193,10 +201,10 @@ export function TeacherDashboard() {
     try {
       const { error } = await supabase.from('students').delete().eq('id', studentId);
       if (error) throw error;
-      toast.success('學生資料已移除');
+      toast.success('已移除學生');
       loadStudents(selectedClassId);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '移除失敗';
+      const msg = err instanceof Error ? err.message : '移除失敗。請稍後再試。';
       toast.error(msg);
     }
   };
@@ -205,7 +213,7 @@ export function TeacherDashboard() {
     requestConfirm({
       title: `移除學生「${studentName}」？`,
       description: '將自班級名冊移除，該學生的出缺勤紀錄也會一併刪除，無法復原。',
-      confirmLabel: '確認移除',
+      confirmLabel: '移除學生',
       destructive: true,
       action: () => deleteStudent(studentId),
     });
@@ -224,287 +232,299 @@ export function TeacherDashboard() {
     [assignedClasses]
   );
 
-  const { reload: reloadSchedules, permission, requestPermission } = useRollcallReminders({
+  const { schedules, reload: reloadSchedules, permission, requestPermission } = useRollcallReminders({
     teacherId: profile?.id,
     onStart: handleReminderStart,
   });
 
+  const todaySchedules = React.useMemo(() => getTodaySchedules(schedules, now), [schedules, now]);
+  const nextSchedule = React.useMemo(() => getNextSchedule(schedules, now), [schedules, now]);
+  const laterToday = todaySchedules.filter(
+    (s) => nextSchedule && s.id !== nextSchedule.id && s.start_time > nextSchedule.start_time
+  );
+
+  const nextClass = nextSchedule
+    ? assignedClasses.find((item) => item.class.id === nextSchedule.class_id)?.class
+    : undefined;
+
+  const dateLabel = `${now.getMonth() + 1} 月 ${now.getDate()} 日　${WEEKDAY_LABELS[weekdayOf(now)]}`;
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="flex min-h-screen flex-col bg-background">
       <Navbar profile={profile} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* 歡迎與快捷操作標題 */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-slate-200">
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                {profile?.name || '專任'} 老師的教學控制台
-              </h1>
-            </div>
-            <p className="mt-1 text-sm text-slate-500">
-              所屬學校：{profile?.school?.name || '學校租戶'} · 即時點名、教室劃位與出缺勤管理
-            </p>
-          </div>
-          {currentAssigned && (
-            <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-              <Button
-                variant="default"
-                onClick={() => handleOpenRollcall(currentAssigned.class)}
-              >
-                <Camera className="w-4 h-4 mr-2" />
-                啟動 [{currentAssigned.class.name}] 鏡頭點名
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* 授課班級快速卡片 */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-900">
-              您任教之班級 ({assignedClasses.length})
-            </h2>
-            <div className="flex items-center gap-3">
-              {permission === 'default' && (
-                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={requestPermission}>
-                  <Bell className="w-3 h-3 mr-1" />
-                  開啟桌面提醒
-                </Button>
-              )}
-              <span className="text-xs text-slate-500">
-                點擊可切換當前主工作班級
-              </span>
-            </div>
-          </div>
+      <main className="mx-auto w-full max-w-7xl flex-1 space-y-10 px-4 py-8 sm:px-6 lg:px-8">
+        {/* 今日優先 */}
+        <section aria-labelledby="today-heading">
+          <p className="tabular text-sm text-muted-foreground">{dateLabel}</p>
+          <h1 id="today-heading" className="mt-1 text-3xl font-bold text-foreground">
+            {profile?.name || ''} 老師，今天的點名
+          </h1>
 
           {loading ? (
-            <div className="p-8 text-center text-xs text-slate-500 bg-white border border-slate-300 rounded">
-              載入授課班級中...
+            <div className="mt-5">
+              <ListSkeleton rows={2} />
             </div>
-          ) : assignedClasses.length === 0 ? (
-            <div className="p-8 text-center text-xs text-slate-500 bg-white border border-slate-300 rounded">
-              目前尚未配置任何授課班級，請聯繫學校主管為您指派班級。
+          ) : nextSchedule && nextClass ? (
+            <div className="mt-5 rounded-lg bg-primary p-5 text-primary-foreground sm:p-6">
+              <p className="text-sm opacity-90">下一節</p>
+              <p className="mt-1 font-display text-2xl font-bold">
+                {nextClass.name}　{periodLabel(nextSchedule.period)}
+              </p>
+              <p className="tabular mt-1 text-sm opacity-90">
+                {formatTime(nextSchedule.start_time)} 開始
+              </p>
+              <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                <Button
+                  size="lg"
+                  className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+                  onClick={() => handleOpenRollcall(nextClass, nextSchedule.period)}
+                >
+                  <Camera aria-hidden="true" />
+                  開始點名
+                </Button>
+                <Button
+                  size="lg"
+                  variant="ghost"
+                  className="border-primary-foreground/40 text-primary-foreground hover:bg-primary-foreground/10"
+                  onClick={() => handleOpenSchedule(nextClass)}
+                >
+                  <Clock aria-hidden="true" />
+                  調整課表
+                </Button>
+              </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <EmptyState
+              className="mt-5"
+              title={schedules.length === 0 ? '還沒有設定課表' : '今天沒有其他點名時段了'}
+              description={
+                schedules.length === 0
+                  ? '設定每週的上課時間後，到點前這裡會提醒你並讓你一鍵開始點名。也可以直接從下方選一個班級點名。'
+                  : '想臨時點名，可以從下方選一個班級直接開始。'
+              }
+              action={
+                assignedClasses[0] ? (
+                  <Button variant="outline" onClick={() => handleOpenSchedule(currentAssigned?.class ?? assignedClasses[0].class)}>
+                    <Clock aria-hidden="true" />
+                    設定課表
+                  </Button>
+                ) : undefined
+              }
+            />
+          )}
+
+          {laterToday.length > 0 && (
+            <div className="mt-5">
+              <h2 className="text-base font-bold text-foreground">今天稍後</h2>
+              <ul className="mt-2 divide-y divide-border border-y border-border">
+                {laterToday.map((s) => (
+                  <li key={s.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+                    <span className="tabular w-14 shrink-0 text-muted-foreground">{formatTime(s.start_time)}</span>
+                    <span className="min-w-0 flex-1 truncate text-foreground">
+                      {s.class?.name ?? '班級'}　{periodLabel(s.period)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {permission === 'default' && schedules.length > 0 && (
+            <Button type="button" variant="ghost" size="sm" className="mt-4" onClick={requestPermission}>
+              <Bell aria-hidden="true" />
+              開啟桌面提醒（分頁在背景時也會通知）
+            </Button>
+          )}
+        </section>
+
+        {/* 我的班級 */}
+        <section aria-labelledby="classes-heading">
+          <h2 id="classes-heading" className="text-xl font-bold text-foreground">
+            我的班級（{assignedClasses.length}）
+          </h2>
+
+          {loading ? (
+            <div className="mt-4">
+              <ListSkeleton rows={3} />
+            </div>
+          ) : assignedClasses.length === 0 ? (
+            <EmptyState
+              className="mt-4"
+              title="你還沒有被指派任何班級"
+              description="請聯繫學校主管，請他在「班級任課與導師職務指派」把你加入班級。"
+            />
+          ) : (
+            <ul className="mt-4 divide-y divide-border border-y border-border">
               {assignedClasses.map((item) => {
                 const isSelected = item.class.id === selectedClassId;
                 const isHomeroom = item.role === 'homeroom';
 
                 return (
-                  <Card
+                  <li
                     key={item.class.id}
-                    onClick={() => setSelectedClassId(item.class.id)}
-                    className={`cursor-pointer transition-all border ${
-                      isSelected
-                        ? 'border-emerald-500 bg-emerald-50/20 ring-1 ring-emerald-500'
-                        : 'border-slate-300 hover:border-slate-400 bg-white'
-                    }`}
+                    className={cn(
+                      'flex flex-col gap-3 border-l-2 py-4 pl-4 sm:flex-row sm:items-center sm:justify-between',
+                      isSelected ? 'border-primary bg-secondary/50' : 'border-transparent'
+                    )}
                   >
-                    <div className="p-4 flex flex-col justify-between h-full space-y-4">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-base text-slate-900">
-                            {item.class.name}
-                          </span>
-                          <Badge
-                            variant={isHomeroom ? 'default' : 'secondary'}
-                            className="text-[10px]"
-                          >
-                            {isHomeroom ? '班級導師' : '科任老師'}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">
-                          {item.class.academic_year} 學年 · {item.class.grade}
-                        </p>
-                      </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedClassId(item.class.id)}
+                      className="min-w-0 text-left"
+                      aria-pressed={isSelected}
+                    >
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-display text-lg font-bold text-foreground">{item.class.name}</span>
+                        <Badge variant={isHomeroom ? 'default' : 'outline'}>{isHomeroom ? '導師' : '科任'}</Badge>
+                      </span>
+                      <span className="mt-0.5 block text-sm text-muted-foreground">
+                        {item.class.academic_year} 學年　{item.class.grade}
+                      </span>
+                    </button>
 
-                      <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenSeating(item.class);
-                          }}
-                          className="text-xs flex-1 h-7"
-                        >
-                          <Grid3X3 className="w-3 h-3 mr-1" />
-                          劃位
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenSchedule(item.class);
-                          }}
-                          className="text-xs flex-1 h-7"
-                        >
-                          <Clock className="w-3 h-3 mr-1" />
-                          課表
-                        </Button>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenRollcall(item.class);
-                          }}
-                          className="text-xs flex-1 h-7"
-                        >
-                          <Camera className="w-3 h-3 mr-1" />
-                          點名
-                        </Button>
-                      </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => handleOpenRollcall(item.class)}>
+                        <Camera aria-hidden="true" />
+                        點名
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleOpenSeating(item.class)}>
+                        <Grid3X3 aria-hidden="true" />
+                        座位
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleOpenSchedule(item.class)}>
+                        <Clock aria-hidden="true" />
+                        課表
+                      </Button>
                     </div>
-                  </Card>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
-        </div>
+        </section>
 
-        {/* 選定班級之細節分頁 (名冊管理與考勤紀錄) */}
+        {/* 選定班級：紀錄與名冊 */}
         {currentAssigned && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-800 text-sm">
-                  當前班級：{currentAssigned.class.name}
-                </span>
-                <Badge variant={isCurrentHomeroom ? 'default' : 'outline'} className="text-[10px]">
-                  {isCurrentHomeroom ? '具備學生名冊編修權限 (導師)' : '僅具點名與考勤查閱權限 (科任)'}
-                </Badge>
-              </div>
-            </div>
+          <section aria-labelledby="class-detail-heading">
+            <h2 id="class-detail-heading" className="text-xl font-bold text-foreground">
+              {currentAssigned.class.name}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {isCurrentHomeroom ? '你是這班的導師，可以新增與移除學生。' : '你是這班的科任老師，可以點名與查看紀錄，但不能更動學生名冊。'}
+            </p>
 
-            <Tabs defaultValue="attendance_records" className="space-y-4">
-              <TabsList className="bg-slate-200 p-1">
-                <TabsTrigger value="attendance_records" className="text-xs font-bold">
-                  班級歷史考勤紀錄
-                </TabsTrigger>
-                <TabsTrigger value="roster" className="text-xs font-bold">
-                  班級學生名冊 {isCurrentHomeroom ? '(管理)' : '(唯讀)'}
-                </TabsTrigger>
+            <Tabs defaultValue="attendance_records" className="mt-5">
+              <TabsList>
+                <TabsTrigger value="attendance_records">點名紀錄</TabsTrigger>
+                <TabsTrigger value="roster">學生名冊（{classStudents.length}）</TabsTrigger>
               </TabsList>
 
-              {/* 考勤歷史分頁 */}
               <TabsContent value="attendance_records">
-                <Card className="border-slate-300">
-                  <CardHeader className="pb-3 border-b border-slate-200">
-                    <CardTitle className="text-base flex items-center">
-                      <History className="w-4 h-4 mr-2 text-slate-700" />
-                      {currentAssigned.class.name} 歷史點名紀錄
-                    </CardTitle>
-                    <CardDescription>
-                      檢視本班課堂點名批次、覆核缺勤狀況並提供人工覆寫
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-4">
-                    <AttendanceHistoryView
-                      key={attendanceRefreshKey}
-                      classId={currentAssigned.class.id}
-                      isEditable={true}
-                    />
-                  </CardContent>
-                </Card>
+                <AttendanceHistoryView
+                  key={attendanceRefreshKey}
+                  classId={currentAssigned.class.id}
+                  isEditable={true}
+                />
               </TabsContent>
 
-              {/* 學生名冊分頁 */}
               <TabsContent value="roster">
-                <Card className="border-slate-300">
-                  <CardHeader className="pb-3 border-b border-slate-200 flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle className="text-base flex items-center">
-                        <Users className="w-4 h-4 mr-2 text-purple-600" />
-                        學生在籍名冊 ({classStudents.length} 人)
-                      </CardTitle>
-                      <CardDescription>
-                        {isCurrentHomeroom
-                          ? '身為班級導師，您可新增或移除在籍學生資料'
-                          : '身為科任老師，您僅能查閱在籍學生名冊，無法更動學籍'}
-                      </CardDescription>
-                    </div>
-                    {isCurrentHomeroom && (
-                      <Button
-                        type="button"
-                        variant="default"
-                        size="sm"
-                        onClick={() => {
-                          setStudentForm({
-                            student_number: '',
-                            name: '',
-                            seat_number: classStudents.length + 1,
-                            gender: '未填',
-                            parent_phone: '',
-                          });
-                          setStudentModalOpen(true);
-                        }}
-                        className="h-8 text-xs"
-                      >
-                        <PlusCircle className="w-3.5 h-3.5 mr-1" />
-                        新增學生
-                      </Button>
-                    )}
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-slate-50 border-b border-slate-200">
-                          <TableHead className="w-16 text-xs font-bold text-slate-700">座號</TableHead>
-                          <TableHead className="w-32 text-xs font-bold text-slate-700">學號</TableHead>
-                          <TableHead className="w-32 text-xs font-bold text-slate-700">姓名</TableHead>
-                          <TableHead className="w-24 text-xs font-bold text-slate-700">性別</TableHead>
-                          <TableHead className="text-xs font-bold text-slate-700">家長聯絡電話</TableHead>
+                {isCurrentHomeroom && (
+                  <div className="mb-3 flex justify-end">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        setStudentForm({ ...EMPTY_STUDENT_FORM, seat_number: classStudents.length + 1 });
+                        setStudentModalOpen(true);
+                      }}
+                    >
+                      <PlusCircle aria-hidden="true" />
+                      新增學生
+                    </Button>
+                  </div>
+                )}
+
+                {classStudents.length === 0 ? (
+                  <EmptyState
+                    title="這個班級還沒有學生"
+                    description={isCurrentHomeroom ? '按「新增學生」建立名冊，之後才能在座位表上指定座位。' : '請聯繫這班的導師或學校主管建立名冊。'}
+                  />
+                ) : (
+                  <>
+                    {/* 手機：列表 */}
+                    <ul className="divide-y divide-border border-y border-border md:hidden">
+                      {classStudents.map((st) => (
+                        <li key={st.id} className="flex items-center gap-3 py-3">
+                          <span className="tabular w-8 shrink-0 text-right font-bold text-muted-foreground">
+                            {st.seat_number}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-foreground">{st.name}</p>
+                            <p className="tabular text-sm text-muted-foreground">{st.student_number}</p>
+                          </div>
                           {isCurrentHomeroom && (
-                            <TableHead className="w-20 text-xs font-bold text-slate-700 text-right">操作</TableHead>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteStudent(st.id, st.name)}
+                              aria-label={`移除 ${st.name}`}
+                            >
+                              <Trash2 aria-hidden="true" />
+                            </Button>
                           )}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {classStudents.length === 0 ? (
+                        </li>
+                      ))}
+                    </ul>
+
+                    {/* 桌機：表格 */}
+                    <div className="hidden overflow-hidden rounded-lg border border-border md:block">
+                      <Table>
+                        <TableHeader>
                           <TableRow>
-                            <TableCell colSpan={isCurrentHomeroom ? 6 : 5} className="text-center py-8 text-xs text-slate-500">
-                              目前尚無學生資料
-                            </TableCell>
+                            <TableHead className="w-20">座號</TableHead>
+                            <TableHead className="w-36">學號</TableHead>
+                            <TableHead className="w-36">姓名</TableHead>
+                            <TableHead className="w-24">性別</TableHead>
+                            <TableHead>家長聯絡電話</TableHead>
+                            {isCurrentHomeroom && <TableHead className="w-20 text-right">操作</TableHead>}
                           </TableRow>
-                        ) : (
-                          classStudents.map((st) => (
-                            <TableRow key={st.id} className="border-b border-slate-200 hover:bg-slate-50">
-                              <TableCell className="text-xs font-mono font-bold">{st.seat_number}</TableCell>
-                              <TableCell className="text-xs font-mono">{st.student_number}</TableCell>
-                              <TableCell className="text-xs font-medium text-slate-900">{st.name}</TableCell>
-                              <TableCell className="text-xs text-slate-600">{st.gender || '-'}</TableCell>
-                              <TableCell className="text-xs font-mono text-slate-600">{st.parent_phone}</TableCell>
+                        </TableHeader>
+                        <TableBody>
+                          {classStudents.map((st) => (
+                            <TableRow key={st.id}>
+                              <TableCell className="tabular font-bold">{st.seat_number}</TableCell>
+                              <TableCell className="tabular">{st.student_number}</TableCell>
+                              <TableCell className="font-medium text-foreground">{st.name}</TableCell>
+                              <TableCell className="text-muted-foreground">{st.gender || '-'}</TableCell>
+                              <TableCell className="tabular text-muted-foreground">{st.parent_phone}</TableCell>
                               {isCurrentHomeroom && (
-                                <TableCell className="text-xs text-right">
+                                <TableCell className="text-right">
                                   <Button
                                     type="button"
                                     variant="ghost"
-                                    size="sm"
+                                    size="icon"
                                     onClick={() => handleDeleteStudent(st.id, st.name)}
-                                    className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
+                                    aria-label={`移除 ${st.name}`}
                                   >
-                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <Trash2 aria-hidden="true" />
                                   </Button>
                                 </TableCell>
                               )}
                             </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </>
+                )}
               </TabsContent>
             </Tabs>
-          </div>
+          </section>
         )}
 
-        {/* 教室劃位彈窗 */}
+        {/* 教室座位彈窗 */}
         {activeModalClass && (
           <SeatMapEditorModal
             open={seatingEditorOpen}
@@ -550,17 +570,16 @@ export function TeacherDashboard() {
 
         {/* 導師新增學生 Modal */}
         <Dialog open={studentModalOpen} onOpenChange={setStudentModalOpen}>
-          <DialogContent className="max-w-md p-6 bg-white border border-slate-300">
-            <DialogHeader className="border-b border-slate-200 pb-3">
-              <DialogTitle className="text-base font-bold text-slate-800">
-                新增在籍學生 · {currentAssigned?.class.name}
-              </DialogTitle>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>新增學生・{currentAssigned?.class.name}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleCreateStudent} className="space-y-3 pt-2">
+            <form onSubmit={handleCreateStudent} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">座號</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="ts-seat">座號</Label>
                   <Input
+                    id="ts-seat"
                     type="number"
                     required
                     min={1}
@@ -568,43 +587,38 @@ export function TeacherDashboard() {
                     onChange={(e) =>
                       setStudentForm((prev) => ({ ...prev, seat_number: parseInt(e.target.value) || 1 }))
                     }
-                    className="h-8 text-xs"
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">學號</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="ts-number">學號</Label>
                   <Input
+                    id="ts-number"
                     required
                     placeholder="S113001"
                     value={studentForm.student_number}
-                    onChange={(e) =>
-                      setStudentForm((prev) => ({ ...prev, student_number: e.target.value }))
-                    }
-                    className="h-8 text-xs font-mono"
+                    onChange={(e) => setStudentForm((prev) => ({ ...prev, student_number: e.target.value }))}
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">學生姓名</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="ts-name">姓名</Label>
                   <Input
+                    id="ts-name"
                     required
                     placeholder="林小明"
                     value={studentForm.name}
-                    onChange={(e) =>
-                      setStudentForm((prev) => ({ ...prev, name: e.target.value }))
-                    }
-                    className="h-8 text-xs"
+                    onChange={(e) => setStudentForm((prev) => ({ ...prev, name: e.target.value }))}
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">性別</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="ts-gender">性別</Label>
                   <Select
                     value={studentForm.gender}
                     onValueChange={(val) => setStudentForm((prev) => ({ ...prev, gender: val }))}
                   >
-                    <SelectTrigger className="h-8 text-xs">
+                    <SelectTrigger id="ts-gender">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -616,32 +630,24 @@ export function TeacherDashboard() {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs">家長聯絡手機 (末4碼供查榜驗證)</Label>
+              <div className="space-y-2">
+                <Label htmlFor="ts-phone">家長聯絡電話</Label>
                 <Input
+                  id="ts-phone"
                   required
+                  type="tel"
                   placeholder="0912345678"
                   value={studentForm.parent_phone}
-                  onChange={(e) =>
-                    setStudentForm((prev) => ({ ...prev, parent_phone: e.target.value }))
-                  }
-                  className="h-8 text-xs font-mono"
+                  onChange={(e) => setStudentForm((prev) => ({ ...prev, parent_phone: e.target.value }))}
                 />
+                <p className="text-sm text-muted-foreground">電話末四碼會用於家長查勤驗證。</p>
               </div>
 
-              <DialogFooter className="pt-3 border-t border-slate-100 flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setStudentModalOpen(false)}
-                  className="text-xs"
-                >
+              <DialogFooter className="gap-2 sm:space-x-0">
+                <Button type="button" variant="outline" onClick={() => setStudentModalOpen(false)}>
                   取消
                 </Button>
-                <Button type="submit" variant="default" size="sm" className="text-xs">
-                  確認建立
-                </Button>
+                <Button type="submit">新增學生</Button>
               </DialogFooter>
             </form>
           </DialogContent>

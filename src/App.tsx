@@ -13,6 +13,7 @@ import { SysAdminDashboard } from '@/pages/SysAdminDashboard';
 import { SchoolAdminDashboard } from '@/pages/SchoolAdminDashboard';
 import { TeacherDashboard } from '@/pages/TeacherDashboard';
 import { Toaster } from '@/components/ui/sonner';
+import { PageSkeleton } from '@/components/ui/skeleton';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -23,14 +24,7 @@ function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user, profile, isLoading, isInitialized } = useAuthStore();
 
   if (isLoading || !isInitialized) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center space-y-2">
-          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-xs text-slate-500 font-medium">驗證系統憑證中...</p>
-        </div>
-      </div>
-    );
+    return <PageSkeleton label="確認登入狀態" />;
   }
 
   if (!user) {

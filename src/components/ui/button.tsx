@@ -4,23 +4,23 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer select-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 cursor-pointer select-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
-        default: 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 border border-transparent',
-        destructive: 'bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800 border border-transparent',
-        outline: 'border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 active:bg-slate-100',
-        secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-300 border border-slate-300',
-        ghost: 'text-slate-700 hover:bg-slate-100 active:bg-slate-200 border border-transparent',
-        link: 'text-blue-600 underline-offset-4 hover:underline border border-transparent',
-        success: 'bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 border border-transparent',
+        default: 'bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 border border-transparent',
+        destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80 border border-transparent',
+        outline: 'border border-input bg-card text-foreground hover:bg-secondary active:bg-secondary/70',
+        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/70 border border-border',
+        ghost: 'text-foreground hover:bg-secondary active:bg-secondary/70 border border-transparent',
+        link: 'text-primary underline underline-offset-4 hover:no-underline border border-transparent',
+        success: 'bg-present text-card hover:bg-present/90 active:bg-present/80 border border-transparent',
       },
       size: {
         default: 'h-10 px-4 py-2',
-        sm: 'h-8 rounded-md px-3 text-xs',
-        lg: 'h-11 rounded-md px-8 text-base font-bold',
-        icon: 'h-9 w-9',
+        sm: 'h-9 px-3 text-sm',
+        lg: 'h-12 px-6 text-base font-bold',
+        icon: 'h-10 w-10',
       },
     },
     defaultVariants: {

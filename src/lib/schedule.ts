@@ -41,6 +41,27 @@ export function isReminderDue(schedule: ReminderSchedule, now: Date): boolean {
   return current >= start - schedule.remind_before_min && current <= start + REMINDER_GRACE_MIN;
 }
 
+/** 取出今天（本地時間）的時段，依開始時間由早到晚排序 */
+export function getTodaySchedules<T extends ReminderSchedule>(schedules: T[], now: Date): T[] {
+  const weekday = weekdayOf(now);
+  return schedules
+    .filter((s) => s.weekday === weekday && minutesOfDay(s.start_time) !== null)
+    .sort((a, b) => (minutesOfDay(a.start_time) ?? 0) - (minutesOfDay(b.start_time) ?? 0));
+}
+
+/**
+ * 「下一節」：今天第一個尚未結束的時段。
+ * 開始後 REMINDER_GRACE_MIN 分鐘內仍視為進行中，仍可點名。
+ */
+export function getNextSchedule<T extends ReminderSchedule>(schedules: T[], now: Date): T | null {
+  const current = now.getHours() * 60 + now.getMinutes();
+  return (
+    getTodaySchedules(schedules, now).find(
+      (s) => (minutesOfDay(s.start_time) ?? 0) + REMINDER_GRACE_MIN >= current
+    ) ?? null
+  );
+}
+
 /** 每個課表時段每天只提醒一次 */
 export function reminderKey(scheduleId: string, now: Date): string {
   return `${scheduleId}:${localDateString(now)}`;

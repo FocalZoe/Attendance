@@ -100,12 +100,12 @@ export function ClassScheduleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg p-6 bg-white border border-slate-300">
-        <DialogHeader className="border-b border-slate-200 pb-3">
-          <DialogTitle className="text-base font-bold text-slate-800">
+      <DialogContent className="max-w-lg p-6 bg-card border border-border">
+        <DialogHeader className="border-b border-border pb-3">
+          <DialogTitle className="text-base font-bold text-foreground">
             課表與點名提醒 · {className}
           </DialogTitle>
-          <DialogDescription className="text-xs text-slate-500">
+          <DialogDescription className="text-xs text-muted-foreground">
             開著本系統時，到點前會跳出提醒並可一鍵進入點名（不會自動開啟鏡頭）。
           </DialogDescription>
         </DialogHeader>
@@ -167,26 +167,26 @@ export function ClassScheduleDialog({
           </Button>
         </form>
 
-        <div className="border border-slate-200 rounded divide-y divide-slate-100 max-h-56 overflow-y-auto">
+        <div className="border border-border rounded divide-y divide-slate-100 max-h-56 overflow-y-auto">
           {items.length === 0 ? (
-            <div className="p-4 text-center text-xs text-slate-500">尚未設定課表時段</div>
+            <div className="p-4 text-center text-xs text-muted-foreground">尚未設定課表時段</div>
           ) : (
             items.map((item) => (
-              <div key={item.id} className="p-2.5 flex items-center justify-between text-xs hover:bg-slate-50">
-                <span className="text-slate-800">
+              <div key={item.id} className="p-2.5 flex items-center justify-between text-xs hover:bg-secondary">
+                <span className="text-foreground">
                   <span className="font-bold">{WEEKDAY_LABELS[item.weekday]}</span>
-                  <span className="mx-2 text-slate-400">·</span>
+                  <span className="mx-2 text-muted-foreground">·</span>
                   {periodLabel(item.period)}
-                  <span className="mx-2 text-slate-400">·</span>
+                  <span className="mx-2 text-muted-foreground">·</span>
                   {formatTime(item.start_time)}
-                  <span className="ml-2 text-slate-500">（提前 {item.remind_before_min} 分提醒）</span>
+                  <span className="ml-2 text-muted-foreground">（提前 {item.remind_before_min} 分提醒）</span>
                 </span>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => handleDelete(item.id)}
-                  className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
+                  className="h-7 w-7 p-0 text-muted-foreground hover:text-absent"
                   aria-label="刪除此時段"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { isReminderDue, reminderKey, weekdayOf, REMINDER_GRACE_MIN } from './schedule';
+import {
+  getNextSchedule,
+  getTodaySchedules,
+  isReminderDue,
+  reminderKey,
+  weekdayOf,
+  REMINDER_GRACE_MIN,
+} from './schedule';
 
 // 2026-11-09 is a Monday; 2026-11-08 is a Sunday
 const at = (day: number, h: number, m: number) => new Date(2026, 10, day, h, m, 0);
@@ -35,6 +42,37 @@ describe('isReminderDue', () => {
   it('is false for malformed times', () => {
     expect(isReminderDue({ ...monday8, start_time: 'abc' }, at(9, 8, 0))).toBe(false);
     expect(isReminderDue({ ...monday8, start_time: '25:00:00' }, at(9, 8, 0))).toBe(false);
+  });
+});
+
+describe('getTodaySchedules / getNextSchedule', () => {
+  const s = (id: string, weekday: number, start: string) => ({
+    id,
+    weekday,
+    start_time: start,
+    remind_before_min: 5,
+  });
+  const list = [
+    s('b', 1, '10:10:00'),
+    s('a', 1, '08:00:00'),
+    s('c', 1, '13:30:00'),
+    s('x', 2, '08:00:00'),
+  ];
+
+  it('returns only today in start-time order', () => {
+    expect(getTodaySchedules(list, at(9, 7, 0)).map((i) => i.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('picks the first slot that has not ended yet', () => {
+    expect(getNextSchedule(list, at(9, 7, 0))?.id).toBe('a');
+    expect(getNextSchedule(list, at(9, 8, REMINDER_GRACE_MIN))?.id).toBe('a');
+    expect(getNextSchedule(list, at(9, 8, REMINDER_GRACE_MIN + 1))?.id).toBe('b');
+    expect(getNextSchedule(list, at(9, 12, 0))?.id).toBe('c');
+  });
+
+  it('returns null when nothing is left today', () => {
+    expect(getNextSchedule(list, at(9, 20, 0))).toBeNull();
+    expect(getNextSchedule(list, at(11, 8, 0))).toBeNull();
   });
 });
 

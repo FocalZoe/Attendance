@@ -2,13 +2,13 @@ import * as React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
+import { PublicShell } from '@/components/layout/public-shell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
+import { InlineAlert } from '@/components/ui/inline-alert';
 import { validatePassword } from '@/lib/password';
 import { Label } from '@/components/ui/label';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Camera, School, ArrowLeft, ShieldCheck, AlertCircle } from 'lucide-react';
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -30,7 +30,7 @@ export function RegisterPage() {
     const phone = (formData.get('phone') as string)?.trim() || null;
 
     if (!schoolName || !schoolCode || !adminName || !email || !password) {
-      setErrorMsg('請完整填寫學校資訊與管理員帳號資料');
+      setErrorMsg('還有欄位沒填。請填寫學校資訊與管理者帳號的必填欄位。');
       setLoading(false);
       return;
     }
@@ -63,12 +63,12 @@ export function RegisterPage() {
             password,
           });
           if (signInError) {
-            setErrorMsg('此信箱已註冊，且密碼校驗不符，請確認密碼或使用登入頁面。');
+            setErrorMsg('這個信箱已經註冊過，但密碼不符。請輸入原本的密碼，或到登入頁使用「忘記密碼」。');
             setLoading(false);
             return;
           }
         } else {
-          setErrorMsg(signUpError.message || '註冊認證帳號失敗');
+          setErrorMsg(signUpError.message || '建立帳號失敗。請稍後再試。');
           setLoading(false);
           return;
         }
@@ -89,7 +89,7 @@ export function RegisterPage() {
 
       // 角色與學校綁定僅能由伺服器端 RPC 授予，不提供前端寫入的備援路徑
       if (rpcError) {
-        setErrorMsg(rpcError.message || '開通學校失敗');
+        setErrorMsg(rpcError.message || '開通學校失敗。請稍後再試。');
         setLoading(false);
         return;
       }
@@ -98,144 +98,90 @@ export function RegisterPage() {
       await refreshProfile();
       navigate('/dashboard/school-admin');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '開通學校時發生未預期錯誤';
+      const msg = err instanceof Error ? err.message : '開通學校時發生未預期的錯誤。請稍後再試。';
       setErrorMsg(msg);
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-xl">
-        <Link to="/" className="flex items-center justify-center space-x-2.5 mb-4 group">
-          <div className="w-10 h-10 rounded-md bg-blue-600 flex items-center justify-center text-white transition-transform group-hover:scale-105">
-            <Camera className="w-6 h-6" />
-          </div>
-          <span className="font-extrabold text-xl tracking-tight text-slate-900">
-            班級自動化點名系統
-          </span>
-        </Link>
-        <p className="text-center text-sm font-medium text-slate-500">
-          現代化校園智慧出勤平台 · 開通學校機構單位
-        </p>
-      </div>
+    <PublicShell width="wide">
+      <h1 className="text-3xl font-bold text-foreground">開通學校</h1>
+      <p className="mt-2 max-w-prose text-sm text-muted-foreground">
+        建立學校與第一位學校主管。完成後可立即新增班級、教師與學生名冊。
+      </p>
 
-      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-xl px-4">
-        <Card className="border-slate-300 shadow-none">
-          <CardHeader className="text-center pb-2">
-            <div className="mx-auto w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 mb-2">
-              <School className="w-5 h-5" />
+      {errorMsg && <InlineAlert className="mt-6">{errorMsg}</InlineAlert>}
+
+      <form onSubmit={handleSubmit} className="mt-8 space-y-10">
+        <fieldset className="space-y-4">
+          <legend className="border-b border-border pb-2 font-display text-lg font-bold text-foreground w-full">
+            學校資訊
+          </legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="reg-school-name">學校全名</Label>
+              <Input id="reg-school-name" name="school_name" required placeholder="例如：示範高級中學" />
             </div>
-            <CardTitle className="text-xl">開通學校機構與管理主管帳號</CardTitle>
-            <CardDescription>
-              填寫您的學校單位資訊與管理員憑證，完成即刻建立獨立專屬校務租戶
-            </CardDescription>
-          </CardHeader>
+            <div className="space-y-2">
+              <Label htmlFor="reg-school-code">學校代碼</Label>
+              <Input id="reg-school-code" name="school_code" required placeholder="例如：DEMO-HS" />
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            學校代碼由英文與數字組成，之後用來辨識學校。如果代碼已被使用，請聯繫系統總管，由總管指派你為主管。
+          </p>
+        </fieldset>
 
-          <CardContent className="space-y-4 pt-4">
-            {errorMsg && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-md flex items-start space-x-2 text-rose-700 text-sm font-medium">
-                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>{errorMsg}</span>
-              </div>
-            )}
+        <fieldset className="space-y-4">
+          <legend className="border-b border-border pb-2 font-display text-lg font-bold text-foreground w-full">
+            學校主管帳號
+          </legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="reg-admin-name">姓名</Label>
+              <Input id="reg-admin-name" name="admin_name" required placeholder="例如：張主任" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reg-admin-phone">聯絡電話（選填）</Label>
+              <Input id="reg-admin-phone" name="phone" type="tel" placeholder="例如：02-12345678" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reg-admin-email">登入信箱</Label>
+              <Input
+                id="reg-admin-email"
+                name="email"
+                type="email"
+                autoComplete="username"
+                required
+                placeholder="admin@school.edu.tw"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reg-admin-password">密碼</Label>
+              <PasswordInput
+                id="reg-admin-password"
+                name="password"
+                autoComplete="new-password"
+                required
+                placeholder="至少 6 個字元"
+              />
+            </div>
+          </div>
+        </fieldset>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* 學校單位基本資訊 */}
-              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
-                <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  <School className="w-4 h-4 text-emerald-600" />
-                  <span>第一步：學校單位資訊</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="reg-school-name">學校全銜</Label>
-                    <Input
-                      id="reg-school-name"
-                      name="school_name"
-                      required
-                      placeholder="例如：國立示範高級中學"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="reg-school-code">學校代碼 (英文縮寫)</Label>
-                    <Input
-                      id="reg-school-code"
-                      name="school_code"
-                      required
-                      placeholder="例如：DEMO-HS"
-                    />
-                  </div>
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  * 提示：輸入由系統總管預建之「既有學校代碼」將直接加入該校主管團隊；若輸入新代碼將自動建立新機構。
-                </p>
-              </div>
-
-              {/* 學校管理員帳號資訊 */}
-              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
-                <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  <ShieldCheck className="w-4 h-4 text-blue-600" />
-                  <span>第二步：學校主管個人資訊</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="reg-admin-name">管理主管姓名</Label>
-                    <Input
-                      id="reg-admin-name"
-                      name="admin_name"
-                      required
-                      placeholder="例如：張教務主任"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="reg-admin-phone">公務聯絡電話 (選填)</Label>
-                    <Input
-                      id="reg-admin-phone"
-                      name="phone"
-                      placeholder="例如：02-12345678#101"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="reg-admin-email">登入電子信箱 (Email)</Label>
-                    <Input
-                      id="reg-admin-email"
-                      name="email"
-                      type="email"
-                      required
-                      placeholder="admin@school.edu.tw"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="reg-admin-password">設定密碼</Label>
-                    <PasswordInput
-                      id="reg-admin-password"
-                      name="password"
-                      required
-                      placeholder="至少 6 個字元"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <Button type="submit" variant="default" className="w-full mt-2" disabled={loading}>
-                {loading ? '機構開通處理中...' : '確認開通並登入控制台'}
-              </Button>
-            </form>
-          </CardContent>
-
-          <CardFooter className="flex justify-between text-xs text-slate-500">
-            <Link to="/" className="inline-flex items-center hover:text-slate-800">
-              <ArrowLeft className="w-3.5 h-3.5 mr-1" /> 回首頁
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Button type="submit" size="lg" disabled={loading}>
+            {loading ? '開通中' : '開通學校'}
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            已經有帳號？{' '}
+            <Link to="/login" className="font-medium text-primary underline underline-offset-4">
+              直接登入
             </Link>
-            <Link to="/login" className="hover:text-blue-600 font-medium">
-              已有開通帳號？前往登入 →
-            </Link>
-          </CardFooter>
-        </Card>
-      </div>
-    </div>
+          </p>
+        </div>
+      </form>
+    </PublicShell>
   );
 }

@@ -2,12 +2,14 @@ import * as React from 'react';
 import { supabase, createIsolatedClient } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Navbar } from '@/components/ui/navbar';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { InlineAlert } from '@/components/ui/inline-alert';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { validatePassword } from '@/lib/password';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -16,29 +18,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AttendanceHistoryView } from '@/components/attendance/AttendanceHistoryView';
 import { SeatMapEditorModal } from '@/components/attendance/SeatMapEditorModal';
-import {
-  School,
-  Users,
-  BookOpen,
-  PlusCircle,
-  GraduationCap,
-  AlertCircle,
-  Mail,
-  UserPlus,
-  UserCheck,
-  UserX,
-  History,
-  Trash2,
-  Grid3X3,
-} from 'lucide-react';
+import { Grid3X3, Trash2, UserCheck, UserX } from 'lucide-react';
 import type { SchoolClass, Profile, Student, ClassTeacher } from '@/types/database';
 import { toast } from 'sonner';
+
+const EMPTY_STUDENT_FORM = {
+  student_number: '',
+  name: '',
+  seat_number: 1,
+  gender: '未填',
+  parent_phone: '',
+};
 
 export function SchoolAdminDashboard() {
   const { profile } = useAuthStore();
   const schoolId = profile?.school_id;
 
-  const [schoolName, setSchoolName] = React.useState('載入中...');
+  const [schoolName, setSchoolName] = React.useState('');
   const [schoolCode, setSchoolCode] = React.useState('');
   const [classes, setClasses] = React.useState<SchoolClass[]>([]);
   const [teachers, setTeachers] = React.useState<Profile[]>([]);
@@ -55,13 +51,7 @@ export function SchoolAdminDashboard() {
   const [selectedClassForStudents, setSelectedClassForStudents] = React.useState<string>('');
   const [classStudents, setClassStudents] = React.useState<Student[]>([]);
   const [studentModalOpen, setStudentModalOpen] = React.useState<boolean>(false);
-  const [studentForm, setStudentForm] = React.useState({
-    student_number: '',
-    name: '',
-    seat_number: 1,
-    gender: '未填',
-    parent_phone: '',
-  });
+  const [studentForm, setStudentForm] = React.useState(EMPTY_STUDENT_FORM);
 
   // 學校主管劃位檢視狀態
   const [seatingEditorOpen, setSeatingEditorOpen] = React.useState<boolean>(false);
@@ -88,7 +78,6 @@ export function SchoolAdminDashboard() {
 
   const loadData = React.useCallback(async () => {
     if (!schoolId) {
-      setSchoolName('未綁定學校單位');
       setLoading(false);
       return;
     }
@@ -129,6 +118,7 @@ export function SchoolAdminDashboard() {
       setStudentCount(studentsCountRes.count || 0);
     } catch (err) {
       console.error('載入學校數據失敗:', err);
+      toast.error('無法載入學校資料。請重新整理頁面再試一次。');
     } finally {
       setLoading(false);
     }
@@ -181,11 +171,11 @@ export function SchoolAdminDashboard() {
       } else {
         setClassName('');
         setClassGrade('');
-        toast.success('已成功建立新班級編制');
+        toast.success('已建立班級');
         await loadData();
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '建立班級失敗';
+      const msg = err instanceof Error ? err.message : '建立班級失敗。請稍後再試。';
       setClassError(msg);
     } finally {
       setCreatingClass(false);
@@ -235,11 +225,11 @@ export function SchoolAdminDashboard() {
         setTeacherName('');
         setTeacherEmail('');
         setTeacherPassword('');
-        toast.success('已指派並開通任課教師初始帳號');
+        toast.success('已建立教師帳號');
         await loadData();
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '建立教師帳號失敗';
+      const msg = err instanceof Error ? err.message : '建立教師帳號失敗。請稍後再試。';
       setTeacherError(msg);
     } finally {
       setCreatingTeacher(false);
@@ -250,7 +240,7 @@ export function SchoolAdminDashboard() {
   const handleAssignTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assignClassId || !assignTeacherId) {
-      toast.error('請先選擇班級與欲指派之任課教師');
+      toast.error('請先選擇班級與教師，再按「指派」。');
       return;
     }
 
@@ -263,16 +253,16 @@ export function SchoolAdminDashboard() {
 
       if (error) {
         if (error.code === '23505') {
-          toast.error('該教師已在此班級中擔任職務');
+          toast.error('這位教師已經在這個班級任職了。');
         } else {
           toast.error(error.message);
         }
       } else {
-        toast.success(`已成功指派為 ${assignRole === 'homeroom' ? '班級老師 (導師)' : '科任老師'}`);
+        toast.success(`已指派為${assignRole === 'homeroom' ? '導師' : '科任老師'}`);
         await loadData();
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '指派失敗';
+      const msg = err instanceof Error ? err.message : '指派失敗。請稍後再試。';
       toast.error(msg);
     }
   };
@@ -282,10 +272,10 @@ export function SchoolAdminDashboard() {
     try {
       const { error } = await supabase.from('class_teachers').delete().eq('id', id);
       if (error) throw error;
-      toast.success('已解除該教師指派');
+      toast.success('已解除指派');
       await loadData();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '解除失敗';
+      const msg = err instanceof Error ? err.message : '解除失敗。請稍後再試。';
       toast.error(msg);
     }
   };
@@ -308,19 +298,13 @@ export function SchoolAdminDashboard() {
 
       if (error) throw error;
 
-      toast.success('已成功新增在籍學生');
+      toast.success('已新增學生');
       setStudentModalOpen(false);
-      setStudentForm({
-        student_number: '',
-        name: '',
-        seat_number: classStudents.length + 2,
-        gender: '未填',
-        parent_phone: '',
-      });
+      setStudentForm({ ...EMPTY_STUDENT_FORM, seat_number: classStudents.length + 2 });
       loadClassStudents(selectedClassForStudents);
       loadData();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '新增學生失敗';
+      const msg = err instanceof Error ? err.message : '新增學生失敗。請確認學號沒有重複後再試一次。';
       toast.error(msg);
     }
   };
@@ -330,11 +314,11 @@ export function SchoolAdminDashboard() {
     try {
       const { error } = await supabase.from('students').delete().eq('id', studentId);
       if (error) throw error;
-      toast.success('學生資料已移除');
+      toast.success('已移除學生');
       loadClassStudents(selectedClassForStudents);
       loadData();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '移除失敗';
+      const msg = err instanceof Error ? err.message : '移除失敗。請稍後再試。';
       toast.error(msg);
     }
   };
@@ -343,7 +327,7 @@ export function SchoolAdminDashboard() {
     requestConfirm({
       title: `移除學生「${studentName}」？`,
       description: '將自班級名冊移除，該學生的出缺勤紀錄也會一併刪除，無法復原。',
-      confirmLabel: '確認移除',
+      confirmLabel: '移除學生',
       destructive: true,
       action: () => deleteStudent(studentId),
     });
@@ -357,10 +341,10 @@ export function SchoolAdminDashboard() {
         p_active: active,
       });
       if (error) throw error;
-      toast.success(active ? '已重新啟用教師帳號' : '已停用教師帳號，歷史點名紀錄已保留');
+      toast.success(active ? '已重新啟用教師帳號' : '已停用教師帳號，歷史點名紀錄會保留');
       await loadData();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '帳號狀態變更失敗';
+      const msg = err instanceof Error ? err.message : '帳號狀態變更失敗。請稍後再試。';
       toast.error(msg);
     }
   };
@@ -368,252 +352,216 @@ export function SchoolAdminDashboard() {
   const handleDeactivateTeacher = (teacherId: string, teacherName: string) => {
     requestConfirm({
       title: `停用教師「${teacherName}」？`,
-      description: '停用後該教師無法登入，並會解除所有班級指派與課表；歷史點名紀錄會保留，之後可重新啟用。',
-      confirmLabel: '確認停用',
+      description: '停用後這位教師無法登入，並會解除所有班級指派與課表。歷史點名紀錄會保留，之後可以重新啟用。',
+      confirmLabel: '停用帳號',
       destructive: true,
       action: () => setTeacherActive(teacherId, false),
     });
   };
 
+  const stats = [
+    { label: '班級', value: classes.length },
+    { label: '任課教師', value: activeTeachers.length },
+    { label: '在籍學生', value: studentCount },
+  ];
+
+  const sectionHeading = 'font-display text-lg font-bold text-foreground';
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="flex min-h-screen flex-col bg-background">
       <Navbar profile={profile} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* 標題與所屬學校 */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-slate-200">
+      <main className="mx-auto w-full max-w-7xl flex-1 space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+        {/* 標題與統計 */}
+        <section className="flex flex-col gap-6 border-b border-border pb-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="flex items-center space-x-2">
-              <School className="w-6 h-6 text-emerald-600" />
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                學校主管管理中心
-              </h1>
-            </div>
-            <p className="mt-1 text-sm text-slate-500 font-medium">
-              當前所屬單位：
-              <span className="text-slate-900 font-bold ml-1">{schoolName}</span>
+            <h1 className="text-3xl font-bold text-foreground">
+              {loading ? '校務管理' : schoolName || '尚未綁定學校'}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              校務管理
               {schoolCode && (
-                <span className="ml-2 font-mono text-xs bg-slate-100 border border-slate-300 px-2 py-0.5 rounded text-slate-700">
+                <span className="tabular ml-2 rounded-sm border border-border bg-secondary px-1.5 py-0.5 font-mono text-xs text-foreground">
                   {schoolCode}
                 </span>
               )}
             </p>
           </div>
-          <div className="mt-4 sm:mt-0">
-            <Badge variant="success">校務專屬租戶</Badge>
-          </div>
-        </div>
 
-        {/* 統計指標卡片 */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-          <Card className="border-slate-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-slate-500 tracking-wider">
-                  全校班級數
-                </p>
-                <p className="text-3xl font-black text-slate-900 mt-1">
-                  {classes.length}
-                </p>
+          <dl className="grid grid-cols-3 divide-x divide-border">
+            {stats.map((item) => (
+              <div key={item.label} className="px-4 first:pl-0 sm:px-6">
+                <dd className="tabular font-display text-3xl font-bold text-foreground">{item.value}</dd>
+                <dt className="text-sm text-muted-foreground">{item.label}</dt>
               </div>
-              <div className="w-12 h-12 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
-                <BookOpen className="w-6 h-6" />
-              </div>
-            </div>
-          </Card>
+            ))}
+          </dl>
+        </section>
 
-          <Card className="border-slate-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-slate-500 tracking-wider">
-                  任課教師人數
-                </p>
-                <p className="text-3xl font-black text-slate-900 mt-1">
-                  {activeTeachers.length}
-                </p>
-              </div>
-              <div className="w-12 h-12 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-                <Users className="w-6 h-6" />
-              </div>
-            </div>
-          </Card>
+        {!schoolId && !loading ? (
+          <EmptyState
+            title="你的帳號還沒有綁定學校"
+            description="請聯繫系統總管，請他把你指派為學校主管。"
+          />
+        ) : (
+          <Tabs defaultValue="classes_teachers">
+            <TabsList>
+              <TabsTrigger value="classes_teachers">班級與教師</TabsTrigger>
+              <TabsTrigger value="students">學生名冊</TabsTrigger>
+              <TabsTrigger value="attendance_history">全校出勤</TabsTrigger>
+            </TabsList>
 
-          <Card className="border-slate-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-slate-500 tracking-wider">
-                  全校在籍學生
-                </p>
-                <p className="text-3xl font-black text-slate-900 mt-1">
-                  {studentCount}
-                </p>
-              </div>
-              <div className="w-12 h-12 rounded-lg bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600">
-                <GraduationCap className="w-6 h-6" />
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* 核心校務分頁 */}
-        <Tabs defaultValue="classes_teachers" className="space-y-6">
-          <TabsList className="bg-slate-200 p-1">
-            <TabsTrigger value="classes_teachers" className="text-xs font-bold">
-              班級與教師編制
-            </TabsTrigger>
-            <TabsTrigger value="students" className="text-xs font-bold">
-              學生名冊管理
-            </TabsTrigger>
-            <TabsTrigger value="attendance_history" className="text-xs font-bold">
-              全校考勤狀況
-            </TabsTrigger>
-          </TabsList>
-
-          {/* 分頁 1: 班級與教師編制 */}
-          <TabsContent value="classes_teachers" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* 左側：班級名冊與新增班級 */}
-              <div className="space-y-6">
-                <Card className="border-slate-300">
-                  <CardHeader className="pb-3 border-b border-slate-200">
-                    <CardTitle className="text-base flex items-center">
-                      <PlusCircle className="w-4 h-4 mr-2 text-emerald-600" />
-                      新增班級編制
-                    </CardTitle>
-                    <CardDescription>
-                      為所屬學校新增教學班級以利後續劃位與任課指派
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-4">
-                    {classError && (
-                      <div className="mb-4 p-2 bg-rose-50 border border-rose-200 rounded text-rose-700 text-xs font-medium flex items-center">
-                        <AlertCircle className="w-3.5 h-3.5 mr-1.5" />
-                        {classError}
-                      </div>
+            {/* 班級與教師 */}
+            <TabsContent value="classes_teachers" className="mt-6">
+              <div className="grid gap-10 lg:grid-cols-2">
+                {/* 班級 */}
+                <div className="space-y-8">
+                  <section className="space-y-4">
+                    <h2 className={sectionHeading}>班級（{classes.length}）</h2>
+                    {loading ? (
+                      <ListSkeleton rows={3} />
+                    ) : classes.length === 0 ? (
+                      <EmptyState
+                        title="還沒有班級"
+                        description="先在下方建立班級，才能指派教師、建立名冊與座位。"
+                      />
+                    ) : (
+                      <ul className="divide-y divide-border border-y border-border">
+                        {classes.map((c) => (
+                          <li key={c.id} className="flex items-center justify-between gap-3 py-3">
+                            <div className="min-w-0">
+                              <p className="font-medium text-foreground">{c.name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {c.academic_year} 學年　{c.grade}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setActiveModalClass({ id: c.id, name: c.name });
+                                setSeatingEditorOpen(true);
+                              }}
+                            >
+                              <Grid3X3 aria-hidden="true" />
+                              座位
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
                     )}
-                    <form onSubmit={handleCreateClass} className="space-y-3">
+                  </section>
+
+                  <section className="space-y-4">
+                    <h2 className={sectionHeading}>新增班級</h2>
+                    {classError && <InlineAlert>{classError}</InlineAlert>}
+                    <form onSubmit={handleCreateClass} className="space-y-4">
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                           <Label htmlFor="school-academic-year">學年度</Label>
                           <Input
                             id="school-academic-year"
-                            name="academic_year"
                             required
-                            placeholder="例如：113"
+                            placeholder="例如 113"
                             value={academicYear}
                             onChange={(e) => setAcademicYear(e.target.value)}
                           />
                         </div>
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                           <Label htmlFor="school-class-grade">年級</Label>
                           <Input
                             id="school-class-grade"
-                            name="grade"
                             required
-                            placeholder="例如：高一 或 七年級"
+                            placeholder="例如 高一"
                             value={classGrade}
                             onChange={(e) => setClassGrade(e.target.value)}
                           />
                         </div>
                       </div>
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         <Label htmlFor="school-class-name">班級名稱</Label>
                         <Input
                           id="school-class-name"
-                          name="name"
                           required
-                          placeholder="例如：資訊一甲"
+                          placeholder="例如 資訊一甲"
                           value={className}
                           onChange={(e) => setClassName(e.target.value)}
                         />
                       </div>
-                      <Button type="submit" variant="default" className="w-full" disabled={creatingClass}>
-                        {creatingClass ? '建立中...' : '建立班級'}
+                      <Button type="submit" disabled={creatingClass}>
+                        {creatingClass ? '建立中' : '建立班級'}
                       </Button>
                     </form>
-                  </CardContent>
-                </Card>
+                  </section>
+                </div>
 
-                <Card className="border-slate-300">
-                  <CardHeader className="pb-3 border-b border-slate-200">
-                    <CardTitle className="text-base">現有班級列表 ({classes.length})</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
+                {/* 教師 */}
+                <div className="space-y-8">
+                  <section className="space-y-4">
+                    <h2 className={sectionHeading}>教師帳號（{teachers.length}）</h2>
+                    <p className="text-sm text-muted-foreground">
+                      教師離職時可停用帳號。歷史點名紀錄會保留，之後也能重新啟用。
+                    </p>
                     {loading ? (
-                      <div className="p-6 text-center text-slate-500 text-xs">載入中...</div>
-                    ) : classes.length === 0 ? (
-                      <div className="p-6 text-center text-slate-500 text-xs">
-                        目前尚未建立任何班級。
-                      </div>
+                      <ListSkeleton rows={3} />
+                    ) : teachers.length === 0 ? (
+                      <EmptyState title="還沒有教師帳號" description="在下方建立第一位教師的帳號。" />
                     ) : (
-                      <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto">
-                        {classes.map((c) => (
-                          <div key={c.id} className="p-3 flex items-center justify-between hover:bg-slate-50">
-                            <div>
-                              <span className="font-bold text-sm text-slate-900">{c.name}</span>
-                              <span className="text-xs text-slate-500 ml-2">({c.academic_year} 學年度 · {c.grade})</span>
+                      <ul className="max-h-72 divide-y divide-border overflow-y-auto border-y border-border">
+                        {teachers.map((t) => (
+                          <li key={t.id} className="flex items-center justify-between gap-3 py-3">
+                            <div className="min-w-0">
+                              <p className="flex items-center gap-2 font-medium text-foreground">
+                                <span className="truncate">{t.name}</span>
+                                {t.is_active === false && <Badge variant="destructive">已停用</Badge>}
+                              </p>
+                              <p className="truncate text-sm text-muted-foreground">{t.email}</p>
                             </div>
-                            <div className="flex items-center gap-2">
+                            {t.is_active === false ? (
+                              <Button type="button" variant="outline" size="sm" onClick={() => setTeacherActive(t.id, true)}>
+                                <UserCheck aria-hidden="true" />
+                                啟用
+                              </Button>
+                            ) : (
                               <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                onClick={() => {
-                                  setActiveModalClass({ id: c.id, name: c.name });
-                                  setSeatingEditorOpen(true);
-                                }}
-                                className="h-7 text-xs"
+                                onClick={() => handleDeactivateTeacher(t.id, t.name)}
                               >
-                                <Grid3X3 className="w-3 h-3 mr-1" />
-                                教室劃位
+                                <UserX aria-hidden="true" />
+                                停用
                               </Button>
-                              <Badge variant="outline">已啟用</Badge>
-                            </div>
-                          </div>
+                            )}
+                          </li>
                         ))}
-                      </div>
+                      </ul>
                     )}
-                  </CardContent>
-                </Card>
-              </div>
+                  </section>
 
-              {/* 右側：教師帳號派發與任課指派 */}
-              <div className="space-y-6">
-                <Card className="border-slate-300">
-                  <CardHeader className="pb-3 border-b border-slate-200">
-                    <CardTitle className="text-base flex items-center">
-                      <UserPlus className="w-4 h-4 mr-2 text-blue-600" />
-                      派發任課教師初始帳號
-                    </CardTitle>
-                    <CardDescription>
-                      由學校主管直接指派教師初始帳號與密碼，無需額外 SMTP 信箱確認
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-4">
-                    {teacherError && (
-                      <div className="mb-4 p-2 bg-rose-50 border border-rose-200 rounded text-rose-700 text-xs font-medium flex items-center">
-                        <AlertCircle className="w-3.5 h-3.5 mr-1.5" />
-                        {teacherError}
-                      </div>
-                    )}
-                    <form onSubmit={handleCreateTeacher} className="space-y-3">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="teacher-real-name">教師真實姓名</Label>
+                  <section className="space-y-4">
+                    <h2 className={sectionHeading}>新增教師帳號</h2>
+                    <p className="text-sm text-muted-foreground">
+                      由你設定初始密碼，教師登入後可自行修改。
+                    </p>
+                    {teacherError && <InlineAlert>{teacherError}</InlineAlert>}
+                    <form onSubmit={handleCreateTeacher} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="teacher-real-name">姓名</Label>
                         <Input
                           id="teacher-real-name"
-                          name="name"
                           required
-                          placeholder="例如：王小明 老師"
+                          placeholder="例如 王小明"
                           value={teacherName}
                           onChange={(e) => setTeacherName(e.target.value)}
                         />
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="teacher-email">公務電子信箱</Label>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="teacher-email">登入信箱</Label>
                           <Input
                             id="teacher-email"
-                            name="email"
                             type="email"
                             required
                             placeholder="teacher@school.edu.tw"
@@ -621,11 +569,11 @@ export function SchoolAdminDashboard() {
                             onChange={(e) => setTeacherEmail(e.target.value)}
                           />
                         </div>
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                           <Label htmlFor="teacher-password">初始密碼</Label>
                           <PasswordInput
                             id="teacher-password"
-                            name="password"
+                            autoComplete="new-password"
                             required
                             placeholder="至少 6 個字元"
                             value={teacherPassword}
@@ -633,88 +581,20 @@ export function SchoolAdminDashboard() {
                           />
                         </div>
                       </div>
-                      <Button type="submit" variant="default" className="w-full" disabled={creatingTeacher}>
-                        {creatingTeacher ? '派發中...' : '開通教師帳號'}
+                      <Button type="submit" disabled={creatingTeacher}>
+                        {creatingTeacher ? '建立中' : '建立教師帳號'}
                       </Button>
                     </form>
-                  </CardContent>
-                </Card>
+                  </section>
 
-                {/* 教師帳號名冊與離職停用 */}
-                <Card className="border-slate-300">
-                  <CardHeader className="pb-3 border-b border-slate-200">
-                    <CardTitle className="text-base flex items-center">
-                      <Users className="w-4 h-4 mr-2 text-slate-600" />
-                      教師帳號名冊 ({teachers.length})
-                    </CardTitle>
-                    <CardDescription>
-                      離職教師可停用帳號；歷史點名紀錄會保留，日後可重新啟用
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
-                      {teachers.length === 0 ? (
-                        <div className="p-4 text-center text-xs text-slate-500">尚無教師帳號</div>
-                      ) : (
-                        teachers.map((t) => (
-                          <div key={t.id} className="p-2.5 flex items-center justify-between text-xs hover:bg-slate-50">
-                            <div className="min-w-0">
-                              <span className="font-bold text-slate-800">{t.name}</span>
-                              <span className="ml-2 text-slate-500 truncate">{t.email}</span>
-                              {t.is_active === false && (
-                                <Badge variant="outline" className="ml-2 text-[10px] text-rose-600 border-rose-300">
-                                  已停用
-                                </Badge>
-                              )}
-                            </div>
-                            {t.is_active === false ? (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setTeacherActive(t.id, true)}
-                                className="h-7 px-2 text-emerald-700 hover:bg-emerald-50"
-                              >
-                                <UserCheck className="w-3.5 h-3.5 mr-1" />
-                                啟用
-                              </Button>
-                            ) : (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeactivateTeacher(t.id, t.name)}
-                                className="h-7 px-2 text-rose-600 hover:bg-rose-50"
-                              >
-                                <UserX className="w-3.5 h-3.5 mr-1" />
-                                停用
-                              </Button>
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* 班級任課與導師職務指派 */}
-                <Card className="border-slate-300">
-                  <CardHeader className="pb-3 border-b border-slate-200">
-                    <CardTitle className="text-base flex items-center">
-                      <UserCheck className="w-4 h-4 mr-2 text-indigo-600" />
-                      班級任課與導師職務指派
-                    </CardTitle>
-                    <CardDescription>
-                      設定教師為特定班級之「班級老師 (導師)」或「科任老師」
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-4 space-y-4">
-                    <form onSubmit={handleAssignTeacher} className="space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">選擇班級</Label>
+                  <section className="space-y-4">
+                    <h2 className={sectionHeading}>指派導師與科任老師</h2>
+                    <form onSubmit={handleAssignTeacher} className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="assign-class">班級</Label>
                           <Select value={assignClassId} onValueChange={setAssignClassId}>
-                            <SelectTrigger className="h-8 text-xs">
+                            <SelectTrigger id="assign-class">
                               <SelectValue placeholder="選擇班級" />
                             </SelectTrigger>
                             <SelectContent>
@@ -726,11 +606,10 @@ export function SchoolAdminDashboard() {
                             </SelectContent>
                           </Select>
                         </div>
-
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">選擇教師</Label>
+                        <div className="space-y-2">
+                          <Label htmlFor="assign-teacher">教師</Label>
                           <Select value={assignTeacherId} onValueChange={setAssignTeacherId}>
-                            <SelectTrigger className="h-8 text-xs">
+                            <SelectTrigger id="assign-teacher">
                               <SelectValue placeholder="選擇教師" />
                             </SelectTrigger>
                             <SelectContent>
@@ -742,85 +621,64 @@ export function SchoolAdminDashboard() {
                             </SelectContent>
                           </Select>
                         </div>
-
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">擔任職務</Label>
+                        <div className="space-y-2">
+                          <Label htmlFor="assign-role">職務</Label>
                           <Select
                             value={assignRole}
                             onValueChange={(val) => setAssignRole(val as 'homeroom' | 'subject')}
                           >
-                            <SelectTrigger className="h-8 text-xs">
+                            <SelectTrigger id="assign-role">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="homeroom">班級老師 (導師)</SelectItem>
+                              <SelectItem value="homeroom">導師</SelectItem>
                               <SelectItem value="subject">科任老師</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
-                      <Button type="submit" variant="default" size="sm" className="w-full text-xs">
-                        指派職務
-                      </Button>
+                      <Button type="submit">指派</Button>
                     </form>
 
-                    {/* 指派名錄清單 */}
-                    <div className="border border-slate-200 rounded divide-y divide-slate-100 max-h-48 overflow-y-auto">
-                      {classTeachers.length === 0 ? (
-                        <div className="p-4 text-center text-xs text-slate-500">尚無班級教師指派</div>
-                      ) : (
-                        classTeachers.map((ct) => (
-                          <div key={ct.id} className="p-2.5 flex items-center justify-between text-xs hover:bg-slate-50">
-                            <div>
-                              <span className="font-bold text-slate-800">{ct.class?.name || '未知班級'}</span>
-                              <span className="mx-2 text-slate-400">·</span>
-                              <span className="text-slate-700">{ct.teacher?.name || '未知教師'}</span>
-                              <Badge
-                                variant={ct.role === 'homeroom' ? 'default' : 'secondary'}
-                                className="ml-2 text-[10px]"
-                              >
-                                {ct.role === 'homeroom' ? '班級導師' : '科任老師'}
+                    {classTeachers.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">還沒有任何指派。</p>
+                    ) : (
+                      <ul className="max-h-60 divide-y divide-border overflow-y-auto border-y border-border">
+                        {classTeachers.map((ct) => (
+                          <li key={ct.id} className="flex items-center justify-between gap-3 py-2.5">
+                            <p className="min-w-0 truncate text-sm text-foreground">
+                              <span className="font-medium">{ct.class?.name || '未知班級'}</span>
+                              <span className="mx-2 text-muted-foreground">{ct.teacher?.name || '未知教師'}</span>
+                              <Badge variant={ct.role === 'homeroom' ? 'default' : 'outline'}>
+                                {ct.role === 'homeroom' ? '導師' : '科任'}
                               </Badge>
-                            </div>
+                            </p>
                             <Button
                               type="button"
                               variant="ghost"
-                              size="sm"
+                              size="icon"
                               onClick={() => handleRemoveClassTeacher(ct.id)}
-                              className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
+                              aria-label="解除指派"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 aria-hidden="true" />
                             </Button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* 分頁 2: 學生名冊管理 */}
-          <TabsContent value="students" className="space-y-4">
-            <Card className="border-slate-300">
-              <CardHeader className="pb-3 border-b border-slate-200 flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-base flex items-center">
-                    <GraduationCap className="w-4 h-4 mr-2 text-purple-600" />
-                    班級在籍學生名冊
-                  </CardTitle>
-                  <CardDescription>
-                    管理學生基本學籍資料與家長聯絡手機 (供家長查核驗證)
-                  </CardDescription>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Select
-                    value={selectedClassForStudents}
-                    onValueChange={setSelectedClassForStudents}
-                  >
-                    <SelectTrigger className="w-48 h-8 text-xs">
-                      <SelectValue placeholder="選擇檢視班級" />
+              </div>
+            </TabsContent>
+
+            {/* 學生名冊 */}
+            <TabsContent value="students" className="mt-6 space-y-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className={sectionHeading}>學生名冊</h2>
+                <div className="flex gap-3">
+                  <Select value={selectedClassForStudents} onValueChange={setSelectedClassForStudents}>
+                    <SelectTrigger className="w-full sm:w-52" aria-label="選擇班級">
+                      <SelectValue placeholder="選擇班級" />
                     </SelectTrigger>
                     <SelectContent>
                       {classes.map((c) => (
@@ -832,104 +690,106 @@ export function SchoolAdminDashboard() {
                   </Select>
                   <Button
                     type="button"
-                    variant="default"
-                    size="sm"
                     onClick={() => {
-                      setStudentForm({
-                        student_number: '',
-                        name: '',
-                        seat_number: classStudents.length + 1,
-                        gender: '未填',
-                        parent_phone: '',
-                      });
+                      setStudentForm({ ...EMPTY_STUDENT_FORM, seat_number: classStudents.length + 1 });
                       setStudentModalOpen(true);
                     }}
-                    className="h-8 text-xs"
                     disabled={!selectedClassForStudents}
                   >
                     新增學生
                   </Button>
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50 border-b border-slate-200">
-                      <TableHead className="w-16 text-xs font-bold text-slate-700">座號</TableHead>
-                      <TableHead className="w-32 text-xs font-bold text-slate-700">學號</TableHead>
-                      <TableHead className="w-32 text-xs font-bold text-slate-700">姓名</TableHead>
-                      <TableHead className="w-24 text-xs font-bold text-slate-700">性別</TableHead>
-                      <TableHead className="text-xs font-bold text-slate-700">家長聯絡電話</TableHead>
-                      <TableHead className="w-20 text-xs font-bold text-slate-700 text-right">操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {classStudents.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-xs text-slate-500">
-                          此班級尚無學生資料
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      classStudents.map((st) => (
-                        <TableRow key={st.id} className="border-b border-slate-200 hover:bg-slate-50">
-                          <TableCell className="text-xs font-mono font-bold">{st.seat_number}</TableCell>
-                          <TableCell className="text-xs font-mono">{st.student_number}</TableCell>
-                          <TableCell className="text-xs font-medium text-slate-900">{st.name}</TableCell>
-                          <TableCell className="text-xs text-slate-600">{st.gender || '-'}</TableCell>
-                          <TableCell className="text-xs font-mono text-slate-600">{st.parent_phone}</TableCell>
-                          <TableCell className="text-xs text-right">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteStudent(st.id, st.name)}
-                              className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              </div>
 
-          {/* 分頁 3: 全校考勤狀況 */}
-          <TabsContent value="attendance_history">
-            <Card className="border-slate-300">
-              <CardHeader className="pb-3 border-b border-slate-200">
-                <CardTitle className="text-base flex items-center">
-                  <History className="w-4 h-4 mr-2 text-slate-700" />
-                  全校考勤狀況總覽
-                </CardTitle>
-                <CardDescription>
-                  檢視全校各班歷史點名紀錄與人工覆寫狀態
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-4">
-                {schoolId && <AttendanceHistoryView schoolId={schoolId} isEditable={true} />}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+              {classes.length === 0 ? (
+                <EmptyState title="還沒有班級" description="先建立班級，才能新增學生。" />
+              ) : classStudents.length === 0 ? (
+                <EmptyState title="這個班級還沒有學生" description="按「新增學生」建立名冊。電話末四碼會用於家長查勤驗證。" />
+              ) : (
+                <>
+                  <ul className="divide-y divide-border border-y border-border md:hidden">
+                    {classStudents.map((st) => (
+                      <li key={st.id} className="flex items-center gap-3 py-3">
+                        <span className="tabular w-8 shrink-0 text-right font-bold text-muted-foreground">
+                          {st.seat_number}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-foreground">{st.name}</p>
+                          <p className="tabular text-sm text-muted-foreground">{st.student_number}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteStudent(st.id, st.name)}
+                          aria-label={`移除 ${st.name}`}
+                        >
+                          <Trash2 aria-hidden="true" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="hidden overflow-hidden rounded-lg border border-border md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-20">座號</TableHead>
+                          <TableHead className="w-36">學號</TableHead>
+                          <TableHead className="w-36">姓名</TableHead>
+                          <TableHead className="w-24">性別</TableHead>
+                          <TableHead>家長聯絡電話</TableHead>
+                          <TableHead className="w-20 text-right">操作</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {classStudents.map((st) => (
+                          <TableRow key={st.id}>
+                            <TableCell className="tabular font-bold">{st.seat_number}</TableCell>
+                            <TableCell className="tabular">{st.student_number}</TableCell>
+                            <TableCell className="font-medium text-foreground">{st.name}</TableCell>
+                            <TableCell className="text-muted-foreground">{st.gender || '-'}</TableCell>
+                            <TableCell className="tabular text-muted-foreground">{st.parent_phone}</TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteStudent(st.id, st.name)}
+                                aria-label={`移除 ${st.name}`}
+                              >
+                                <Trash2 aria-hidden="true" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              )}
+            </TabsContent>
+
+            {/* 全校出勤 */}
+            <TabsContent value="attendance_history" className="mt-6 space-y-4">
+              <h2 className={sectionHeading}>全校出勤紀錄</h2>
+              {schoolId && <AttendanceHistoryView schoolId={schoolId} isEditable={true} />}
+            </TabsContent>
+          </Tabs>
+        )}
 
         {/* 新增學生 Modal */}
         <Dialog open={studentModalOpen} onOpenChange={setStudentModalOpen}>
-          <DialogContent className="max-w-md p-6 bg-white border border-slate-300">
-            <DialogHeader className="border-b border-slate-200 pb-3">
-              <DialogTitle className="text-base font-bold text-slate-800">
-                新增在籍學生
-              </DialogTitle>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>新增學生</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleCreateStudent} className="space-y-3 pt-2">
+            <form onSubmit={handleCreateStudent} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">座號</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="sa-seat">座號</Label>
                   <Input
+                    id="sa-seat"
                     type="number"
                     required
                     min={1}
@@ -937,43 +797,38 @@ export function SchoolAdminDashboard() {
                     onChange={(e) =>
                       setStudentForm((prev) => ({ ...prev, seat_number: parseInt(e.target.value) || 1 }))
                     }
-                    className="h-8 text-xs"
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">學號</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="sa-number">學號</Label>
                   <Input
+                    id="sa-number"
                     required
                     placeholder="S113001"
                     value={studentForm.student_number}
-                    onChange={(e) =>
-                      setStudentForm((prev) => ({ ...prev, student_number: e.target.value }))
-                    }
-                    className="h-8 text-xs font-mono"
+                    onChange={(e) => setStudentForm((prev) => ({ ...prev, student_number: e.target.value }))}
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">學生姓名</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="sa-name">姓名</Label>
                   <Input
+                    id="sa-name"
                     required
                     placeholder="林小明"
                     value={studentForm.name}
-                    onChange={(e) =>
-                      setStudentForm((prev) => ({ ...prev, name: e.target.value }))
-                    }
-                    className="h-8 text-xs"
+                    onChange={(e) => setStudentForm((prev) => ({ ...prev, name: e.target.value }))}
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">性別</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="sa-gender">性別</Label>
                   <Select
                     value={studentForm.gender}
                     onValueChange={(val) => setStudentForm((prev) => ({ ...prev, gender: val }))}
                   >
-                    <SelectTrigger className="h-8 text-xs">
+                    <SelectTrigger id="sa-gender">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -985,38 +840,30 @@ export function SchoolAdminDashboard() {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs">家長聯絡手機 (末4碼供查榜驗證)</Label>
+              <div className="space-y-2">
+                <Label htmlFor="sa-phone">家長聯絡電話</Label>
                 <Input
+                  id="sa-phone"
                   required
+                  type="tel"
                   placeholder="0912345678"
                   value={studentForm.parent_phone}
-                  onChange={(e) =>
-                    setStudentForm((prev) => ({ ...prev, parent_phone: e.target.value }))
-                  }
-                  className="h-8 text-xs font-mono"
+                  onChange={(e) => setStudentForm((prev) => ({ ...prev, parent_phone: e.target.value }))}
                 />
+                <p className="text-sm text-muted-foreground">電話末四碼會用於家長查勤驗證。</p>
               </div>
 
-              <DialogFooter className="pt-3 border-t border-slate-100 flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setStudentModalOpen(false)}
-                  className="text-xs"
-                >
+              <DialogFooter className="gap-2 sm:space-x-0">
+                <Button type="button" variant="outline" onClick={() => setStudentModalOpen(false)}>
                   取消
                 </Button>
-                <Button type="submit" variant="default" size="sm" className="text-xs">
-                  確認建立
-                </Button>
+                <Button type="submit">新增學生</Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
 
-        {/* 學校主管教室劃位彈窗 */}
+        {/* 學校主管教室座位彈窗 */}
         {activeModalClass && (
           <SeatMapEditorModal
             open={seatingEditorOpen}

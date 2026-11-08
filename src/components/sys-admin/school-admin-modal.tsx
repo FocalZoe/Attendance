@@ -178,7 +178,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
         onClick={() => setIsOpen(true)}
         className="text-xs h-8 px-2.5"
       >
-        <Users className="w-3.5 h-3.5 mr-1 text-slate-600" />
+        <Users className="w-3.5 h-3.5 mr-1 text-muted-foreground" />
         管理主管 ({admins.length})
       </Button>
 
@@ -194,15 +194,15 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
       >
         <DialogContent className="max-w-xl p-0 overflow-hidden">
           {/* 彈窗標題列 */}
-          <DialogHeader className="p-4 border-b border-slate-200 bg-slate-50 flex flex-row items-center space-x-2 text-left">
-            <div className="w-8 h-8 rounded-md bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
+          <DialogHeader className="p-4 border-b border-border bg-secondary flex flex-row items-center space-x-2 text-left">
+            <div className="w-8 h-8 rounded-md bg-secondary border border-border flex items-center justify-center text-primary shrink-0">
               <Shield className="w-4 h-4" />
             </div>
             <div>
-              <DialogTitle className="text-sm font-bold text-slate-900">{school.name}</DialogTitle>
-              <DialogDescription className="text-xs text-slate-500 mt-0.5">
+              <DialogTitle className="text-sm font-bold text-foreground">{school.name}</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
                 學校代碼：
-                <span className="font-mono bg-slate-200 px-1 py-0.5 rounded text-slate-800 font-bold">
+                <span className="font-mono bg-secondary px-1 py-0.5 rounded text-foreground font-bold">
                   {school.code}
                 </span>
                 {' '}· 所屬管理主管團隊
@@ -213,7 +213,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
           {/* 內容區塊 */}
           <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
             {errorMsg && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-md flex items-start space-x-2 text-rose-700 text-xs font-medium">
+              <div className="p-3 bg-absent-soft border border-absent/40 rounded-md flex items-start space-x-2 text-absent text-xs font-medium">
                 <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
@@ -222,7 +222,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
             {/* 現有主管列表 */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                <span className="text-xs font-bold text-foreground uppercase tracking-wider">
                   現任學校主管名冊 ({admins.length})
                 </span>
                 {!showAddForm && (
@@ -239,39 +239,39 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
               </div>
 
               {admins.length === 0 ? (
-                <div className="p-6 text-center border border-dashed border-slate-300 rounded-lg text-slate-500 text-xs">
+                <div className="p-6 text-center border border-dashed border-border rounded-lg text-muted-foreground text-xs">
                   目前該校尚未配置主管。可點擊上方按鈕指派，或提供代碼讓主管自註冊開通。
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100 border border-slate-200 rounded-md bg-white">
+                <div className="divide-y divide-slate-100 border border-border rounded-md bg-card">
                   {admins.map((admin) => (
                     <div
                       key={admin.id}
-                      className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                      className="p-3 flex items-center justify-between hover:bg-secondary transition-colors"
                     >
                       <div className="space-y-1">
                         <div className="flex items-center space-x-2">
-                          <span className="font-bold text-sm text-slate-900">{admin.name}</span>
+                          <span className="font-bold text-sm text-foreground">{admin.name}</span>
                           <Badge variant="success" className="text-[10px] py-0">主管職</Badge>
                           {admin.is_active === false && (
-                            <Badge variant="outline" className="text-[10px] py-0 text-rose-600 border-rose-300">
+                            <Badge variant="outline" className="text-[10px] py-0 text-absent border-absent/40">
                               已停用
                             </Badge>
                           )}
                         </div>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                           <span className="inline-flex items-center">
-                            <Mail className="w-3 h-3 mr-1 text-slate-400" />
+                            <Mail className="w-3 h-3 mr-1 text-muted-foreground" />
                             {admin.email}
                           </span>
                           {admin.phone && (
                             <span className="inline-flex items-center">
-                              <Phone className="w-3 h-3 mr-1 text-slate-400" />
+                              <Phone className="w-3 h-3 mr-1 text-muted-foreground" />
                               {admin.phone}
                             </span>
                           )}
                           <span className="inline-flex items-center">
-                            <Calendar className="w-3 h-3 mr-1 text-slate-400" />
+                            <Calendar className="w-3 h-3 mr-1 text-muted-foreground" />
                             {new Date(admin.created_at).toLocaleDateString()}
                           </span>
                         </div>
@@ -283,7 +283,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
                           size="sm"
                           onClick={() => setActive(admin.id, true)}
                           disabled={loading}
-                          className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 h-8 px-2"
+                          className="text-present hover:text-present hover:bg-present-soft h-8 px-2"
                           title="重新啟用帳號"
                         >
                           <UserCheck className="w-4 h-4 mr-1" />
@@ -295,7 +295,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
                           size="sm"
                           onClick={() => handleDeactivate(admin.id, admin.name)}
                           disabled={loading}
-                          className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 h-8 px-2"
+                          className="text-absent hover:text-absent hover:bg-absent/90 h-8 px-2"
                           title="停用帳號"
                         >
                           <UserX className="w-4 h-4 mr-1" />
@@ -310,16 +310,16 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
 
             {/* 新增主管表單折疊區 */}
             {showAddForm && (
-              <div className="p-3.5 bg-blue-50/50 border border-blue-200 rounded-lg space-y-3">
+              <div className="p-3.5 bg-secondary border border-border rounded-lg space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-blue-900 flex items-center">
-                    <UserPlus className="w-3.5 h-3.5 mr-1 text-blue-600" />
+                  <span className="text-xs font-bold text-primary flex items-center">
+                    <UserPlus className="w-3.5 h-3.5 mr-1 text-primary" />
                     指派新管理主管至 {school.name}
                   </span>
                   <button
                     type="button"
                     onClick={() => setShowAddForm(false)}
-                    className="text-xs text-slate-500 hover:text-slate-800 cursor-pointer"
+                    className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     取消
                   </button>
@@ -334,7 +334,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
                         name="name"
                         required
                         placeholder="例如：林教務長"
-                        className="bg-white text-xs h-8"
+                        className="bg-card text-xs h-8"
                       />
                     </div>
                     <div className="space-y-1">
@@ -345,7 +345,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
                         type="email"
                         required
                         placeholder="admin@school.edu.tw"
-                        className="bg-white text-xs h-8"
+                        className="bg-card text-xs h-8"
                       />
                     </div>
                   </div>
@@ -357,7 +357,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
                         name="password"
                         required
                         placeholder="至少 6 碼"
-                        className="bg-white text-xs h-8"
+                        className="bg-card text-xs h-8"
                       />
                     </div>
                     <div className="space-y-1">
@@ -366,7 +366,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
                         id="admin-phone"
                         name="phone"
                         placeholder="0912-345-678"
-                        className="bg-white text-xs h-8"
+                        className="bg-card text-xs h-8"
                       />
                     </div>
                   </div>
@@ -397,7 +397,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
           </div>
 
           {/* 彈窗底欄 */}
-          <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+          <div className="p-3 bg-secondary border-t border-border flex justify-end">
             <Button
               variant="outline"
               size="sm"

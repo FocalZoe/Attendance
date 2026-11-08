@@ -2,11 +2,12 @@ import * as React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { validatePassword } from '@/lib/password';
+import { PublicShell } from '@/components/layout/public-shell';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { AlertCircle, KeyRound } from 'lucide-react';
+import { InlineAlert } from '@/components/ui/inline-alert';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -52,7 +53,7 @@ export function ResetPasswordPage() {
       return;
     }
     if (password !== confirm) {
-      setErrorMsg('兩次輸入的密碼不一致');
+      setErrorMsg('兩次輸入的密碼不一樣。請重新輸入。');
       return;
     }
 
@@ -60,74 +61,65 @@ export function ResetPasswordPage() {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) {
-        setErrorMsg(error.message || '重設密碼失敗');
+        setErrorMsg(error.message || '更新密碼失敗。請稍後再試。');
         return;
       }
       navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : '重設密碼失敗');
+      setErrorMsg(err instanceof Error ? err.message : '更新密碼失敗。請稍後再試。');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Card className="border-slate-300 shadow-none">
-          <CardHeader className="text-center pb-2">
-            <div className="mx-auto w-10 h-10 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 mb-2">
-              <KeyRound className="w-5 h-5" />
+    <PublicShell>
+      <h1 className="text-3xl font-bold text-foreground">重設密碼</h1>
+
+      {!checked ? (
+        <div className="mt-6 space-y-3" role="status">
+          <span className="sr-only">確認重設連結中</span>
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      ) : !ready ? (
+        <div className="mt-6 space-y-4">
+          <InlineAlert>這個重設連結無效或已過期。請回到登入頁，再按一次「忘記密碼」取得新連結。</InlineAlert>
+          <Button asChild variant="outline">
+            <Link to="/login">回登入頁</Link>
+          </Button>
+        </div>
+      ) : (
+        <>
+          <p className="mt-2 text-sm text-muted-foreground">輸入新的登入密碼，更新後會直接登入。</p>
+          {errorMsg && <InlineAlert className="mt-6">{errorMsg}</InlineAlert>}
+          <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="reset-password">新密碼</Label>
+              <PasswordInput
+                id="reset-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
+              />
             </div>
-            <CardTitle className="text-xl">重設密碼</CardTitle>
-            <CardDescription>請輸入新的登入密碼</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-4">
-            {checked && !ready ? (
-              <div className="space-y-3 text-center text-sm text-slate-600">
-                <p>重設連結無效或已過期，請回到登入頁重新申請。</p>
-                <Link to="/login" className="text-blue-600 underline">
-                  回登入頁
-                </Link>
-              </div>
-            ) : (
-              <>
-                {errorMsg && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-md flex items-start space-x-2 text-rose-700 text-sm font-medium">
-                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                    <span>{errorMsg}</span>
-                  </div>
-                )}
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="reset-password">新密碼</Label>
-                    <PasswordInput
-                      id="reset-password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoComplete="new-password"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="reset-password-confirm">確認新密碼</Label>
-                    <PasswordInput
-                      id="reset-password-confirm"
-                      required
-                      value={confirm}
-                      onChange={(e) => setConfirm(e.target.value)}
-                      autoComplete="new-password"
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading || !ready}>
-                    {loading ? '更新中...' : '更新密碼'}
-                  </Button>
-                </form>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+            <div className="space-y-2">
+              <Label htmlFor="reset-password-confirm">再輸入一次新密碼</Label>
+              <PasswordInput
+                id="reset-password-confirm"
+                required
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                autoComplete="new-password"
+              />
+            </div>
+            <Button type="submit" size="lg" className="w-full" disabled={loading}>
+              {loading ? '更新中' : '更新密碼'}
+            </Button>
+          </form>
+        </>
+      )}
+    </PublicShell>
   );
 }

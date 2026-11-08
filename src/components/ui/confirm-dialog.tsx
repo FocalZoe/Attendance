@@ -44,11 +44,11 @@ export function ConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
-      <DialogContent className="max-w-sm p-6 bg-white border border-slate-300">
+      <DialogContent className="max-w-sm p-6 bg-card border border-border">
         <DialogHeader>
-          <DialogTitle className="text-base font-bold text-slate-900">{title}</DialogTitle>
+          <DialogTitle className="text-base font-bold text-foreground">{title}</DialogTitle>
           {description && (
-            <DialogDescription className="text-sm text-slate-600">{description}</DialogDescription>
+            <DialogDescription className="text-sm text-muted-foreground">{description}</DialogDescription>
           )}
         </DialogHeader>
         <DialogFooter className="flex justify-end gap-2 pt-2">
@@ -60,7 +60,7 @@ export function ConfirmDialog({
             size="sm"
             onClick={handleConfirm}
             disabled={busy}
-            className={destructive ? 'bg-rose-600 hover:bg-rose-700 text-white' : undefined}
+            className={destructive ? 'bg-absent hover:bg-absent/90 text-white' : undefined}
           >
             {busy ? '處理中...' : confirmLabel}
           </Button>

@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatFullPeriodMessage } from '@/services/seatOccupancyService';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ListSkeleton } from '@/components/ui/skeleton';
+import { StatusLegend, StatusMark } from '@/components/ui/status-mark';
 import { toCsv, downloadCsv } from '@/lib/csv';
 import { ATTENDANCE_STATUS_LABEL, ATTENDANCE_STATUS_OPTIONS } from '@/lib/attendance-status';
 import { toast } from 'sonner';
@@ -198,18 +201,17 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* 頂部選取器 */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 border border-slate-300 rounded">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold text-slate-700">點名紀錄批次：</span>
+      {/* 場次選擇與工具列 */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 lg:w-96">
           {sessions.length > 0 ? (
             <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
-              <SelectTrigger className="w-72 h-8 text-xs">
-                <SelectValue placeholder="選擇紀錄場次" />
+              <SelectTrigger aria-label="選擇點名場次">
+                <SelectValue placeholder="選擇點名場次" />
               </SelectTrigger>
               <SelectContent>
                 {sessions.map((s) => {
-                  const prefix = s.class?.name ? `${s.class.name} · ` : '';
+                  const prefix = s.class?.name ? `${s.class.name}　` : '';
                   return (
                     <SelectItem key={s.id} value={s.id}>
                       {prefix}{formatFullPeriodMessage(s.session_date, s.period)}
@@ -218,32 +220,28 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
                 })}
               </SelectContent>
             </Select>
-          ) : (
-            <span className="text-xs text-slate-500">尚無任何點名紀錄</span>
-          )}
+          ) : null}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {totalPages > 1 && (
-            <div className="flex items-center gap-1 text-xs text-slate-600">
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs"
                 disabled={page === 0 || loading}
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
               >
                 上一頁
               </Button>
-              <span className="px-1">
+              <span className="tabular px-2">
                 {page + 1} / {totalPages}
               </span>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs"
                 disabled={page >= totalPages - 1 || loading}
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               >
@@ -257,7 +255,6 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
             size="sm"
             onClick={handleExportCsv}
             disabled={!currentSession || records.length === 0}
-            className="h-8 text-xs"
           >
             匯出 CSV
           </Button>
@@ -267,116 +264,138 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
               variant="outline"
               size="sm"
               onClick={() => handleOpenSnapshot(currentSession.snapshot_path)}
-              className="h-8 text-xs"
             >
-              檢視全景快照存證
+              查看當時照片
             </Button>
           )}
         </div>
       </div>
 
-      {/* 點名出缺席明細表格 */}
-      <div className="bg-white border border-slate-300 rounded overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-slate-50 border-b border-slate-200">
-              <TableHead className="w-20 text-xs font-bold text-slate-700">座號</TableHead>
-              <TableHead className="w-32 text-xs font-bold text-slate-700">學號</TableHead>
-              <TableHead className="w-32 text-xs font-bold text-slate-700">姓名</TableHead>
-              <TableHead className="w-32 text-xs font-bold text-slate-700">AI 初判</TableHead>
-              <TableHead className="w-36 text-xs font-bold text-slate-700">最終狀態</TableHead>
-              <TableHead className="text-xs font-bold text-slate-700">狀態標籤</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-xs text-slate-500">
-                  載入明細中...
-                </TableCell>
-              </TableRow>
-            ) : records.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-xs text-slate-500">
-                  查無學生出缺席資料
-                </TableCell>
-              </TableRow>
-            ) : (
-              records.map((rec) => {
-                const s = rec.student;
-                return (
-                  <TableRow key={rec.id} className="border-b border-slate-200 hover:bg-slate-50">
-                    <TableCell className="text-xs font-mono">{s?.seat_number || '-'}</TableCell>
-                    <TableCell className="text-xs font-mono">{s?.student_number || '-'}</TableCell>
-                    <TableCell className="text-xs font-medium text-slate-800">{s?.name || '-'}</TableCell>
-                    <TableCell className="text-xs">
-                      {rec.ai_detected_status === 'present' ? (
-                        <span className="text-emerald-600 font-medium">在座 (AI)</span>
-                      ) : (
-                        <span className="text-slate-400">缺席 (AI)</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      {isEditable ? (
-                        <Select
-                          value={rec.status}
-                          onValueChange={(val) => handleUpdateStatus(rec.id, val as AttendanceStatus)}
-                        >
-                          <SelectTrigger className="h-7 w-28 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ATTENDANCE_STATUS_OPTIONS.map((opt) => (
-                              <SelectItem key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className="font-semibold text-slate-700">
-                          {ATTENDANCE_STATUS_LABEL[rec.status]}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      {rec.is_overridden ? (
-                        <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 text-[10px]">
-                          手動覆寫
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="border-slate-300 text-slate-500 text-[10px]">
-                          系統原判
-                        </Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <StatusLegend />
+
+      {!loading && sessions.length === 0 ? (
+        <EmptyState
+          title="還沒有點名紀錄"
+          description="完成第一次點名後，紀錄會出現在這裡，你可以更正狀態或匯出成 CSV。"
+        />
+      ) : loading ? (
+        <ListSkeleton rows={5} />
+      ) : records.length === 0 ? (
+        <EmptyState title="這個場次沒有學生資料" description="可能是這班的名冊在點名後被清空了。" />
+      ) : (
+        <>
+          {/* 手機：列表 */}
+          <ul className="divide-y divide-border border-y border-border md:hidden">
+            {records.map((rec) => (
+              <li key={rec.id} className="flex items-center gap-3 py-3">
+                <span className="tabular w-8 shrink-0 text-right font-bold text-muted-foreground">
+                  {rec.student?.seat_number ?? '-'}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-foreground">{rec.student?.name ?? '-'}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {rec.is_overridden ? '老師已更正' : '系統判斷'}
+                  </p>
+                </div>
+                {isEditable ? (
+                  <StatusSelect value={rec.status} onChange={(v) => handleUpdateStatus(rec.id, v)} />
+                ) : (
+                  <StatusMark status={rec.status} showLabel />
+                )}
+              </li>
+            ))}
+          </ul>
+
+          {/* 桌機：表格 */}
+          <div className="hidden overflow-hidden rounded-lg border border-border md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-20">座號</TableHead>
+                  <TableHead className="w-32">學號</TableHead>
+                  <TableHead className="w-32">姓名</TableHead>
+                  <TableHead className="w-36">系統判斷</TableHead>
+                  <TableHead className="w-44">最終狀態</TableHead>
+                  <TableHead>來源</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {records.map((rec) => {
+                  const s = rec.student;
+                  return (
+                    <TableRow key={rec.id}>
+                      <TableCell className="tabular">{s?.seat_number ?? '-'}</TableCell>
+                      <TableCell className="tabular">{s?.student_number ?? '-'}</TableCell>
+                      <TableCell className="font-medium text-foreground">{s?.name ?? '-'}</TableCell>
+                      <TableCell>
+                        {rec.ai_detected_status ? (
+                          <StatusMark status={rec.ai_detected_status} size="sm" showLabel />
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {isEditable ? (
+                          <StatusSelect value={rec.status} onChange={(v) => handleUpdateStatus(rec.id, v)} />
+                        ) : (
+                          <StatusMark status={rec.status} size="sm" showLabel />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {rec.is_overridden ? (
+                          <Badge variant="warning">老師已更正</Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">系統判斷</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
 
       {/* 存證快照彈窗 */}
       <Dialog open={!!selectedSnapshot} onOpenChange={() => setSelectedSnapshot(null)}>
-        <DialogContent className="max-w-3xl p-4 bg-white border border-slate-300">
-          <DialogHeader className="border-b border-slate-200 pb-2">
-            <DialogTitle className="text-sm font-bold text-slate-800">
-              點名存證全景快照
-            </DialogTitle>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>點名當時的照片</DialogTitle>
           </DialogHeader>
-          <div className="py-2">
-            {selectedSnapshot && (
-              <img
-                src={selectedSnapshot}
-                alt="Attendance snapshot"
-                className="w-full rounded border border-slate-200"
-              />
-            )}
-          </div>
+          {selectedSnapshot && (
+            <img
+              src={selectedSnapshot}
+              alt="點名當時的教室全景"
+              className="w-full rounded-md border border-border"
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>
   );
 };
+
+/** 四態選單：選項前附蓋章格，色盲也能分辨 */
+function StatusSelect({
+  value,
+  onChange,
+}: {
+  value: AttendanceStatus;
+  onChange: (value: AttendanceStatus) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={(v) => onChange(v as AttendanceStatus)}>
+      <SelectTrigger className="h-10 w-36" aria-label="出勤狀態">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {ATTENDANCE_STATUS_OPTIONS.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value}>
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}

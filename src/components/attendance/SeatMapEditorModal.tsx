@@ -379,20 +379,20 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-6 bg-white border border-slate-300">
-        <DialogHeader className="border-b border-slate-200 pb-3">
-          <DialogTitle className="text-lg font-bold text-slate-800">
+      <DialogContent className="max-w-4xl p-6 bg-card border border-border">
+        <DialogHeader className="border-b border-border pb-3">
+          <DialogTitle className="text-lg font-bold text-foreground">
             教室劃位管理 · {className}
           </DialogTitle>
         </DialogHeader>
 
         {/* 頂部操作工具列 */}
-        <div className="space-y-2 py-2 border-b border-slate-100">
+        <div className="space-y-2 py-2 border-b border-border">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-600">產生網格：</span>
+              <span className="text-xs font-semibold text-muted-foreground">產生網格：</span>
               <div className="flex items-center gap-1">
-                <Label className="text-xs text-slate-500">列</Label>
+                <Label className="text-xs text-muted-foreground">列</Label>
                 <Input
                   type="number"
                   min={1}
@@ -403,7 +403,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
                 />
               </div>
               <div className="flex items-center gap-1">
-                <Label className="text-xs text-slate-500">行</Label>
+                <Label className="text-xs text-muted-foreground">行</Label>
                 <Input
                   type="number"
                   min={1}
@@ -427,7 +427,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={handleAddSeat}
-                className="h-8 text-xs font-medium text-emerald-700 hover:text-emerald-800"
+                className="h-8 text-xs font-medium text-present hover:text-present"
               >
                 <PlusCircle className="w-3.5 h-3.5 mr-1" />
                 新增座位
@@ -436,16 +436,16 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
           </div>
 
           {selectedBoxIndex !== null && boxes[selectedBoxIndex] && (
-            <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-secondary border border-border rounded text-xs">
               <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-700">
+                <span className="font-bold text-foreground">
                   座位 [{boxes[selectedBoxIndex]?.seat_label}]：
                 </span>
                 <Select
                   value={boxes[selectedBoxIndex]?.student_id || 'none'}
                   onValueChange={handleAssignStudent}
                 >
-                  <SelectTrigger className="w-40 h-8 text-xs bg-white">
+                  <SelectTrigger className="w-40 h-8 text-xs bg-card">
                     <SelectValue placeholder="綁定學生" />
                   </SelectTrigger>
                   <SelectContent>
@@ -461,7 +461,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
 
               {/* 縮放與尺寸調整群組 */}
               <div className="flex items-center gap-1.5">
-                <span className="text-slate-500 text-[11px]">
+                <span className="text-muted-foreground text-[11px]">
                   寬 {Math.round(boxes[selectedBoxIndex].w_ratio * 100)}% × 高 {Math.round(boxes[selectedBoxIndex].h_ratio * 100)}%
                 </span>
                 <Button
@@ -491,7 +491,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
                   variant="ghost"
                   size="sm"
                   onClick={handleApplySizeToAll}
-                  className="h-7 px-2 text-xs text-slate-600 hover:text-slate-900"
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
                   title="將此座位的寬高套用至全班所有座位"
                 >
                   <Copy className="w-3.5 h-3.5 mr-1" />
@@ -502,7 +502,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
                   variant="destructive"
                   size="sm"
                   onClick={() => handleDeleteSelectedBox(selectedBoxIndex)}
-                  className="h-7 px-2.5 text-xs bg-rose-600 hover:bg-rose-700"
+                  className="h-7 px-2.5 text-xs bg-absent hover:bg-absent/90"
                   title="刪除此座位 (可按鍵盤 Delete 鍵)"
                 >
                   <Trash2 className="w-3.5 h-3.5 mr-1" />
@@ -517,10 +517,10 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
         <div
           ref={canvasContainerRef}
           onClick={() => setSelectedBoxIndex(null)}
-          className="relative w-full aspect-video bg-slate-900 border border-slate-300 rounded overflow-hidden select-none"
+          className="relative w-full aspect-video bg-neutral-950 border border-border rounded overflow-hidden select-none"
         >
           {/* 黑板 / 講台方向標示 */}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 px-4 py-1 bg-slate-800 border border-slate-700 text-slate-400 text-[11px] font-mono tracking-widest rounded-sm pointer-events-none">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 px-4 py-1 bg-black/70 border border-white/30 text-white/80 text-[11px] font-mono tracking-widest rounded-sm pointer-events-none">
             [ 講台 / 黑板方向 ]
           </div>
 
@@ -542,14 +542,14 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
                 }}
                 className={`absolute cursor-move flex flex-col items-center justify-center p-1 rounded border transition-colors ${
                   isSelected
-                    ? 'border-emerald-400 bg-emerald-500/30 ring-2 ring-emerald-400 z-10'
-                    : 'border-slate-500 bg-slate-800/80 hover:border-slate-400'
+                    ? 'border-[#e8c98b] bg-[#e8c98b]/25 ring-2 ring-[#e8c98b] z-10'
+                    : 'border-white/60 bg-black/40 hover:border-white'
                 }`}
               >
-                <span className="text-[10px] font-mono font-bold text-slate-300">
+                <span className="text-[10px] font-mono font-bold text-white">
                   {box.seat_label}
                 </span>
-                <span className="text-[11px] font-medium text-white truncate max-w-full">
+                <span className="text-[11px] font-medium text-neutral-50 truncate max-w-full">
                   {assignedStudent ? assignedStudent.name : '（空位）'}
                 </span>
 
@@ -561,7 +561,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
                       e.stopPropagation();
                       handleDeleteSelectedBox(index);
                     }}
-                    className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-600 hover:bg-rose-700 text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow-md z-20"
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-absent hover:bg-absent/90 text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow-md z-20"
                     title="刪除此座位 (Delete)"
                   >
                     ×
@@ -572,7 +572,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
                 {isSelected && (
                   <div
                     onMouseDown={(e) => handleResizeMouseDown(e, index)}
-                    className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-white border-2 border-emerald-500 rounded-sm cursor-se-resize shadow-md hover:scale-125 transition-transform z-20"
+                    className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-card border-2 border-present rounded-sm cursor-se-resize shadow-md hover:scale-125 transition-transform z-20"
                     title="拖曳右下角把手以縮放座位尺寸"
                   />
                 )}
@@ -581,8 +581,8 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
           })}
         </div>
 
-        <DialogFooter className="border-t border-slate-200 pt-3 flex justify-between items-center sm:justify-between">
-          <span className="text-xs text-slate-500">
+        <DialogFooter className="border-t border-border pt-3 flex justify-between items-center sm:justify-between">
+          <span className="text-xs text-muted-foreground">
             共 {boxes.length} 個座位 · 點選座位可拖曳移動、拉右下角可放大縮小、按 Delete 鍵可刪除
           </span>
           <div className="flex gap-2">

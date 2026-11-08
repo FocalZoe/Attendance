@@ -61,6 +61,9 @@ $RECYCLE.BIN/
 *.orig
 .#*
 
+# Claude Code
+.claude/
+
 # 4. 日誌與暫存目錄 (Logs & Temporary Files)
 *.log
 logs/

@@ -1,13 +1,13 @@
 import * as React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/useAuthStore';
+import { supabase } from '@/lib/supabase';
+import { PublicShell } from '@/components/layout/public-shell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
-import { supabase } from '@/lib/supabase';
 import { Label } from '@/components/ui/label';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Camera, ArrowLeft, AlertCircle, LogIn } from 'lucide-react';
+import { InlineAlert } from '@/components/ui/inline-alert';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -16,28 +16,28 @@ export function LoginPage() {
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [errorMsg, setErrorMsg] = React.useState('');
-  const [loading, setLoading] = React.useState(false);
   const [infoMsg, setInfoMsg] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
   const [resetSending, setResetSending] = React.useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrorMsg('');
+    setInfoMsg('');
     setLoading(true);
 
     try {
       const result = await signIn(email, password);
 
       if (!result.success) {
-        setErrorMsg(result.error || '帳號或密碼錯誤，請重新確認');
+        setErrorMsg(result.error || '信箱或密碼不正確。請確認後再試一次，或使用「忘記密碼」重設。');
         setLoading(false);
         return;
       }
 
-      // 登入成功，導向指定控制台路由
       navigate(result.redirectTo || '/dashboard');
     } catch {
-      setErrorMsg('認證過程發生未預期錯誤，請檢查網路連線或稍後再試。');
+      setErrorMsg('無法連線到伺服器。請檢查網路後再試一次。');
       setLoading(false);
     }
   };
@@ -47,7 +47,7 @@ export function LoginPage() {
     setInfoMsg('');
     const target = email.trim();
     if (!target) {
-      setErrorMsg('請先於上方輸入電子信箱，再點選忘記密碼');
+      setErrorMsg('請先在上方輸入電子信箱，再按「忘記密碼」。');
       return;
     }
 
@@ -61,111 +61,76 @@ export function LoginPage() {
     } finally {
       setResetSending(false);
       // 不論信箱是否存在皆顯示相同訊息，避免洩漏帳號是否註冊
-      setInfoMsg('若此信箱已註冊，重設密碼連結將寄送至該信箱，請於信件中點選連結。');
+      setInfoMsg('如果這個信箱已註冊，重設密碼的連結會寄到該信箱。請到信箱點選連結。');
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link to="/" className="flex items-center justify-center space-x-2.5 mb-4 group">
-          <div className="w-10 h-10 rounded-md bg-blue-600 flex items-center justify-center text-white transition-transform group-hover:scale-105">
-            <Camera className="w-6 h-6" />
+    <PublicShell>
+      <h1 className="text-3xl font-bold text-foreground">教職員登入</h1>
+      <p className="mt-2 text-sm text-muted-foreground">使用學校提供的信箱與密碼登入。</p>
+
+      <div className="mt-6 space-y-4">
+        {errorMsg && <InlineAlert tone="error">{errorMsg}</InlineAlert>}
+        {infoMsg && <InlineAlert tone="success">{infoMsg}</InlineAlert>}
+      </div>
+
+      <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+        <div className="space-y-2">
+          <Label htmlFor="login-email">電子信箱</Label>
+          <Input
+            id="login-email"
+            name="email"
+            type="email"
+            autoComplete="username"
+            required
+            placeholder="teacher@school.edu.tw"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="login-password">密碼</Label>
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              disabled={resetSending}
+              className="inline-flex h-8 items-center text-sm text-primary underline underline-offset-4 hover:no-underline disabled:opacity-50"
+            >
+              {resetSending ? '寄送中' : '忘記密碼'}
+            </button>
           </div>
-          <span className="font-extrabold text-xl tracking-tight text-slate-900">
-            班級自動化點名系統
-          </span>
-        </Link>
-        <p className="text-center text-sm font-medium text-slate-500">
-          現代化校園智慧出勤平台 · 教職員後台登入
+          <PasswordInput
+            id="login-password"
+            name="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
+
+        <Button type="submit" size="lg" className="w-full" disabled={loading}>
+          {loading ? '登入中' : '登入'}
+        </Button>
+      </form>
+
+      <div className="mt-8 space-y-2 border-t border-border pt-6 text-sm text-muted-foreground">
+        <p>
+          學校還沒有帳號？{' '}
+          <Link to="/register" className="font-medium text-primary underline underline-offset-4">
+            開通學校
+          </Link>
+        </p>
+        <p>
+          你是家長？{' '}
+          <Link to="/parent-query" className="font-medium text-primary underline underline-offset-4">
+            查詢孩子的出勤
+          </Link>
         </p>
       </div>
-
-      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md px-4">
-        <Card className="border-slate-300 shadow-none">
-          <CardHeader className="text-center pb-2">
-            <div className="mx-auto w-10 h-10 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 mb-2">
-              <LogIn className="w-5 h-5" />
-            </div>
-            <CardTitle className="text-xl">教職員登入</CardTitle>
-            <CardDescription>
-              請輸入公務 Email 或系統總管帳號以進入管理控制台
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent className="space-y-4 pt-4">
-            {errorMsg && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-md flex items-start space-x-2 text-rose-700 text-sm font-medium">
-                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>{errorMsg}</span>
-              </div>
-            )}
-
-            {infoMsg && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-md text-emerald-800 text-sm font-medium">
-                {infoMsg}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="login-email">電子信箱 (Email)</Label>
-                <Input
-                  id="login-email"
-                  name="email"
-                  type="email"
-                  required
-                  placeholder="teacher@school.edu.tw 或 sysadmin@..."
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="login-password">密碼</Label>
-                <PasswordInput
-                  id="login-password"
-                  name="password"
-                  required
-                  placeholder="請輸入密碼"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <div className="text-right">
-                  <button
-                    type="button"
-                    onClick={handleForgotPassword}
-                    disabled={resetSending}
-                    className="text-xs text-blue-600 hover:text-blue-800 underline disabled:opacity-50"
-                  >
-                    {resetSending ? '寄送中...' : '忘記密碼？'}
-                  </button>
-                </div>
-              </div>
-
-              <Button type="submit" variant="default" className="w-full mt-2" disabled={loading}>
-                {loading ? '驗證登入中...' : '登入系統'}
-              </Button>
-            </form>
-
-            <div className="pt-2 text-center text-xs text-slate-500">
-              新設學校機構尚未開通？{' '}
-              <Link to="/register" className="font-semibold text-blue-600 hover:text-blue-800 underline">
-                前往開通學校單位
-              </Link>
-            </div>
-          </CardContent>
-
-          <CardFooter className="flex justify-between text-xs text-slate-500">
-            <Link to="/" className="inline-flex items-center hover:text-slate-800">
-              <ArrowLeft className="w-3.5 h-3.5 mr-1" /> 回首頁
-            </Link>
-            <Link to="/parent-query" className="hover:text-blue-600 font-medium">
-              家長查勤入口 →
-            </Link>
-          </CardFooter>
-        </Card>
-      </div>
-    </div>
+    </PublicShell>
   );
 }

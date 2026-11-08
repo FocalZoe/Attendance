@@ -8,7 +8,7 @@ import type { ClassSchedule } from '@/types/database';
 const CHECK_INTERVAL_MS = 30_000;
 const STORAGE_KEY = 'rollcall-reminders-fired';
 
-type ScheduleWithClass = ClassSchedule & { class?: { name: string } | null };
+export type ScheduleWithClass = ClassSchedule & { class?: { name: string } | null };
 
 function readFired(today: string): Set<string> {
   try {
