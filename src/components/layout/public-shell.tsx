@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Camera } from 'lucide-react';
+import { Camera } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { cn } from '@/lib/utils';
 
@@ -18,18 +18,11 @@ export function PublicShell({ children, width = 'narrow', aside }: PublicShellPr
     <div className="flex min-h-screen flex-col bg-background">
       <header className="border-b border-border">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4 sm:px-6">
-          <Link
-            to="/"
-            className="inline-flex h-10 items-center gap-2 rounded-md text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            回首頁
-          </Link>
-          <Link to="/" className="flex items-center gap-2" aria-label="班級自動化點名系統">
+          <Link to="/" className="flex items-center gap-2" aria-label="回到首頁">
             <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
               <Camera className="h-4 w-4" aria-hidden="true" />
             </span>
-            <span className="hidden font-display text-base font-bold text-foreground sm:inline">
+            <span className="font-display text-base font-bold text-foreground">
               班級自動化點名系統
             </span>
           </Link>

@@ -142,11 +142,6 @@ export function HomePage() {
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <p>© {new Date().getFullYear()} 班級自動化點名系統</p>
-          <nav className="flex gap-5" aria-label="頁尾連結">
-            <Link to="/parent-query" className="hover:text-foreground">家長查勤</Link>
-            <Link to="/login" className="hover:text-foreground">教職員登入</Link>
-            <Link to="/register" className="hover:text-foreground">開通學校</Link>
-          </nav>
         </div>
       </footer>
     </div>

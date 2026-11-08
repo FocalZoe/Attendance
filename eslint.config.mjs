@@ -1,10 +1,5 @@
 export default [
   {
-    ignores: [
-      "dist/**",
-      "node_modules/**",
-      ".next/**",
-      "out/**"
-    ]
-  }
+    ignores: ["dist/**", "node_modules/**"],
+  },
 ];

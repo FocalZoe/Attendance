@@ -13,6 +13,7 @@ import { SysAdminDashboard } from '@/pages/SysAdminDashboard';
 import { SchoolAdminDashboard } from '@/pages/SchoolAdminDashboard';
 import { TeacherDashboard } from '@/pages/TeacherDashboard';
 import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { PageSkeleton } from '@/components/ui/skeleton';
 
 interface ProtectedRouteProps {
@@ -46,6 +47,7 @@ export function App() {
   }, [initialize]);
 
   return (
+    <TooltipProvider delayDuration={300}>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomePage />} />
@@ -93,6 +95,7 @@ export function App() {
       </Routes>
       <Toaster />
     </BrowserRouter>
+    </TooltipProvider>
   );
 }
 

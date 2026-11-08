@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { validatePassword } from '@/lib/password';
 import { PublicShell } from '@/components/layout/public-shell';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
 import { InlineAlert } from '@/components/ui/inline-alert';
@@ -115,7 +116,8 @@ export function ResetPasswordPage() {
               />
             </div>
             <Button type="submit" size="lg" className="w-full" disabled={loading}>
-              {loading ? '更新中' : '更新密碼'}
+              {loading && <Spinner />}
+              更新密碼
             </Button>
           </form>
         </>

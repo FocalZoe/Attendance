@@ -2,6 +2,7 @@ import * as React from 'react';
 import { supabase } from '@/lib/supabase';
 import { validatePassword } from '@/lib/password';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
 import {
@@ -82,7 +83,7 @@ export function ChangePasswordDialog({ open, onOpenChange, email }: ChangePasswo
 
   return (
     <Dialog open={open} onOpenChange={(o) => !loading && onOpenChange(o)}>
-      <DialogContent className="max-w-sm p-6 bg-card border border-border">
+      <DialogContent className="max-w-sm">
         <DialogHeader className="border-b border-border pb-3">
           <DialogTitle className="text-base font-bold text-foreground">修改密碼</DialogTitle>
         </DialogHeader>
@@ -96,6 +97,7 @@ export function ChangePasswordDialog({ open, onOpenChange, email }: ChangePasswo
             <Label htmlFor="cp-current" className="text-xs">目前密碼</Label>
             <PasswordInput
               id="cp-current"
+              autoFocus
               required
               value={current}
               onChange={(e) => setCurrent(e.target.value)}
@@ -126,11 +128,9 @@ export function ChangePasswordDialog({ open, onOpenChange, email }: ChangePasswo
             />
           </div>
           <DialogFooter className="pt-3 border-t border-border flex justify-end gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={loading}>
-              取消
-            </Button>
             <Button type="submit" size="sm" disabled={loading}>
-              {loading ? '更新中...' : '更新密碼'}
+              {loading && <Spinner />}
+              更新密碼
             </Button>
           </DialogFooter>
         </form>

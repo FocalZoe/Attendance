@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 /* 深色模式以 <html class="dark"> 驅動（見 index.html 內聯腳本與 useTheme） */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -334,6 +335,15 @@ html.dark {
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+  }
+
+  /* 原生捲軸一律隱藏（頁面仍可原生捲動）；需要顯示捲軸的區域使用 shadcn ScrollArea */
+  * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  *::-webkit-scrollbar {
+    display: none;
   }
 
   body {

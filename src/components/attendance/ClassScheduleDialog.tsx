@@ -4,6 +4,7 @@ import { PERIOD_OPTIONS, periodLabel } from '@/lib/periods';
 import { WEEKDAY_LABELS, formatTime } from '@/lib/schedule';
 import type { ClassSchedule } from '@/types/database';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -100,7 +102,7 @@ export function ClassScheduleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg p-6 bg-card border border-border">
+      <DialogContent className="max-w-lg">
         <DialogHeader className="border-b border-border pb-3">
           <DialogTitle className="text-base font-bold text-foreground">
             課表與點名提醒 · {className}
@@ -163,16 +165,17 @@ export function ClassScheduleDialog({
             />
           </div>
           <Button type="submit" size="sm" className="col-span-2 sm:col-span-4 text-xs" disabled={saving}>
-            {saving ? '新增中...' : '新增時段'}
+            {saving && <Spinner />}
+            新增時段
           </Button>
         </form>
 
-        <div className="border border-border rounded divide-y divide-slate-100 max-h-56 overflow-y-auto">
+        <ScrollArea className="rounded-md border border-border" viewportClassName="max-h-56"><div className="divide-y divide-border">
           {items.length === 0 ? (
-            <div className="p-4 text-center text-xs text-muted-foreground">尚未設定課表時段</div>
+            <div className="p-4 text-center text-sm text-muted-foreground">尚未設定課表時段</div>
           ) : (
             items.map((item) => (
-              <div key={item.id} className="p-2.5 flex items-center justify-between text-xs hover:bg-secondary">
+              <div key={item.id} className="p-2.5 flex items-center justify-between gap-2 text-sm hover:bg-secondary">
                 <span className="text-foreground">
                   <span className="font-bold">{WEEKDAY_LABELS[item.weekday]}</span>
                   <span className="mx-2 text-muted-foreground">·</span>
@@ -184,9 +187,9 @@ export function ClassScheduleDialog({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
+                  size="icon"
                   onClick={() => handleDelete(item.id)}
-                  className="h-7 w-7 p-0 text-muted-foreground hover:text-absent"
+                  className="text-muted-foreground hover:text-absent"
                   aria-label="刪除此時段"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -194,7 +197,7 @@ export function ClassScheduleDialog({
               </div>
             ))
           )}
-        </div>
+        </div></ScrollArea>
       </DialogContent>
     </Dialog>
   );

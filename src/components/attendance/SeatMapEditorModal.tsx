@@ -379,7 +379,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-6 bg-card border border-border">
+      <DialogContent className="max-w-4xl">
         <DialogHeader className="border-b border-border pb-3">
           <DialogTitle className="text-lg font-bold text-foreground">
             教室劃位管理 · {className}

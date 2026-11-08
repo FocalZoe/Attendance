@@ -1,6 +1,7 @@
 import * as React from 'react';
-import * as TabsPrimitive from '@radix-ui/react-tabs';
+import { Tabs as TabsPrimitive } from 'radix-ui';
 import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const Tabs = TabsPrimitive.Root;
 
@@ -9,14 +10,13 @@ const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
 >(({ className, ...props }, ref) => (
-  <TabsPrimitive.List
-    ref={ref}
-    className={cn(
-      'flex w-full items-end gap-1 overflow-x-auto border-b border-border text-muted-foreground',
-      className
-    )}
-    {...props}
-  />
+  <ScrollArea scrollbars="horizontal" className="w-full border-b border-border">
+    <TabsPrimitive.List
+      ref={ref}
+      className={cn('flex w-max min-w-full items-end gap-1 text-muted-foreground', className)}
+      {...props}
+    />
+  </ScrollArea>
 ));
 TabsList.displayName = TabsPrimitive.List.displayName;
 

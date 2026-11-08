@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 班級自動化點名系統
 
-## Getting Started
+老師在教室鏡頭畫面上標好座位，瀏覽器內的人物辨識判斷每個座位有沒有人；老師確認後存檔，出勤紀錄與當下照片都會保留，家長可用學號與電話末四碼自行查詢。
 
-First, run the development server:
+技術：Vite、React 19、TypeScript、Tailwind CSS 4、shadcn/ui、Supabase（Auth、Postgres、Storage）、MediaPipe。
+
+## 開始使用
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # 填入 Supabase 專案資訊
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 環境變數（`.env.local`）
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| 變數 | 用途 |
+|---|---|
+| `VITE_SUPABASE_URL` | Supabase 專案網址（前端） |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon key（前端） |
+| `SUPABASE_SERVICE_ROLE_KEY` | 只給 `bootstrap:admin` 腳本使用，**不可**放進前端程式碼 |
+| `INITIAL_ADMIN_EMAIL`、`INITIAL_ADMIN_PASSWORD`、`INITIAL_ADMIN_NAME` | 初始系統總管帳號 |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 資料庫
 
-## Learn More
+1. 到 Supabase 的 SQL Editor 執行 [`supabase/schema.sql`](supabase/schema.sql)。這個檔案可重複執行。
+2. 建立初始系統總管：
 
-To learn more about Next.js, take a look at the following resources:
+   ```bash
+   npm run bootstrap:admin
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+3. 在 Supabase 的 Authentication 設定中，把 `<網站網址>/reset-password` 加入 Redirect URLs，忘記密碼信件才會導回本站。
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 指令
 
-## Deploy on Vercel
+| 指令 | 說明 |
+|---|---|
+| `npm run dev` | 開發伺服器 |
+| `npm run build` | 型別檢查並建置到 `dist/` |
+| `npm run preview` | 預覽建置結果 |
+| `npm run lint` | ESLint |
+| `npm test` | Vitest |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 部署
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+這是單頁應用程式，所有路徑都要回到 `index.html`。`vercel.json` 已包含這條規則；使用其他主機時請自行設定相同的 rewrite。

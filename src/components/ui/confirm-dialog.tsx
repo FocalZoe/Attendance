@@ -1,13 +1,16 @@
 import * as React from 'react';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -30,69 +33,45 @@ export function ConfirmDialog({
   destructive = false,
   onConfirm,
 }: ConfirmDialogProps) {
-  const [busy, setBusy] = React.useState(false);
-
-  const handleConfirm = async () => {
-    setBusy(true);
-    try {
-      await onConfirm();
-    } finally {
-      setBusy(false);
-      onOpenChange(false);
-    }
-  };
-
   return (
-    <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
-      <DialogContent className="max-w-sm p-6 bg-card border border-border">
-        <DialogHeader>
-          <DialogTitle className="text-base font-bold text-foreground">{title}</DialogTitle>
-          {description && (
-            <DialogDescription className="text-sm text-muted-foreground">{description}</DialogDescription>
-          )}
-        </DialogHeader>
-        <DialogFooter className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={busy}>
-            {cancelLabel}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={handleConfirm}
-            disabled={busy}
-            className={destructive ? 'bg-absent hover:bg-absent/90 text-white' : undefined}
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent size="sm">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          {description && <AlertDialogDescription>{description}</AlertDialogDescription>}
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogAction
+            className={cn(destructive && buttonVariants({ variant: 'destructive' }))}
+            onClick={() => {
+              void onConfirm();
+            }}
           >
-            {busy ? '處理中...' : confirmLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            {confirmLabel}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
+}
+
+interface ConfirmOptions {
+  title: string;
+  description?: string;
+  confirmLabel?: string;
+  destructive?: boolean;
+  action: () => void | Promise<void>;
 }
 
 /**
  * 以狀態驅動的確認流程：request(...) 開啟對話框，確認後才執行 action。
- * 取代原生 confirm()。
+ * 只用在不可復原的操作；可復原的操作請直接執行並以 toast 提供「復原」。
  */
 export function useConfirm() {
-  const [state, setState] = React.useState<{
-    title: string;
-    description?: string;
-    confirmLabel?: string;
-    destructive?: boolean;
-    action: () => void | Promise<void>;
-  } | null>(null);
+  const [state, setState] = React.useState<ConfirmOptions | null>(null);
 
-  const request = React.useCallback(
-    (options: {
-      title: string;
-      description?: string;
-      confirmLabel?: string;
-      destructive?: boolean;
-      action: () => void | Promise<void>;
-    }) => setState(options),
-    []
-  );
+  const request = React.useCallback((options: ConfirmOptions) => setState(options), []);
 
   const dialog = state ? (
     <ConfirmDialog

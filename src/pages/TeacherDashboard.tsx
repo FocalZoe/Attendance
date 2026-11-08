@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { EmptyState } from '@/components/ui/empty-state';
+import { IconButton } from '@/components/ui/icon-button';
 import { ListSkeleton } from '@/components/ui/skeleton';
 import { Bell, Camera, Clock, Grid3X3, PlusCircle, Trash2 } from 'lucide-react';
 import type { SchoolClass, Student } from '@/types/database';
@@ -198,12 +199,14 @@ export function TeacherDashboard() {
 
   // 導師刪除在籍學生
   const deleteStudent = async (studentId: string) => {
+    const previous = classStudents;
+    setClassStudents((list) => list.filter((st) => st.id !== studentId));
     try {
       const { error } = await supabase.from('students').delete().eq('id', studentId);
       if (error) throw error;
       toast.success('已移除學生');
-      loadStudents(selectedClassId);
     } catch (err: unknown) {
+      setClassStudents(previous);
       const msg = err instanceof Error ? err.message : '移除失敗。請稍後再試。';
       toast.error(msg);
     }
@@ -282,15 +285,6 @@ export function TeacherDashboard() {
                 >
                   <Camera aria-hidden="true" />
                   開始點名
-                </Button>
-                <Button
-                  size="lg"
-                  variant="ghost"
-                  className="border-primary-foreground/40 text-primary-foreground hover:bg-primary-foreground/10"
-                  onClick={() => handleOpenSchedule(nextClass)}
-                >
-                  <Clock aria-hidden="true" />
-                  調整課表
                 </Button>
               </div>
             </div>
@@ -464,15 +458,9 @@ export function TeacherDashboard() {
                             <p className="tabular text-sm text-muted-foreground">{st.student_number}</p>
                           </div>
                           {isCurrentHomeroom && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDeleteStudent(st.id, st.name)}
-                              aria-label={`移除 ${st.name}`}
-                            >
-                              <Trash2 aria-hidden="true" />
-                            </Button>
+                            <IconButton label={`移除 ${st.name}`} onClick={() => handleDeleteStudent(st.id, st.name)}>
+<Trash2 aria-hidden="true" />
+</IconButton>
                           )}
                         </li>
                       ))}
@@ -501,15 +489,9 @@ export function TeacherDashboard() {
                               <TableCell className="tabular text-muted-foreground">{st.parent_phone}</TableCell>
                               {isCurrentHomeroom && (
                                 <TableCell className="text-right">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleDeleteStudent(st.id, st.name)}
-                                    aria-label={`移除 ${st.name}`}
-                                  >
-                                    <Trash2 aria-hidden="true" />
-                                  </Button>
+                                  <IconButton label={`移除 ${st.name}`} onClick={() => handleDeleteStudent(st.id, st.name)}>
+<Trash2 aria-hidden="true" />
+</IconButton>
                                 </TableCell>
                               )}
                             </TableRow>
@@ -580,6 +562,7 @@ export function TeacherDashboard() {
                   <Label htmlFor="ts-seat">座號</Label>
                   <Input
                     id="ts-seat"
+                    autoFocus
                     type="number"
                     required
                     min={1}
@@ -644,9 +627,6 @@ export function TeacherDashboard() {
               </div>
 
               <DialogFooter className="gap-2 sm:space-x-0">
-                <Button type="button" variant="outline" onClick={() => setStudentModalOpen(false)}>
-                  取消
-                </Button>
                 <Button type="submit">新增學生</Button>
               </DialogFooter>
             </form>

@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Navbar } from '@/components/ui/navbar';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { InlineAlert } from '@/components/ui/inline-alert';
@@ -156,7 +157,8 @@ export function SysAdminDashboard() {
                 />
               </div>
               <Button type="submit" disabled={creatingSchool}>
-                {creatingSchool ? '建立中' : '建立學校'}
+                {creatingSchool && <Spinner />}
+                建立學校
               </Button>
             </form>
           </section>

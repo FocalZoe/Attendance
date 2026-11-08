@@ -18,6 +18,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AttendanceHistoryView } from '@/components/attendance/AttendanceHistoryView';
 import { SeatMapEditorModal } from '@/components/attendance/SeatMapEditorModal';
+import { IconButton } from '@/components/ui/icon-button';
+import { Spinner } from '@/components/ui/spinner';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Grid3X3, Trash2, UserCheck, UserX } from 'lucide-react';
 import type { SchoolClass, Profile, Student, ClassTeacher } from '@/types/database';
 import { toast } from 'sonner';
@@ -268,13 +271,29 @@ export function SchoolAdminDashboard() {
   };
 
   // 移除班級教師指派
-  const handleRemoveClassTeacher = async (id: string) => {
+  const handleRemoveClassTeacher = async (ct: ClassTeacher) => {
+    const previous = classTeachers;
+    // 樂觀更新：先從畫面移除，失敗再還原
+    setClassTeachers((list) => list.filter((item) => item.id !== ct.id));
     try {
-      const { error } = await supabase.from('class_teachers').delete().eq('id', id);
+      const { error } = await supabase.from('class_teachers').delete().eq('id', ct.id);
       if (error) throw error;
-      toast.success('已解除指派');
-      await loadData();
+      toast('已解除指派', {
+        action: {
+          label: '復原',
+          onClick: async () => {
+            const { error: undoError } = await supabase.from('class_teachers').insert({
+              class_id: ct.class_id,
+              teacher_id: ct.teacher_id,
+              role: ct.role,
+            });
+            if (undoError) toast.error('復原失敗。請重新指派。');
+            await loadData();
+          },
+        },
+      });
     } catch (err: unknown) {
+      setClassTeachers(previous);
       const msg = err instanceof Error ? err.message : '解除失敗。請稍後再試。';
       toast.error(msg);
     }
@@ -311,13 +330,15 @@ export function SchoolAdminDashboard() {
 
   // 刪除在籍學生
   const deleteStudent = async (studentId: string) => {
+    const previous = classStudents;
+    setClassStudents((list) => list.filter((st) => st.id !== studentId));
     try {
       const { error } = await supabase.from('students').delete().eq('id', studentId);
       if (error) throw error;
       toast.success('已移除學生');
-      loadClassStudents(selectedClassForStudents);
       loadData();
     } catch (err: unknown) {
+      setClassStudents(previous);
       const msg = err instanceof Error ? err.message : '移除失敗。請稍後再試。';
       toast.error(msg);
     }
@@ -340,7 +361,11 @@ export function SchoolAdminDashboard() {
         p_profile_id: teacherId,
         p_active: active,
       });
-      if (error) throw error;
+      if (error) {
+        // PostgrestError is a plain object, not an Error instance
+        toast.error(error.message || '帳號狀態變更失敗。請稍後再試。');
+        return;
+      }
       toast.success(active ? '已重新啟用教師帳號' : '已停用教師帳號，歷史點名紀錄會保留');
       await loadData();
     } catch (err: unknown) {
@@ -490,7 +515,8 @@ export function SchoolAdminDashboard() {
                         />
                       </div>
                       <Button type="submit" disabled={creatingClass}>
-                        {creatingClass ? '建立中' : '建立班級'}
+                        {creatingClass && <Spinner />}
+                        建立班級
                       </Button>
                     </form>
                   </section>
@@ -508,7 +534,8 @@ export function SchoolAdminDashboard() {
                     ) : teachers.length === 0 ? (
                       <EmptyState title="還沒有教師帳號" description="在下方建立第一位教師的帳號。" />
                     ) : (
-                      <ul className="max-h-72 divide-y divide-border overflow-y-auto border-y border-border">
+                      <ScrollArea className="rounded-md border border-border" viewportClassName="max-h-72">
+                      <ul className="divide-y divide-border">
                         {teachers.map((t) => (
                           <li key={t.id} className="flex items-center justify-between gap-3 py-3">
                             <div className="min-w-0">
@@ -537,6 +564,7 @@ export function SchoolAdminDashboard() {
                           </li>
                         ))}
                       </ul>
+                      </ScrollArea>
                     )}
                   </section>
 
@@ -582,7 +610,8 @@ export function SchoolAdminDashboard() {
                         </div>
                       </div>
                       <Button type="submit" disabled={creatingTeacher}>
-                        {creatingTeacher ? '建立中' : '建立教師帳號'}
+                        {creatingTeacher && <Spinner />}
+                        建立教師帳號
                       </Button>
                     </form>
                   </section>
@@ -643,7 +672,8 @@ export function SchoolAdminDashboard() {
                     {classTeachers.length === 0 ? (
                       <p className="text-sm text-muted-foreground">還沒有任何指派。</p>
                     ) : (
-                      <ul className="max-h-60 divide-y divide-border overflow-y-auto border-y border-border">
+                      <ScrollArea className="rounded-md border border-border" viewportClassName="max-h-60">
+                      <ul className="divide-y divide-border">
                         {classTeachers.map((ct) => (
                           <li key={ct.id} className="flex items-center justify-between gap-3 py-2.5">
                             <p className="min-w-0 truncate text-sm text-foreground">
@@ -653,18 +683,13 @@ export function SchoolAdminDashboard() {
                                 {ct.role === 'homeroom' ? '導師' : '科任'}
                               </Badge>
                             </p>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleRemoveClassTeacher(ct.id)}
-                              aria-label="解除指派"
-                            >
-                              <Trash2 aria-hidden="true" />
-                            </Button>
+                            <IconButton label="解除指派" onClick={() => handleRemoveClassTeacher(ct)}>
+<Trash2 aria-hidden="true" />
+</IconButton>
                           </li>
                         ))}
                       </ul>
+                      </ScrollArea>
                     )}
                   </section>
                 </div>
@@ -717,15 +742,9 @@ export function SchoolAdminDashboard() {
                           <p className="font-medium text-foreground">{st.name}</p>
                           <p className="tabular text-sm text-muted-foreground">{st.student_number}</p>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteStudent(st.id, st.name)}
-                          aria-label={`移除 ${st.name}`}
-                        >
-                          <Trash2 aria-hidden="true" />
-                        </Button>
+                        <IconButton label={`移除 ${st.name}`} onClick={() => handleDeleteStudent(st.id, st.name)}>
+<Trash2 aria-hidden="true" />
+</IconButton>
                       </li>
                     ))}
                   </ul>
@@ -751,15 +770,9 @@ export function SchoolAdminDashboard() {
                             <TableCell className="text-muted-foreground">{st.gender || '-'}</TableCell>
                             <TableCell className="tabular text-muted-foreground">{st.parent_phone}</TableCell>
                             <TableCell className="text-right">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDeleteStudent(st.id, st.name)}
-                                aria-label={`移除 ${st.name}`}
-                              >
-                                <Trash2 aria-hidden="true" />
-                              </Button>
+                              <IconButton label={`移除 ${st.name}`} onClick={() => handleDeleteStudent(st.id, st.name)}>
+<Trash2 aria-hidden="true" />
+</IconButton>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -790,6 +803,7 @@ export function SchoolAdminDashboard() {
                   <Label htmlFor="sa-seat">座號</Label>
                   <Input
                     id="sa-seat"
+                    autoFocus
                     type="number"
                     required
                     min={1}
@@ -854,9 +868,6 @@ export function SchoolAdminDashboard() {
               </div>
 
               <DialogFooter className="gap-2 sm:space-x-0">
-                <Button type="button" variant="outline" onClick={() => setStudentModalOpen(false)}>
-                  取消
-                </Button>
                 <Button type="submit">新增學生</Button>
               </DialogFooter>
             </form>

@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { supabase } from '@/lib/supabase';
 import { PublicShell } from '@/components/layout/public-shell';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
@@ -99,7 +100,8 @@ export function LoginPage() {
               disabled={resetSending}
               className="inline-flex h-8 items-center text-sm text-primary underline underline-offset-4 hover:no-underline disabled:opacity-50"
             >
-              {resetSending ? '寄送中' : '忘記密碼'}
+              {resetSending && <Spinner className="mr-1" />}
+              忘記密碼
             </button>
           </div>
           <PasswordInput
@@ -113,7 +115,8 @@ export function LoginPage() {
         </div>
 
         <Button type="submit" size="lg" className="w-full" disabled={loading}>
-          {loading ? '登入中' : '登入'}
+          {loading && <Spinner />}
+          登入
         </Button>
       </form>
 

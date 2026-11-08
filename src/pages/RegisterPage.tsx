@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
 import { PublicShell } from '@/components/layout/public-shell';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { InlineAlert } from '@/components/ui/inline-alert';
@@ -172,7 +173,8 @@ export function RegisterPage() {
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <Button type="submit" size="lg" disabled={loading}>
-            {loading ? '開通中' : '開通學校'}
+            {loading && <Spinner />}
+            開通學校
           </Button>
           <p className="text-sm text-muted-foreground">
             已經有帳號？{' '}

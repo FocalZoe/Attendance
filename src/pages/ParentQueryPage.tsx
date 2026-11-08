@@ -4,6 +4,7 @@ import { queryStudentAttendance } from '@/lib/parent-query';
 import { periodLabel } from '@/lib/periods';
 import { PublicShell } from '@/components/layout/public-shell';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { InlineAlert } from '@/components/ui/inline-alert';
@@ -82,7 +83,8 @@ export function ParentQueryPage() {
           />
         </div>
         <Button type="submit" className="w-full sm:w-auto" disabled={loading}>
-          {loading ? '查詢中' : '查詢'}
+          {loading && <Spinner />}
+          查詢
         </Button>
       </form>
 

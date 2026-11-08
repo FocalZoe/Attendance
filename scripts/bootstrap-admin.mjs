@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const adminEmail = process.env.INITIAL_ADMIN_EMAIL || process.argv[2];
 const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || process.argv[3];
@@ -10,7 +10,7 @@ async function main() {
   console.log('=== 班級自動化點名系統：系統總管安全預置工具 ===');
 
   if (!supabaseUrl || !serviceRoleKey || supabaseUrl.includes('placeholder')) {
-    console.error('錯誤: 請先在 .env.local 中配置正確的 NEXT_PUBLIC_SUPABASE_URL 與 SUPABASE_SERVICE_ROLE_KEY。');
+    console.error('錯誤: 請先在 .env.local 中配置正確的 VITE_SUPABASE_URL 與 SUPABASE_SERVICE_ROLE_KEY。');
     process.exit(1);
   }
 

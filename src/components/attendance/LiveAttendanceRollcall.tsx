@@ -31,7 +31,9 @@ import {
   compileAttendanceRecords,
 } from '@/services/seatOccupancyService';
 import { PERIOD_OPTIONS } from '@/lib/periods';
-import { Loader2, CheckCircle2, ZoomIn, ZoomOut } from 'lucide-react';
+import { Loader2, CheckCircle2 } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
 
 interface LiveAttendanceRollcallProps {
@@ -356,21 +358,6 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
     };
   };
 
-  // 點名視窗中的快捷放大 / 縮小
-  const handleScaleBoxInRollcall = (boxId: string, factor: number) => {
-    const target = seatingBoxesRef.current.find((b) => b.id === boxId);
-    if (!target) return;
-    const updatedTarget: SeatingBox = {
-      ...target,
-      w_ratio: Math.max(0.02, Math.min(1 - target.x_ratio, target.w_ratio * factor)),
-      h_ratio: Math.max(0.02, Math.min(1 - target.y_ratio, target.h_ratio * factor)),
-    };
-    const next = seatingBoxesRef.current.map((b) => (b.id === boxId ? updatedTarget : b));
-    seatingBoxesRef.current = next;
-    setSeatingBoxes(next);
-    autoSaveBox(updatedTarget);
-  };
-
   useEffect(() => {
     openRef.current = open;
     if (open) {
@@ -666,7 +653,10 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* 手機與平板直式：滿版；寬螢幕：置中對話框 */}
-      <DialogContent className="flex h-[100dvh] max-h-none w-screen max-w-none flex-col gap-4 rounded-none p-4 sm:h-auto sm:max-h-[calc(100dvh-1.5rem)] sm:w-[calc(100%-1.5rem)] sm:max-w-4xl sm:rounded-lg sm:p-6">
+      <DialogContent
+        scroll={false}
+        className="flex h-[100dvh] max-h-none w-screen max-w-none flex-col gap-4 rounded-none p-4 sm:h-auto sm:max-h-[calc(100dvh-1.5rem)] sm:w-[calc(100%-1.5rem)] sm:max-w-4xl sm:rounded-lg sm:p-6"
+      >
         <DialogHeader>
           <DialogTitle>{className}　點名</DialogTitle>
           <DialogDescription>
@@ -674,6 +664,8 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
           </DialogDescription>
         </DialogHeader>
 
+        <ScrollArea className="min-h-0 flex-1" viewportClassName="max-h-[calc(100dvh-12rem)]">
+        <div className="space-y-4">
         {/* 設定列 */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="space-y-2">
@@ -733,34 +725,11 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
           </div>
         </div>
 
-        {/* 選取座位時的微調列 */}
         {selectedBox && (
-          <div className="flex flex-col gap-2 rounded-md border border-border bg-secondary px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-foreground">
-              <span className="font-bold">座位 {selectedBox.seat_label}</span>
-              <span className="ml-2 text-muted-foreground">拖曳移動，拉右下角縮放，放開後自動儲存。</span>
-            </p>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => handleScaleBoxInRollcall(selectedBox.id, 1.1)}
-              >
-                <ZoomIn aria-hidden="true" />
-                放大
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => handleScaleBoxInRollcall(selectedBox.id, 0.9)}
-              >
-                <ZoomOut aria-hidden="true" />
-                縮小
-              </Button>
-            </div>
-          </div>
+          <p className="rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground">
+            <span className="font-bold">座位 {selectedBox.seat_label}</span>
+            <span className="ml-2 text-muted-foreground">拖曳移動，拉右下角縮放，放開後自動儲存。</span>
+          </p>
         )}
 
         {/* 影像與座位疊圖：影像區固定使用深色，不隨主題變動 */}
@@ -839,6 +808,9 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
           )}
         </div>
 
+        </div>
+        </ScrollArea>
+
         <DialogFooter className="mt-auto flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between sm:space-x-0">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <p className="text-sm text-foreground">
@@ -861,20 +833,12 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
           <div className="flex gap-2">
             <Button
               type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isSaving}
-              className="flex-1 sm:flex-none"
-            >
-              取消
-            </Button>
-            <Button
-              type="button"
               onClick={handleConfirmAttendance}
               disabled={!cameraActive || isSaving}
               className="flex-1 sm:flex-none"
             >
-              {isSaving ? '儲存中' : '完成點名'}
+              {isSaving && <Spinner />}
+              完成點名
             </Button>
           </div>
         </DialogFooter>
