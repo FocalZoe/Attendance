@@ -197,8 +197,6 @@ export function SchoolAdminDashboard() {
         options: {
           data: {
             name: teacherName.trim(),
-            role: 'teacher',
-            school_id: schoolId,
           },
         },
       });
@@ -207,13 +205,16 @@ export function SchoolAdminDashboard() {
         setTeacherError(error.message);
       } else {
         if (data.user) {
-          await supabase.from('profiles').upsert({
-            id: data.user.id,
-            school_id: schoolId,
-            role: 'teacher',
-            name: teacherName.trim(),
-            email: teacherEmail.trim(),
+          // 學校綁定僅能經由伺服器端 RPC（驗證呼叫者為本校主管）
+          const { error: assignError } = await supabase.rpc('assign_teacher_to_school', {
+            p_teacher_id: data.user.id,
+            p_name: teacherName.trim(),
+            p_phone: null,
           });
+          if (assignError) {
+            setTeacherError(assignError.message);
+            return;
+          }
         }
         setTeacherName('');
         setTeacherEmail('');

@@ -240,9 +240,54 @@ CREATE POLICY "Schools authenticated read access" ON public.schools
     FOR SELECT TO authenticated USING (true);
 
 -- Profiles 權限
+-- 自身僅可讀取與更新（欄位限制由 guard_profile_privileged_columns 觸發器強制），不可自行 INSERT/DELETE
 DROP POLICY IF EXISTS "Profiles self access" ON public.profiles;
-CREATE POLICY "Profiles self access" ON public.profiles
-    FOR ALL USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Profiles self select" ON public.profiles;
+CREATE POLICY "Profiles self select" ON public.profiles
+    FOR SELECT USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Profiles self update" ON public.profiles;
+CREATE POLICY "Profiles self update" ON public.profiles
+    FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+
+-- 特權欄位保護：一般客戶端 (authenticated / anon) 不得變更 role、school_id、email、id，
+-- 且非系統總管新增 profile 時僅能為 teacher。SECURITY DEFINER RPC 與 service_role 以資料庫擁有者身分執行，不受影響。
+CREATE OR REPLACE FUNCTION public.guard_profile_privileged_columns()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+    IF current_user NOT IN ('authenticated', 'anon') THEN
+        RETURN NEW;
+    END IF;
+
+    IF public.current_user_role() = 'sys_admin' THEN
+        RETURN NEW;
+    END IF;
+
+    IF TG_OP = 'INSERT' THEN
+        IF NEW.role <> 'teacher' THEN
+            RAISE EXCEPTION '權限不足，無法建立此角色之個人資料';
+        END IF;
+        RETURN NEW;
+    END IF;
+
+    IF NEW.id IS DISTINCT FROM OLD.id
+       OR NEW.role IS DISTINCT FROM OLD.role
+       OR NEW.school_id IS DISTINCT FROM OLD.school_id
+       OR NEW.email IS DISTINCT FROM OLD.email THEN
+        RAISE EXCEPTION '權限不足，無法變更角色、所屬學校或信箱';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS guard_profile_privileged_columns ON public.profiles;
+CREATE TRIGGER guard_profile_privileged_columns
+    BEFORE INSERT OR UPDATE ON public.profiles
+    FOR EACH ROW EXECUTE FUNCTION public.guard_profile_privileged_columns();
 
 DROP POLICY IF EXISTS "Profiles sys_admin full access" ON public.profiles;
 CREATE POLICY "Profiles sys_admin full access" ON public.profiles
@@ -361,11 +406,13 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+    -- role / school_id 絕不信任客戶端 metadata：一律建立為未綁定學校的 teacher，
+    -- 提升權限僅能透過 register_school_admin / assign_school_admin / assign_teacher_to_school RPC
     INSERT INTO public.profiles (id, school_id, role, name, email, phone)
     VALUES (
         NEW.id,
-        (NEW.raw_user_meta_data->>'school_id')::uuid,
-        COALESCE(NEW.raw_user_meta_data->>'role', 'teacher'),
+        NULL,
+        'teacher',
         COALESCE(NEW.raw_user_meta_data->>'name', NEW.email),
         NEW.email,
         NEW.raw_user_meta_data->>'phone'
@@ -510,6 +557,48 @@ BEGIN
 END;
 $$;
 
+-- 學校主管將新建立（尚未綁定學校）的教師帳號納入本校
+CREATE OR REPLACE FUNCTION public.assign_teacher_to_school(
+    p_teacher_id UUID,
+    p_name TEXT,
+    p_phone TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_school_id UUID;
+    v_updated INTEGER;
+BEGIN
+    IF public.current_user_role() != 'school_admin' THEN
+        RAISE EXCEPTION '權限不足，僅學校主管可開通教師帳號';
+    END IF;
+
+    v_school_id := public.current_user_school_id();
+    IF v_school_id IS NULL THEN
+        RAISE EXCEPTION '呼叫者尚未綁定學校';
+    END IF;
+
+    UPDATE public.profiles
+    SET school_id = v_school_id,
+        name = COALESCE(NULLIF(TRIM(p_name), ''), name),
+        phone = COALESCE(p_phone, phone),
+        updated_at = TIMEZONE('utc'::text, NOW())
+    WHERE id = p_teacher_id
+      AND role = 'teacher'
+      AND (school_id IS NULL OR school_id = v_school_id);
+
+    GET DIAGNOSTICS v_updated = ROW_COUNT;
+    IF v_updated = 0 THEN
+        RAISE EXCEPTION '查無可指派之教師帳號';
+    END IF;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
 -- ------------------------------------------------------------------------------
 -- 16. 雲端存證照片儲存庫 (Storage Bucket)
 -- ------------------------------------------------------------------------------
@@ -522,7 +611,16 @@ CREATE POLICY "Allow authenticated staff to upload attendance snapshots"
 ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (
     bucket_id = 'attendance-snapshots'
-    AND public.current_user_role() IN ('sys_admin', 'school_admin', 'teacher')
+    AND (
+        public.current_user_role() = 'sys_admin'
+        OR (
+            public.current_user_role() IN ('school_admin', 'teacher')
+            AND (storage.foldername(name))[1] IN (
+                SELECT c.id::text FROM public.classes c
+                WHERE c.school_id = public.current_user_school_id()
+            )
+        )
+    )
 );
 
 DROP POLICY IF EXISTS "Allow school staff to read attendance snapshots" ON storage.objects;
@@ -530,7 +628,16 @@ CREATE POLICY "Allow school staff to read attendance snapshots"
 ON storage.objects FOR SELECT TO authenticated
 USING (
     bucket_id = 'attendance-snapshots'
-    AND public.current_user_role() IN ('sys_admin', 'school_admin', 'teacher')
+    AND (
+        public.current_user_role() = 'sys_admin'
+        OR (
+            public.current_user_role() IN ('school_admin', 'teacher')
+            AND (storage.foldername(name))[1] IN (
+                SELECT c.id::text FROM public.classes c
+                WHERE c.school_id = public.current_user_school_id()
+            )
+        )
+    )
 );
 
 -- ------------------------------------------------------------------------------

@@ -123,8 +123,6 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
           options: {
             data: {
               name,
-              role: 'school_admin',
-              school_id: school.id,
               phone,
             },
           },
@@ -132,6 +130,19 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
 
         if (signUpError) {
           setErrorMsg(signUpError.message || '建立主管帳號失敗');
+          setLoading(false);
+          return;
+        }
+
+        // 新帳號預設為未綁定學校的 teacher，由系統總管以 RPC 提升為該校主管
+        const { error: assignError } = await supabase.rpc('assign_school_admin', {
+          p_school_id: school.id,
+          p_email: email,
+          p_name: name,
+          p_phone: phone,
+        });
+        if (assignError) {
+          setErrorMsg(assignError.message || '指派主管失敗');
           setLoading(false);
           return;
         }

@@ -41,14 +41,12 @@ export function RegisterPage() {
 
     try {
       // 1. 建立或確認 Auth 使用者身分
-      let authUser = null;
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             name: adminName,
-            role: 'school_admin',
             phone,
           },
         },
@@ -57,7 +55,7 @@ export function RegisterPage() {
       if (signUpError) {
         if (signUpError.message.toLowerCase().includes('already registered')) {
           // 信箱已存在，嘗試以現有密碼登入
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          const { error: signInError } = await supabase.auth.signInWithPassword({
             email,
             password,
           });
@@ -66,14 +64,12 @@ export function RegisterPage() {
             setLoading(false);
             return;
           }
-          authUser = signInData.user;
         } else {
           setErrorMsg(signUpError.message || '註冊認證帳號失敗');
           setLoading(false);
           return;
         }
       } else {
-        authUser = signUpData.user;
         if (!signUpData.session) {
           // 若無自動返回 Session，執行一次登入
           await supabase.auth.signInWithPassword({ email, password });
@@ -88,42 +84,11 @@ export function RegisterPage() {
         p_phone: phone,
       });
 
+      // 角色與學校綁定僅能由伺服器端 RPC 授予，不提供前端寫入的備援路徑
       if (rpcError) {
-        // Fallback: 若資料庫尚未載入 RPC，執行前端多步容錯
-        const { data: existingSchool } = await supabase
-          .from('schools')
-          .select('id')
-          .eq('code', schoolCode)
-          .maybeSingle();
-
-        let targetSchoolId = '';
-        if (existingSchool) {
-          targetSchoolId = existingSchool.id;
-        } else {
-          const { data: newSchool, error: schoolCreateErr } = await supabase
-            .from('schools')
-            .insert({ name: schoolName, code: schoolCode })
-            .select('id')
-            .single();
-
-          if (schoolCreateErr || !newSchool) {
-            setErrorMsg(schoolCreateErr?.message || rpcError.message);
-            setLoading(false);
-            return;
-          }
-          targetSchoolId = newSchool.id;
-        }
-
-        if (authUser) {
-          await supabase.from('profiles').upsert({
-            id: authUser.id,
-            school_id: targetSchoolId,
-            role: 'school_admin',
-            name: adminName,
-            email,
-            phone,
-          });
-        }
+        setErrorMsg(rpcError.message || '開通學校失敗');
+        setLoading(false);
+        return;
       }
 
       // 3. 立即重整全域 Profile 狀態並直接導向控制台
