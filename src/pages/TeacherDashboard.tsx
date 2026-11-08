@@ -72,10 +72,12 @@ export function TeacherDashboard() {
     return () => window.clearInterval(timer);
   }, []);
 
-  // 1. 載入當前教師所被指派之所有班級 (包含導師與科任)
+  // Load every class this teacher is assigned to (homeroom and subject).
+  // Only the first load shows the page skeleton; later refreshes keep the page in place.
+  const hasLoadedRef = React.useRef(false);
   const loadAssignedClasses = React.useCallback(async () => {
     if (!profile) return;
-    setLoading(true);
+    if (!hasLoadedRef.current) setLoading(true);
     try {
       const { data, error } = await supabase
         .from('class_teachers')
@@ -93,11 +95,10 @@ export function TeacherDashboard() {
           }));
 
         setAssignedClasses(mapped);
-        if (!selectedClassId && mapped.length > 0) {
-          setSelectedClassId(mapped[0].class.id);
-        }
+        // Functional update: keep the current selection, only default to the first class
+        if (mapped.length > 0) setSelectedClassId((prev) => prev || mapped[0].class.id);
       } else {
-        // 若尚未設定 class_teachers，嘗試向後相容載入全校 classes (以科任角色預設)
+        // No class_teachers rows yet: fall back to every class in the school as subject teacher
         if (schoolId) {
           const { data: schoolClasses } = await supabase
             .from('classes')
@@ -110,7 +111,7 @@ export function TeacherDashboard() {
               role: 'subject',
             }));
             setAssignedClasses(mapped);
-            if (!selectedClassId) setSelectedClassId(mapped[0].class.id);
+            setSelectedClassId((prev) => prev || mapped[0].class.id);
           }
         }
       }
@@ -118,9 +119,10 @@ export function TeacherDashboard() {
       console.error('載入教師班級失敗:', err);
       toast.error('無法載入你的班級。請重新整理頁面，若仍失敗請聯繫學校主管。');
     } finally {
+      hasLoadedRef.current = true;
       setLoading(false);
     }
-  }, [profile, schoolId, selectedClassId]);
+  }, [profile, schoolId]);
 
   React.useEffect(() => {
     loadAssignedClasses();

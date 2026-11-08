@@ -47,7 +47,7 @@ export function ParentQueryPage() {
           to="/login"
           className="hidden h-10 items-center rounded-md px-3 text-sm font-medium text-muted-foreground hover:text-foreground sm:inline-flex"
         >
-          教職員登入
+          帳號登入
         </Link>
       }
     >
@@ -125,10 +125,10 @@ export function ParentQueryPage() {
                       {rec.is_overridden
                         ? '老師已更正這筆紀錄'
                         : rec.ai_detected_status === 'present'
-                        ? '鏡頭看到孩子在座位上'
-                        : rec.ai_detected_status === 'absent'
-                        ? '鏡頭沒看到孩子在座位上'
-                        : '手動登記'}
+                          ? '鏡頭看到孩子在座位上'
+                          : rec.ai_detected_status === 'absent'
+                            ? '鏡頭沒看到孩子在座位上'
+                            : '手動登記'}
                     </p>
                     {rec.note && <p className="mt-1 text-sm text-foreground">備註：{rec.note}</p>}
                   </div>

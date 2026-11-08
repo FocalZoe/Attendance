@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { deleteClassEverything, deleteSessionRecord, deleteStudentRecord } from '@/lib/hard-delete';
 import { periodLabel } from '@/lib/periods';
 import { toastError } from '@/lib/errors';
+import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,12 +27,22 @@ type Target =
   | { kind: 'student'; item: Student }
   | { kind: 'session'; item: AttendanceSession };
 
+const SESSION_PAGE = 50;
+const PHOTO_LEFTOVER_WARNING =
+  '資料已刪除，但有些點名照片沒有清除乾淨。請確認已重跑 schema.sql，再到 Supabase Storage 手動清理。';
+
 export function DataPanel({ schools, onChanged }: DataPanelProps) {
   const [schoolId, setSchoolId] = React.useState('');
   const [classes, setClasses] = React.useState<SchoolClass[]>([]);
   const [classId, setClassId] = React.useState('');
   const [students, setStudents] = React.useState<Student[]>([]);
   const [sessions, setSessions] = React.useState<AttendanceSession[]>([]);
+  const [sessionTotal, setSessionTotal] = React.useState(0);
+  const [loadingMore, setLoadingMore] = React.useState(false);
+  // Latest-request guards: ignore responses that arrive after the selection changed
+  const classReq = React.useRef(0);
+  const studentReq = React.useRef(0);
+  const sessionReq = React.useRef(0);
   const [studentSearch, setStudentSearch] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [target, setTarget] = React.useState<Target | null>(null);
@@ -42,6 +53,7 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
 
   const loadClasses = React.useCallback(async () => {
     if (!schoolId) return;
+    const req = ++classReq.current;
     setLoading(true);
     const { data, error } = await supabase
       .from('classes')
@@ -49,6 +61,7 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
       .eq('school_id', schoolId)
       .order('academic_year', { ascending: false })
       .order('name', { ascending: true });
+    if (req !== classReq.current) return;
     if (error) toastError(error, '讀取班級失敗。請重新整理頁面。');
     const list = (data ?? []) as SchoolClass[];
     setClasses(list);
@@ -57,6 +70,7 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
   }, [schoolId]);
 
   const loadStudents = React.useCallback(async () => {
+    const req = ++studentReq.current;
     if (!classId) {
       setStudents([]);
       return;
@@ -66,25 +80,44 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
       .select('*')
       .eq('class_id', classId)
       .order('seat_number', { ascending: true });
+    if (req !== studentReq.current) return;
     if (error) toastError(error, '讀取學生失敗。請重新整理頁面。');
     setStudents((data ?? []) as Student[]);
   }, [classId]);
 
-  const loadSessions = React.useCallback(async () => {
-    if (!classId) {
-      setSessions([]);
-      return;
-    }
-    const { data, error } = await supabase
-      .from('attendance_sessions')
-      .select('*')
-      .eq('class_id', classId)
-      .order('session_date', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(200);
-    if (error) toastError(error, '讀取點名紀錄失敗。請重新整理頁面。');
-    setSessions((data ?? []) as AttendanceSession[]);
-  }, [classId]);
+  const loadSessions = React.useCallback(
+    async (append = false, offset = 0) => {
+      const req = ++sessionReq.current;
+      if (!classId) {
+        setSessions([]);
+        setSessionTotal(0);
+        return;
+      }
+      if (!append) setSessions([]);
+      const { data, error, count } = await supabase
+        .from('attendance_sessions')
+        .select('*', { count: 'exact' })
+        .eq('class_id', classId)
+        .order('session_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + SESSION_PAGE - 1);
+      if (req !== sessionReq.current) return;
+      if (error) {
+        toastError(error, '讀取點名紀錄失敗。請重新整理頁面。');
+        return;
+      }
+      const rows = (data ?? []) as AttendanceSession[];
+      setSessions((prev) => (append ? [...prev, ...rows] : rows));
+      setSessionTotal(count ?? rows.length);
+    },
+    [classId]
+  );
+
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    await loadSessions(true, sessions.length);
+    setLoadingMore(false);
+  };
 
   React.useEffect(() => {
     loadSessions();
@@ -108,13 +141,16 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
     if (!target) return;
     try {
       if (target.kind === 'class') {
-        const { snapshots } = await deleteClassEverything(target.item.id);
-        toast.success(`已永久刪除班級「${target.item.name}」，並清除 ${snapshots} 張照片`);
+        const photos = await deleteClassEverything(target.item.id);
+        toast.success(`已永久刪除班級「${target.item.name}」，並清除 ${photos.removed} 張照片`);
+        if (photos.failed) toast.warning(PHOTO_LEFTOVER_WARNING);
         await loadClasses();
       } else if (target.kind === 'session') {
-        await deleteSessionRecord(target.item.id, target.item.snapshot_path);
+        const photos = await deleteSessionRecord(target.item.id, target.item.snapshot_path);
         toast.success('已永久刪除這次點名紀錄');
+        if (photos.failed) toast.warning(PHOTO_LEFTOVER_WARNING);
         setSessions((list) => list.filter((x) => x.id !== target.item.id));
+        setSessionTotal((n) => Math.max(0, n - 1));
       } else {
         await deleteStudentRecord(target.item.id);
         toast.success(`已永久刪除學生「${target.item.name}」`);
@@ -225,7 +261,7 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
           </div>
 
           <div className="space-y-3 lg:col-span-2">
-            <h3 className="text-base font-bold text-foreground">點名紀錄（{sessions.length}）</h3>
+            <h3 className="text-base font-bold text-foreground">點名紀錄（{sessionTotal}）</h3>
             <p className="text-sm text-muted-foreground">
               選好上方的班級後，可以單獨刪除某一次點名。刪除會一併刪除當次所有學生的出缺席與點名照片。
             </p>
@@ -254,6 +290,11 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
                   ))}
                 </ul>
               </ScrollArea>
+            )}
+            {sessions.length < sessionTotal && (
+              <Button type="button" variant="outline" disabled={loadingMore} onClick={handleLoadMore}>
+                {loadingMore ? '載入中…' : `載入更早的紀錄（還有 ${sessionTotal - sessions.length} 筆）`}
+              </Button>
             )}
           </div>
         </div>

@@ -64,6 +64,8 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
   // 鏡頭來源清單與選取
   const [cameraSources, setCameraSources] = useState<CameraSource[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+  // False until the desktop camera list has loaded, so auto-start never picks a placeholder device
+  const [devicesReady, setDevicesReady] = useState<boolean>(false);
   const [amebaIp, setAmebaIp] = useState<string>('192.168.1.100');
   const [isMobile, setIsMobile] = useState<boolean>(false);
 
@@ -140,12 +142,15 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
     const mobile = isMobileDevice();
     setIsMobile(mobile);
 
-    if (!mobile) {
+    if (mobile) {
+      setDevicesReady(true);
+    } else {
       getDesktopCameraSources().then((sources) => {
         setCameraSources(sources);
         if (sources.length > 0) {
           setSelectedDeviceId(sources[0].id);
         }
+        setDevicesReady(true);
       });
     }
 
@@ -416,7 +421,16 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
       }
       streamRef.current = stream;
       cameraPermission.recheck();
-      if (!isMobile) getDesktopCameraSources().then(setCameraSources);
+      if (!isMobile) {
+        // Camera labels and real deviceIds only appear after permission is granted. Reload the list
+        // and point the selection at the device that is actually streaming, otherwise the Select
+        // would keep a placeholder id that no longer matches any option.
+        const activeId = stream.getVideoTracks()[0]?.getSettings().deviceId;
+        getDesktopCameraSources().then((sources) => {
+          setCameraSources(sources);
+          if (activeId && sources.some((src) => src.id === activeId)) setSelectedDeviceId(activeId);
+        });
+      }
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -438,7 +452,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
     }
   };
 
-  // 已經允許過鏡頭：偵測模型就緒後自動開啟，老師不用再按按鈕
+  // Camera already allowed: start it once the detector and device list are ready, no button press needed
   const autoStartedRef = useRef(false);
   useEffect(() => {
     if (!open) {
@@ -447,6 +461,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
     }
     if (
       detectorReady &&
+      devicesReady &&
       !cameraActive &&
       !autoStartedRef.current &&
       shouldAutoStartCamera(cameraPermission.state, !isMobile && selectedDeviceId === AMEBA_DEVICE_ID)
@@ -455,7 +470,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
       handleStartCamera();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, detectorReady, cameraActive, cameraPermission.state, isMobile, selectedDeviceId]);
+  }, [open, detectorReady, devicesReady, cameraActive, cameraPermission.state, isMobile, selectedDeviceId]);
 
   // 4. 影像辨識主循環與 Canvas 即時渲染
   useEffect(() => {
@@ -630,6 +645,15 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
           detection_raw_json: {
             totalSeats: seatingBoxes.length,
             presentCount,
+            // Save the seat layout so the history view can redraw it exactly as it was
+            seats: seatingBoxes.map((b) => ({
+              student_id: b.student_id,
+              seat_label: b.seat_label,
+              x_ratio: b.x_ratio,
+              y_ratio: b.y_ratio,
+              w_ratio: b.w_ratio,
+              h_ratio: b.h_ratio,
+            })),
             timestamp: new Date().toISOString(),
           },
         })

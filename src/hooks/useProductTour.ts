@@ -19,11 +19,15 @@ interface UseProductTourOptions {
 
 /**
  * Interactive first-run tour. Auto-starts once per user and role; the account
- * menu's "重看導覽" item re-runs it by dispatching START_TOUR_EVENT.
+ * menu's replay item re-runs it by dispatching START_TOUR_EVENT.
  */
 export function useProductTour({ role, userId, ready }: UseProductTourOptions) {
+  // Guards against two tours overlapping (for example when `ready` flips after a data reload)
+  const runningRef = React.useRef(false);
+  const autoStartedRef = React.useRef(false);
+
   const start = React.useCallback(() => {
-    if (!userId) return;
+    if (!userId || runningRef.current) return;
     const steps = availableSteps(TOUR_STEPS[role], (sel) => !!document.querySelector(sel));
     if (steps.length === 0) return;
 
@@ -41,15 +45,22 @@ export function useProductTour({ role, userId, ready }: UseProductTourOptions) {
         element: s.selector,
         popover: { title: s.title, description: s.description, side: s.side, align: 'center' },
       })),
-      onDestroyed: () => markTourSeen(role, userId),
+      onDestroyed: () => {
+        runningRef.current = false;
+        markTourSeen(role, userId);
+      },
     });
+    runningRef.current = true;
     tour.drive();
   }, [role, userId]);
 
   // First visit: start automatically once content is ready
   React.useEffect(() => {
-    if (!ready || !userId || hasSeenTour(role, userId)) return;
-    const timer = window.setTimeout(start, 600);
+    if (!ready || !userId || autoStartedRef.current || hasSeenTour(role, userId)) return;
+    const timer = window.setTimeout(() => {
+      autoStartedRef.current = true;
+      start();
+    }, 600);
     return () => window.clearTimeout(timer);
   }, [ready, role, userId, start]);
 

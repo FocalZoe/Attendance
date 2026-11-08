@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import type {
   AttendanceSession,
   AttendanceRecord,
   AttendanceStatus,
   SchoolClass,
-  SeatingBox,
   Student,
 } from '@/types/database';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -28,11 +27,30 @@ import { Camera } from 'lucide-react';
 import { toast } from 'sonner';
 
 const PAGE_SIZE = 30;
+// PostgREST returns at most 1000 rows per request, so records are fetched in chunks below that
+const MAX_ROWS_PER_REQUEST = 900;
+
+/** One seat drawn on top of the photo; ratios are 0-1 of the photo size */
+interface OverlayBox {
+  key: string;
+  student_id: string | null;
+  seat_label: string;
+  x_ratio: number;
+  y_ratio: number;
+  w_ratio: number;
+  h_ratio: number;
+}
+
+interface OverlayData {
+  boxes: OverlayBox[];
+  /** True when the layout was rebuilt from today's seating chart instead of saved with the rollcall */
+  approximate: boolean;
+}
 
 interface AttendanceHistoryViewProps {
   classId?: string;
   schoolId?: string;
-  isEditable?: boolean; // 僅老師或學校主管可以更正
+  isEditable?: boolean; // only teachers and school admins may correct records
 }
 
 type RecordMap = Record<string, Record<string, AttendanceRecord>>; // sessionId -> studentId -> record
@@ -56,12 +74,14 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
   const [page, setPage] = useState<number>(0);
   const [totalSessions, setTotalSessions] = useState<number>(0);
   const [snapshot, setSnapshot] = useState<SnapshotView | null>(null);
-  const [seatBoxes, setSeatBoxes] = useState<SeatingBox[]>([]);
+  const [overlay, setOverlay] = useState<OverlayData | null>(null);
+  const [overlayLoading, setOverlayLoading] = useState(false);
+  const loadReq = useRef(0);
 
   const activeClassId = classId ?? pickedClassId;
   const totalPages = Math.max(1, Math.ceil(totalSessions / PAGE_SIZE));
 
-  // 學校主管：先載入班級清單，預設選第一個
+  // School admins: load the class list first and default to the first class
   useEffect(() => {
     if (classId || !schoolId) return;
     let cancelled = false;
@@ -87,14 +107,15 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
     };
   }, [classId, schoolId]);
 
-  // 換班級就回第一頁
+  // Back to the first page when the class changes
   useEffect(() => {
     setPage(0);
   }, [activeClassId]);
 
-  // 載入：學生名單、目前這一頁的點名時間、以及每次點名的出缺席
+  // Load the roster, this page of rollcalls, and every student's record for each rollcall
   const load = useCallback(async () => {
     if (!activeClassId) return;
+    const req = ++loadReq.current;
     setLoading(true);
     try {
       const [studentsRes, sessionsRes] = await Promise.all([
@@ -114,9 +135,11 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
 
       if (studentsRes.error) throw studentsRes.error;
       if (sessionsRes.error) throw sessionsRes.error;
+      if (req !== loadReq.current) return;
 
       const sessionList = (sessionsRes.data || []) as AttendanceSession[];
-      setStudents((studentsRes.data || []) as Student[]);
+      const roster = (studentsRes.data || []) as Student[];
+      setStudents(roster);
       setSessions(sessionList);
       setTotalSessions(sessionsRes.count ?? sessionList.length);
 
@@ -125,24 +148,37 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
         return;
       }
 
-      const { data: recs, error: recErr } = await supabase
-        .from('attendance_records')
-        .select('*')
-        .in(
-          'session_id',
-          sessionList.map((s) => s.id)
-        );
-      if (recErr) throw recErr;
+      // Keep every request under the 1000-row cap: sessions-per-chunk x students <= MAX_ROWS_PER_REQUEST
+      const perChunk = Math.max(1, Math.floor(MAX_ROWS_PER_REQUEST / Math.max(roster.length, 1)));
+      const chunks: AttendanceSession[][] = [];
+      for (let i = 0; i < sessionList.length; i += perChunk) chunks.push(sessionList.slice(i, i + perChunk));
+
+      const results = await Promise.all(
+        chunks.map((chunk) =>
+          supabase
+            .from('attendance_records')
+            .select('*')
+            .in(
+              'session_id',
+              chunk.map((s) => s.id)
+            )
+        )
+      );
+      const failed = results.find((res) => res.error);
+      if (failed?.error) throw failed.error;
+      if (req !== loadReq.current) return;
 
       const map: RecordMap = {};
-      for (const r of (recs || []) as AttendanceRecord[]) {
-        (map[r.session_id] ??= {})[r.student_id] = r;
+      for (const res of results) {
+        for (const rec of (res.data || []) as AttendanceRecord[]) {
+          (map[rec.session_id] ??= {})[rec.student_id] = rec;
+        }
       }
       setRecordMap(map);
     } catch (err: unknown) {
-      toastError(err, '讀取點名紀錄失敗。請重新整理頁面。');
+      if (req === loadReq.current) toastError(err, '讀取點名紀錄失敗。請重新整理頁面。');
     } finally {
-      setLoading(false);
+      if (req === loadReq.current) setLoading(false);
     }
   }, [activeClassId, page]);
 
@@ -150,7 +186,7 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
     load();
   }, [load]);
 
-  // 更正某位學生在某次點名的狀態
+  // Correct one student's status in one rollcall (optimistic, rolled back on failure)
   const handleChangeStatus = async (record: AttendanceRecord, next: AttendanceStatus) => {
     if (!isEditable || record.status === next) return;
     const previous = record;
@@ -178,7 +214,7 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
 
   const sessionLabel = (s: AttendanceSession) => formatFullPeriodMessage(s.session_date, s.period);
 
-  // 下載目前這一頁：每欄一次點名、每列一位學生（UTF-8 BOM，Excel 可直接開啟）
+  // Download this page: one column per rollcall, one row per student (UTF-8 BOM so Excel opens it)
   const handleExportCsv = () => {
     if (sessions.length === 0 || students.length === 0) {
       toast.error('目前沒有可下載的紀錄。');
@@ -200,7 +236,7 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
     downloadCsv(`attendance_page${page + 1}.csv`, toCsv([header, ...rows]));
   };
 
-  // 開啟點名時拍的照片（簽名網址 1 小時內有效）
+  // Open a rollcall photo (signed URL, valid for 1 hour) together with the seat layout saved at that time
   const handleOpenSnapshot = async (session: AttendanceSession) => {
     if (!session.snapshot_path) return;
     try {
@@ -210,18 +246,41 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
       if (error) throw error;
       if (!data?.signedUrl) return;
 
-      setSeatBoxes([]);
+      setOverlay(null);
+      setOverlayLoading(true);
       setSnapshot({ session, url: data.signedUrl });
 
-      if (session.chart_id) {
-        const { data: boxes } = await supabase
-          .from('seating_boxes')
-          .select('*')
-          .eq('chart_id', session.chart_id);
-        setSeatBoxes((boxes || []) as SeatingBox[]);
+      // Newer rollcalls store the exact seat layout; older ones fall back to the current seating chart
+      const saved = (session.detection_raw_json as { seats?: SavedSeat[] } | null)?.seats;
+      if (Array.isArray(saved) && saved.length > 0) {
+        setOverlay({
+          boxes: saved.map((seat, index) => ({ key: `saved-${index}`, ...seat })),
+          approximate: false,
+        });
+      } else if (session.chart_id) {
+        const { data: boxes } = await supabase.from('seating_boxes').select('*').eq('chart_id', session.chart_id);
+        const list = boxes || [];
+        setOverlay(
+          list.length > 0
+            ? {
+                boxes: list.map((b) => ({
+                  key: b.id,
+                  student_id: b.student_id,
+                  seat_label: b.seat_label,
+                  x_ratio: b.x_ratio,
+                  y_ratio: b.y_ratio,
+                  w_ratio: b.w_ratio,
+                  h_ratio: b.h_ratio,
+                })),
+                approximate: true,
+              }
+            : null
+        );
       }
     } catch (err: unknown) {
       toastError(err, '讀取照片失敗。請稍後再試。');
+    } finally {
+      setOverlayLoading(false);
     }
   };
 
@@ -373,7 +432,7 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
             <Tabs defaultValue="photo">
               <TabsList>
                 <TabsTrigger value="photo">只看照片</TabsTrigger>
-                <TabsTrigger value="seats" disabled={seatBoxes.length === 0}>
+                <TabsTrigger value="seats" disabled={!overlay}>
                   座位與出缺席
                 </TabsTrigger>
               </TabsList>
@@ -389,15 +448,20 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
               <TabsContent value="seats" className="space-y-3">
                 <SeatOverlay
                   url={snapshot.url}
-                  boxes={seatBoxes}
+                  boxes={overlay?.boxes ?? []}
                   records={recordMap[snapshot.session.id] ?? {}}
                   studentById={studentById}
                 />
+                {overlay?.approximate && (
+                  <p className="text-sm text-muted-foreground">
+                    這是較早的紀錄，座位框用的是現在的座位表，位置可能和當時不同。
+                  </p>
+                )}
                 <StatusLegend />
               </TabsContent>
             </Tabs>
           )}
-          {snapshot && seatBoxes.length === 0 && (
+          {snapshot && !overlay && !overlayLoading && (
             <p className="text-sm text-muted-foreground">
               這次點名沒有留下座位資料，所以只能看照片。
             </p>
@@ -408,7 +472,7 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
   );
 };
 
-/** 矩陣中的一格：可編輯時點一下，跳出四個圖示讓老師選 */
+/** One matrix cell: when editable, a click opens the four status icons to choose from */
 function StatusCell({
   record,
   studentName,
@@ -471,7 +535,17 @@ function StatusCell({
   );
 }
 
-/** 照片上疊座位框；框的顏色與字對應出缺席 */
+/** Seat layout stored in attendance_sessions.detection_raw_json.seats when a rollcall is saved */
+interface SavedSeat {
+  student_id: string | null;
+  seat_label: string;
+  x_ratio: number;
+  y_ratio: number;
+  w_ratio: number;
+  h_ratio: number;
+}
+
+/** Seat boxes drawn over the photo; border color and glyph follow the attendance status */
 function SeatOverlay({
   url,
   boxes,
@@ -479,7 +553,7 @@ function SeatOverlay({
   studentById,
 }: {
   url: string;
-  boxes: SeatingBox[];
+  boxes: OverlayBox[];
   records: Record<string, AttendanceRecord>;
   studentById: Map<string, Student>;
 }) {
@@ -496,7 +570,7 @@ function SeatOverlay({
           const stamp = rec ? STAMP[rec.status] : null;
           return (
             <div
-              key={box.id}
+              key={box.key}
               className={cn(
                 'absolute flex items-start justify-start overflow-hidden rounded-sm border-2 p-0.5',
                 rec ? OVERLAY_STYLE[rec.status] : 'border-border bg-card/10'

@@ -143,6 +143,9 @@ export function SysAdminDashboard() {
       toast.success(
         `已永久刪除「${deleteTarget.name}」：${result.classes} 個班級、${result.students} 位學生、${result.snapshots} 張照片`
       );
+      if (result.photosFailed) {
+        toast.warning('資料已刪除，但有些點名照片沒有清除乾淨。請確認已重跑 schema.sql，再到 Supabase Storage 手動清理。');
+      }
       await loadData();
     } catch (err) {
       toastError(err, '刪除學校失敗。請稍後再試。');

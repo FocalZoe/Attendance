@@ -4,7 +4,7 @@ const BUCKET = 'attendance-snapshots';
 const LIST_PAGE = 100;
 const REMOVE_BATCH = 100;
 
-/** Thrown with a user-facing step name so the UI can say what failed */
+/** Thrown with a step name so callers can tell what failed; the original error is kept as `cause` */
 export class HardDeleteError extends Error {
   constructor(
     public step: string,
@@ -15,12 +15,34 @@ export class HardDeleteError extends Error {
   }
 }
 
+/**
+ * Remove files and verify it really happened. Storage returns no error when a policy
+ * silently blocks the delete; it just reports fewer removed files than requested.
+ */
+async function removeFiles(paths: string[]): Promise<number> {
+  const storage = supabase.storage.from(BUCKET);
+  let removed = 0;
+  for (let i = 0; i < paths.length; i += REMOVE_BATCH) {
+    const batch = paths.slice(i, i + REMOVE_BATCH);
+    const { data, error } = await storage.remove(batch);
+    if (error) throw new HardDeleteError('remove-snapshots', error);
+    if ((data?.length ?? 0) < batch.length) {
+      throw new HardDeleteError('remove-snapshots', {
+        message: 'Storage did not remove every file (check the delete policy)',
+      });
+    }
+    removed += batch.length;
+  }
+  return removed;
+}
+
 /** Remove every snapshot file stored under a class folder. Returns how many files were removed. */
 export async function removeClassSnapshots(classId: string): Promise<number> {
   const storage = supabase.storage.from(BUCKET);
   let removed = 0;
 
-  // Always list from offset 0: removed files drop out of the listing
+  // List from offset 0 each time: removed files drop out of the listing,
+  // and removeFiles() throws if they did not, so this cannot loop forever.
   for (;;) {
     const { data, error } = await storage.list(classId, { limit: LIST_PAGE, offset: 0 });
     if (error) throw new HardDeleteError('list-snapshots', error);
@@ -28,17 +50,32 @@ export async function removeClassSnapshots(classId: string): Promise<number> {
     const files = (data ?? []).filter((item) => item.name && item.id !== null);
     if (files.length === 0) break;
 
-    const paths = files.map((f) => `${classId}/${f.name}`);
-    for (let i = 0; i < paths.length; i += REMOVE_BATCH) {
-      const { error: removeError } = await storage.remove(paths.slice(i, i + REMOVE_BATCH));
-      if (removeError) throw new HardDeleteError('remove-snapshots', removeError);
-    }
-    removed += paths.length;
-
+    removed += await removeFiles(files.map((f) => `${classId}/${f.name}`));
     if (files.length < LIST_PAGE) break;
   }
 
   return removed;
+}
+
+export interface PhotoCleanup {
+  removed: number;
+  /** True when the database rows are gone but some photo files could not be removed */
+  failed: boolean;
+}
+
+/** Best-effort photo cleanup after the database rows are already deleted */
+async function cleanupClassPhotos(classIds: string[]): Promise<PhotoCleanup> {
+  let removed = 0;
+  let failed = false;
+  for (const id of classIds) {
+    try {
+      removed += await removeClassSnapshots(id);
+    } catch (err) {
+      console.error('Photo cleanup failed for class', id, err);
+      failed = true;
+    }
+  }
+  return { removed, failed };
 }
 
 export interface SchoolDeleteResult {
@@ -46,9 +83,13 @@ export interface SchoolDeleteResult {
   students: number;
   accounts: number;
   snapshots: number;
+  photosFailed: boolean;
 }
 
-/** Delete a whole school: photos first, then database rows. The database is untouched if photo cleanup fails. */
+/**
+ * Delete a whole school. Database rows go first so a failed delete never costs the photos;
+ * photo files are cleaned afterwards and reported if any could not be removed.
+ */
 export async function deleteSchoolEverything(
   schoolId: string,
   options: { deleteAccounts: boolean }
@@ -59,42 +100,42 @@ export async function deleteSchoolEverything(
     .eq('school_id', schoolId);
   if (classErr) throw new HardDeleteError('list-classes', classErr);
 
-  let snapshots = 0;
-  for (const row of classRows ?? []) {
-    snapshots += await removeClassSnapshots(row.id as string);
-  }
-
   const { data, error } = await supabase.rpc('delete_school_cascade', {
     p_school_id: schoolId,
     p_delete_accounts: options.deleteAccounts,
   });
   if (error) throw new HardDeleteError('delete-school', error);
 
+  const photos = await cleanupClassPhotos((classRows ?? []).map((row) => row.id as string));
+
   const result = (data ?? {}) as { classes?: number; students?: number; accounts?: number };
   return {
     classes: result.classes ?? 0,
     students: result.students ?? 0,
     accounts: result.accounts ?? 0,
-    snapshots,
+    snapshots: photos.removed,
+    photosFailed: photos.failed,
   };
 }
 
-/** Delete one class with its students, attendance records and photos */
-export async function deleteClassEverything(classId: string): Promise<{ snapshots: number }> {
-  const snapshots = await removeClassSnapshots(classId);
+/** Delete one class with its students and attendance records, then its photos */
+export async function deleteClassEverything(classId: string): Promise<PhotoCleanup> {
   const { error } = await supabase.from('classes').delete().eq('id', classId);
   if (error) throw new HardDeleteError('delete-class', error);
-  return { snapshots };
+  return cleanupClassPhotos([classId]);
 }
 
-/** Delete one rollcall: its photo first, then the row (student records cascade). Row stays if photo removal fails. */
-export async function deleteSessionRecord(sessionId: string, snapshotPath: string | null): Promise<void> {
-  if (snapshotPath) {
-    const { error: removeError } = await supabase.storage.from(BUCKET).remove([snapshotPath]);
-    if (removeError) throw new HardDeleteError('remove-snapshot', removeError);
-  }
+/** Delete one rollcall (student records cascade), then its photo */
+export async function deleteSessionRecord(sessionId: string, snapshotPath: string | null): Promise<PhotoCleanup> {
   const { error } = await supabase.from('attendance_sessions').delete().eq('id', sessionId);
   if (error) throw new HardDeleteError('delete-session', error);
+  if (!snapshotPath) return { removed: 0, failed: false };
+  try {
+    return { removed: await removeFiles([snapshotPath]), failed: false };
+  } catch (err) {
+    console.error('Photo cleanup failed for session', sessionId, err);
+    return { removed: 0, failed: true };
+  }
 }
 
 /** Delete one student; attendance records cascade */

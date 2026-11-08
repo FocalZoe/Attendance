@@ -17,6 +17,8 @@ export function useCameraPermission() {
         return;
       }
       const status = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      // Drop the listener on the previous status object so repeated checks do not pile up listeners
+      if (statusRef.current) statusRef.current.onchange = null;
       statusRef.current = status;
       setState(mapPermissionState(status.state));
       status.onchange = () => setState(mapPermissionState(status.state));

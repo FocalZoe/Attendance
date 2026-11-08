@@ -68,7 +68,7 @@ export function LoginPage() {
 
   return (
     <PublicShell>
-      <h1 className="text-3xl font-bold text-foreground">教職員登入</h1>
+      <h1 className="text-3xl font-bold text-foreground">帳號登入</h1>
       <p className="mt-2 text-sm text-muted-foreground">使用學校提供的信箱與密碼登入。</p>
 
       <div className="mt-6 space-y-4">

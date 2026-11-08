@@ -64,7 +64,7 @@ export function HomePage() {
                   </Button>
                 ) : (
                   <Button asChild size="lg">
-                    <Link to="/login">教職員登入</Link>
+                    <Link to="/login">帳號登入</Link>
                   </Button>
                 )}
                 <Button asChild size="lg" variant="outline">

@@ -167,7 +167,7 @@ export function Navbar({ profile: propProfile }: NavbarProps) {
               <Link to="/parent-query">家長查勤</Link>
             </Button>
             <Button asChild size="sm">
-              <Link to="/login">教職員登入</Link>
+              <Link to="/login">帳號登入</Link>
             </Button>
           </div>
         )}
