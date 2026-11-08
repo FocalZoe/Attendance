@@ -19,6 +19,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { UserCheck, UserPlus, UserX } from 'lucide-react';
+import { friendlyError } from '@/lib/errors';
 
 export interface SchoolAdminInfo {
   id: string;
@@ -57,14 +58,13 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
       });
 
       if (rpcError) {
-        setErrorMsg(rpcError.message || (active ? '啟用失敗。請稍後再試。' : '停用失敗。請稍後再試。'));
+        setErrorMsg(friendlyError(rpcError, active ? '啟用失敗。請稍後再試。' : '停用失敗。請稍後再試。').message);
         return;
       }
 
       onRefresh?.();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '帳號狀態變更失敗。請稍後再試。';
-      setErrorMsg(msg);
+      setErrorMsg(friendlyError(err, '帳號狀態變更失敗。請稍後再試。').message);
     } finally {
       setLoading(false);
     }
@@ -126,7 +126,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
             .eq('id', existingProfile.id);
 
           if (updateError) {
-            setErrorMsg(updateError.message);
+            setErrorMsg(friendlyError(updateError, '更新主管資料失敗。請稍後再試。').message);
             setLoading(false);
             return;
           }
@@ -145,7 +145,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
         });
 
         if (signUpError) {
-          setErrorMsg(signUpError.message || '建立主管帳號失敗。請稍後再試。');
+          setErrorMsg(friendlyError(signUpError, '建立主管帳號失敗。請稍後再試。').message);
           setLoading(false);
           return;
         }
@@ -158,7 +158,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
           p_phone: phone,
         });
         if (assignError) {
-          setErrorMsg(assignError.message || '指派主管失敗。請稍後再試。');
+          setErrorMsg(friendlyError(assignError, '指派主管失敗。請稍後再試。').message);
           setLoading(false);
           return;
         }
@@ -167,8 +167,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
       setShowAddForm(false);
       onRefresh?.();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '指派主管失敗。請稍後再試。';
-      setErrorMsg(msg);
+      setErrorMsg(friendlyError(err, '指派主管失敗。請稍後再試。').message);
     } finally {
       setLoading(false);
     }

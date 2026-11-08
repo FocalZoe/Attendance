@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { buildIssueUrl } from '@/lib/report-issue';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -22,26 +23,42 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   render() {
     if (!this.state.error) return this.props.children;
 
+    const reportUrl = buildIssueUrl({
+      where: window.location.pathname,
+      summary: '畫面發生未預期錯誤',
+      detail: this.state.error.message,
+    });
+
     return (
-      <div className="min-h-screen bg-secondary flex items-center justify-center p-4">
-        <div className="bg-card border border-border p-6 rounded-lg max-w-md text-center space-y-3">
-          <h2 className="text-base font-bold text-foreground">頁面發生未預期錯誤</h2>
-          <p className="text-xs text-muted-foreground">請重新整理頁面；若問題持續，請聯繫系統管理員。</p>
-          <div className="flex justify-center gap-2">
+      <div className="flex min-h-screen items-center justify-center bg-secondary p-4">
+        <div className="max-w-md space-y-4 rounded-lg border border-border bg-card p-6 text-center">
+          <h2 className="text-lg font-bold text-foreground">這個畫面出了點問題</h2>
+          <p className="text-sm text-muted-foreground">
+            你剛才的操作沒有遺失。先按「重試」；還是不行的話，請回報問題，我們會盡快處理。
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
             <button
               type="button"
               onClick={() => this.setState({ error: null })}
-              className="text-xs px-3 py-1.5 border border-border rounded hover:bg-secondary"
+              className="h-10 rounded-md border border-border px-4 text-sm font-medium hover:bg-secondary"
             >
               重試
             </button>
             <button
               type="button"
               onClick={() => window.location.assign('/')}
-              className="text-xs px-3 py-1.5 bg-primary text-white rounded hover:bg-primary/90"
+              className="h-10 rounded-md border border-border px-4 text-sm font-medium hover:bg-secondary"
             >
               回首頁
             </button>
+            <a
+              href={reportUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              回報問題
+            </a>
           </div>
         </div>
       </div>

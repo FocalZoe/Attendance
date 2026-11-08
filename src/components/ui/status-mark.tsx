@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 
 /* 出席簿的「蓋章格」：一個字 + 邊框 + 底色。
    四態除了顏色，還以不同的字（出 / 遲 / 假 / 缺）區分，色盲也能辨識。 */
-const STAMP: Record<AttendanceStatus, { glyph: string; className: string }> = {
+export const STAMP: Record<AttendanceStatus, { glyph: string; className: string }> = {
   present: { glyph: '出', className: 'border-present bg-present-soft text-present' },
   late: { glyph: '遲', className: 'border-late bg-late-soft text-late' },
   leave: { glyph: '假', className: 'border-leave bg-leave-soft text-leave' },

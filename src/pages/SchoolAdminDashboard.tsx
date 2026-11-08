@@ -24,6 +24,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Grid3X3, Trash2, UserCheck, UserX } from 'lucide-react';
 import type { SchoolClass, Profile, Student, ClassTeacher } from '@/types/database';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/errors';
+import { friendlyError } from '@/lib/errors';
+import { useProductTour } from '@/hooks/useProductTour';
 
 const EMPTY_STUDENT_FORM = {
   student_number: '',
@@ -43,6 +46,7 @@ export function SchoolAdminDashboard() {
   const [teachers, setTeachers] = React.useState<Profile[]>([]);
   const [studentCount, setStudentCount] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
+  useProductTour({ role: 'school_admin', userId: profile?.id, ready: !loading });
 
   // 班級指派與關聯列表
   const [classTeachers, setClassTeachers] = React.useState<ClassTeacher[]>([]);
@@ -170,7 +174,7 @@ export function SchoolAdminDashboard() {
       });
 
       if (error) {
-        setClassError(error.message);
+        setClassError(friendlyError(error, '建立班級失敗。請稍後再試。').message);
       } else {
         setClassName('');
         setClassGrade('');
@@ -178,7 +182,7 @@ export function SchoolAdminDashboard() {
         await loadData();
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '建立班級失敗。請稍後再試。';
+      const msg = friendlyError(err, '建立班級失敗。請稍後再試。').message;
       setClassError(msg);
     } finally {
       setCreatingClass(false);
@@ -211,7 +215,7 @@ export function SchoolAdminDashboard() {
       });
 
       if (error) {
-        setTeacherError(error.message);
+        setTeacherError(friendlyError(error, '建立教師帳號失敗。請稍後再試。').message);
       } else {
         if (data.user) {
           // 學校綁定僅能經由伺服器端 RPC（驗證呼叫者為本校主管）
@@ -221,7 +225,7 @@ export function SchoolAdminDashboard() {
             p_phone: null,
           });
           if (assignError) {
-            setTeacherError(assignError.message);
+            setTeacherError(friendlyError(assignError, '建立教師帳號失敗。請稍後再試。').message);
             return;
           }
         }
@@ -232,7 +236,7 @@ export function SchoolAdminDashboard() {
         await loadData();
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '建立教師帳號失敗。請稍後再試。';
+      const msg = friendlyError(err, '建立教師帳號失敗。請稍後再試。').message;
       setTeacherError(msg);
     } finally {
       setCreatingTeacher(false);
@@ -258,15 +262,14 @@ export function SchoolAdminDashboard() {
         if (error.code === '23505') {
           toast.error('這位教師已經在這個班級任職了。');
         } else {
-          toast.error(error.message);
+          toastError(error, '指派失敗。請稍後再試。');
         }
       } else {
         toast.success(`已指派為${assignRole === 'homeroom' ? '導師' : '科任老師'}`);
         await loadData();
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '指派失敗。請稍後再試。';
-      toast.error(msg);
+      toastError(err, '指派失敗。請稍後再試。');
     }
   };
 
@@ -294,8 +297,7 @@ export function SchoolAdminDashboard() {
       });
     } catch (err: unknown) {
       setClassTeachers(previous);
-      const msg = err instanceof Error ? err.message : '解除失敗。請稍後再試。';
-      toast.error(msg);
+      toastError(err, '解除失敗。請稍後再試。');
     }
   };
 
@@ -323,8 +325,7 @@ export function SchoolAdminDashboard() {
       loadClassStudents(selectedClassForStudents);
       loadData();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '新增學生失敗。請確認學號沒有重複後再試一次。';
-      toast.error(msg);
+      toastError(err, '新增學生失敗。請確認學號沒有重複後再試一次。');
     }
   };
 
@@ -339,8 +340,7 @@ export function SchoolAdminDashboard() {
       loadData();
     } catch (err: unknown) {
       setClassStudents(previous);
-      const msg = err instanceof Error ? err.message : '移除失敗。請稍後再試。';
-      toast.error(msg);
+      toastError(err, '移除失敗。請稍後再試。');
     }
   };
 
@@ -362,15 +362,13 @@ export function SchoolAdminDashboard() {
         p_active: active,
       });
       if (error) {
-        // PostgrestError is a plain object, not an Error instance
-        toast.error(error.message || '帳號狀態變更失敗。請稍後再試。');
+        toastError(error, '帳號狀態變更失敗。請稍後再試。');
         return;
       }
       toast.success(active ? '已重新啟用教師帳號' : '已停用教師帳號，歷史點名紀錄會保留');
       await loadData();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '帳號狀態變更失敗。請稍後再試。';
-      toast.error(msg);
+      toastError(err, '帳號狀態變更失敗。請稍後再試。');
     }
   };
 
@@ -431,9 +429,9 @@ export function SchoolAdminDashboard() {
         ) : (
           <Tabs defaultValue="classes_teachers">
             <TabsList>
-              <TabsTrigger value="classes_teachers">班級與教師</TabsTrigger>
-              <TabsTrigger value="students">學生名冊</TabsTrigger>
-              <TabsTrigger value="attendance_history">全校出勤</TabsTrigger>
+              <TabsTrigger value="classes_teachers" data-tour="sa-classes">班級與教師</TabsTrigger>
+              <TabsTrigger value="students" data-tour="sa-students">學生名冊</TabsTrigger>
+              <TabsTrigger value="attendance_history" data-tour="sa-attendance">全校出勤</TabsTrigger>
             </TabsList>
 
             {/* 班級與教師 */}
@@ -537,7 +535,7 @@ export function SchoolAdminDashboard() {
                       <ScrollArea className="rounded-md border border-border" viewportClassName="max-h-72">
                       <ul className="divide-y divide-border">
                         {teachers.map((t) => (
-                          <li key={t.id} className="flex items-center justify-between gap-3 py-3">
+                          <li key={t.id} className="flex items-center justify-between gap-3 px-3 py-3">
                             <div className="min-w-0">
                               <p className="flex items-center gap-2 font-medium text-foreground">
                                 <span className="truncate">{t.name}</span>
@@ -675,7 +673,7 @@ export function SchoolAdminDashboard() {
                       <ScrollArea className="rounded-md border border-border" viewportClassName="max-h-60">
                       <ul className="divide-y divide-border">
                         {classTeachers.map((ct) => (
-                          <li key={ct.id} className="flex items-center justify-between gap-3 py-2.5">
+                          <li key={ct.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
                             <p className="min-w-0 truncate text-sm text-foreground">
                               <span className="font-medium">{ct.class?.name || '未知班級'}</span>
                               <span className="mx-2 text-muted-foreground">{ct.teacher?.name || '未知教師'}</span>

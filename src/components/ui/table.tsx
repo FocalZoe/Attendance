@@ -9,7 +9,7 @@ const Table = React.forwardRef<
   <ScrollArea scrollbars="horizontal" className="w-full">
     <table
       ref={ref}
-      className={cn('w-full caption-bottom text-sm border-collapse', className)}
+      className={cn('w-max min-w-full caption-bottom text-sm border-collapse', className)}
       {...props}
     />
   </ScrollArea>

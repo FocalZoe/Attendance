@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types/database';
+import { friendlyError } from '@/lib/errors';
 
 interface AuthState {
   user: User | null;
@@ -147,7 +148,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       };
     } catch (err: unknown) {
       set({ isLoading: false });
-      const msg = err instanceof Error ? err.message : '登入過程發生未預期錯誤';
+      const msg = friendlyError(err, '登入失敗。請稍後再試。').message;
       return { success: false, error: msg };
     }
   },

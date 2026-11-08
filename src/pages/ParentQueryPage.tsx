@@ -125,9 +125,9 @@ export function ParentQueryPage() {
                       {rec.is_overridden
                         ? '老師已更正這筆紀錄'
                         : rec.ai_detected_status === 'present'
-                        ? '系統判斷在座位上'
+                        ? '鏡頭看到孩子在座位上'
                         : rec.ai_detected_status === 'absent'
-                        ? '系統判斷不在座位上'
+                        ? '鏡頭沒看到孩子在座位上'
                         : '手動登記'}
                     </p>
                     {rec.note && <p className="mt-1 text-sm text-foreground">備註：{rec.note}</p>}

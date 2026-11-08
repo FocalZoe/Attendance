@@ -20,7 +20,7 @@ const STEPS = [
     body: '用教室鏡頭的畫面，把每個座位拉成一個框並指定給學生。座位以比例儲存，換螢幕也對得上。',
   },
   {
-    title: '開鏡頭，系統判斷誰在座位上',
+    title: '開鏡頭，自動看誰在座位上',
     body: '人物辨識在老師的瀏覽器裡完成，畫面不會上傳做辨識。座位上有人，就標為出席。',
   },
   {
@@ -54,7 +54,7 @@ export function HomePage() {
                 點名就完成。
               </h1>
               <p className="mt-5 max-w-xl text-base text-muted-foreground sm:text-lg">
-                老師在鏡頭畫面上標好座位，系統判斷每個座位有沒有人。確認後存檔，出勤紀錄與當下照片都會保留，家長也能自己查詢。
+                老師在鏡頭畫面上標好座位，系統自動看每個座位有沒有人。確認後存檔，出勤紀錄與當下照片都會保留，家長也能自己查詢。
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">

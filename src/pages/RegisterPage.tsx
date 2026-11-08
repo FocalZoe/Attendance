@@ -10,6 +10,7 @@ import { PasswordInput } from '@/components/ui/password-input';
 import { InlineAlert } from '@/components/ui/inline-alert';
 import { validatePassword } from '@/lib/password';
 import { Label } from '@/components/ui/label';
+import { friendlyError } from '@/lib/errors';
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -69,7 +70,7 @@ export function RegisterPage() {
             return;
           }
         } else {
-          setErrorMsg(signUpError.message || '建立帳號失敗。請稍後再試。');
+          setErrorMsg(friendlyError(signUpError, '建立帳號失敗。請稍後再試。').message);
           setLoading(false);
           return;
         }
@@ -90,7 +91,7 @@ export function RegisterPage() {
 
       // 角色與學校綁定僅能由伺服器端 RPC 授予，不提供前端寫入的備援路徑
       if (rpcError) {
-        setErrorMsg(rpcError.message || '開通學校失敗。請稍後再試。');
+        setErrorMsg(friendlyError(rpcError, '開通學校失敗。請稍後再試。').message);
         setLoading(false);
         return;
       }
@@ -99,8 +100,7 @@ export function RegisterPage() {
       await refreshProfile();
       navigate('/dashboard/school-admin');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '開通學校時發生未預期的錯誤。請稍後再試。';
-      setErrorMsg(msg);
+      setErrorMsg(friendlyError(err, '開通學校時發生未預期的錯誤。請稍後再試。').message);
       setLoading(false);
     }
   };

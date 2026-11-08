@@ -22,7 +22,9 @@ function ScrollArea({
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
         className={cn(
-          'size-full rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          // Radix wraps children in a display:table div that grows to content width and
+          // pushes the page wider than the viewport; force it back to a normal block.
+          'size-full rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-ring [&>div]:!block',
           viewportClassName
         )}
       >

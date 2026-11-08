@@ -25,6 +25,8 @@ import { formatTime, getNextSchedule, getTodaySchedules, WEEKDAY_LABELS, weekday
 import { periodLabel } from '@/lib/periods';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/errors';
+import { useProductTour } from '@/hooks/useProductTour';
 
 interface AssignedClassItem {
   class: SchoolClass;
@@ -47,6 +49,7 @@ export function TeacherDashboard() {
   const [selectedClassId, setSelectedClassId] = React.useState<string>('');
   const [classStudents, setClassStudents] = React.useState<Student[]>([]);
   const [loading, setLoading] = React.useState<boolean>(true);
+  useProductTour({ role: 'teacher', userId: profile?.id, ready: !loading });
   const [attendanceRefreshKey, setAttendanceRefreshKey] = React.useState<number>(0);
   const [now, setNow] = React.useState<Date>(() => new Date());
 
@@ -192,8 +195,7 @@ export function TeacherDashboard() {
       setStudentForm({ ...EMPTY_STUDENT_FORM, seat_number: classStudents.length + 2 });
       loadStudents(selectedClassId);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '新增學生失敗。請確認學號沒有重複後再試一次。';
-      toast.error(msg);
+      toastError(err, '新增學生失敗。請確認學號沒有重複後再試一次。');
     }
   };
 
@@ -207,8 +209,7 @@ export function TeacherDashboard() {
       toast.success('已移除學生');
     } catch (err: unknown) {
       setClassStudents(previous);
-      const msg = err instanceof Error ? err.message : '移除失敗。請稍後再試。';
-      toast.error(msg);
+      toastError(err, '移除失敗。請稍後再試。');
     }
   };
 
@@ -258,7 +259,7 @@ export function TeacherDashboard() {
 
       <main className="mx-auto w-full max-w-7xl flex-1 space-y-10 px-4 py-8 sm:px-6 lg:px-8">
         {/* 今日優先 */}
-        <section aria-labelledby="today-heading">
+        <section aria-labelledby="today-heading" data-tour="today">
           <p className="tabular text-sm text-muted-foreground">{dateLabel}</p>
           <h1 id="today-heading" className="mt-1 text-3xl font-bold text-foreground">
             {profile?.name || ''} 老師，今天的點名
@@ -333,7 +334,7 @@ export function TeacherDashboard() {
         </section>
 
         {/* 我的班級 */}
-        <section aria-labelledby="classes-heading">
+        <section aria-labelledby="classes-heading" data-tour="classes">
           <h2 id="classes-heading" className="text-xl font-bold text-foreground">
             我的班級（{assignedClasses.length}）
           </h2>
@@ -346,11 +347,11 @@ export function TeacherDashboard() {
             <EmptyState
               className="mt-4"
               title="你還沒有被指派任何班級"
-              description="請聯繫學校主管，請他在「班級任課與導師職務指派」把你加入班級。"
+              description="請聯繫學校主管，請他在「班級與教師」頁籤的「指派導師與科任老師」把你加入班級。"
             />
           ) : (
             <ul className="mt-4 divide-y divide-border border-y border-border">
-              {assignedClasses.map((item) => {
+              {assignedClasses.map((item, index) => {
                 const isSelected = item.class.id === selectedClassId;
                 const isHomeroom = item.role === 'homeroom';
 
@@ -378,15 +379,15 @@ export function TeacherDashboard() {
                     </button>
 
                     <div className="flex flex-wrap gap-2">
-                      <Button size="sm" onClick={() => handleOpenRollcall(item.class)}>
+                      <Button size="sm" data-tour={index === 0 ? 'rollcall' : undefined} onClick={() => handleOpenRollcall(item.class)}>
                         <Camera aria-hidden="true" />
                         點名
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleOpenSeating(item.class)}>
+                      <Button size="sm" variant="outline" data-tour={index === 0 ? 'seat' : undefined} onClick={() => handleOpenSeating(item.class)}>
                         <Grid3X3 aria-hidden="true" />
                         座位
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleOpenSchedule(item.class)}>
+                      <Button size="sm" variant="outline" data-tour={index === 0 ? 'schedule' : undefined} onClick={() => handleOpenSchedule(item.class)}>
                         <Clock aria-hidden="true" />
                         課表
                       </Button>
@@ -410,7 +411,7 @@ export function TeacherDashboard() {
 
             <Tabs defaultValue="attendance_records" className="mt-5">
               <TabsList>
-                <TabsTrigger value="attendance_records">點名紀錄</TabsTrigger>
+                <TabsTrigger value="attendance_records" data-tour="records">點名紀錄</TabsTrigger>
                 <TabsTrigger value="roster">學生名冊（{classStudents.length}）</TabsTrigger>
               </TabsList>
 

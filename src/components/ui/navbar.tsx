@@ -19,7 +19,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { Profile } from '@/types/database';
-import { Camera, KeyRound, LogOut, Palette } from 'lucide-react';
+import { Camera, CircleHelp, KeyRound, LogOut, Palette } from 'lucide-react';
+import { START_TOUR_EVENT } from '@/lib/tour';
 import { cn } from '@/lib/utils';
 
 interface NavbarProps {
@@ -100,6 +101,7 @@ export function Navbar({ profile: propProfile }: NavbarProps) {
                 <Button
                   variant="ghost"
                   className="h-11 gap-2.5 px-2"
+                  data-tour="account"
                   aria-label={`${profile.name} 的帳號選單`}
                 >
                   <span className="hidden flex-col text-right leading-tight md:flex">
@@ -138,6 +140,12 @@ export function Navbar({ profile: propProfile }: NavbarProps) {
                     <ThemeRadioItems preference={preference} setPreference={setPreference} />
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
+                {profile.role !== 'sys_admin' && (
+                  <DropdownMenuItem onSelect={() => window.dispatchEvent(new Event(START_TOUR_EVENT))}>
+                    <CircleHelp className="mr-2 h-4 w-4" aria-hidden="true" />
+                    重看導覽
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />

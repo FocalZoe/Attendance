@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,8 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/lib/supabase';
 import { SeatingChart, SeatingBox, Student } from '@/types/database';
 import { generateGridSeats, NormalizedBox } from '@/services/seatOccupancyService';
-import { ZoomIn, ZoomOut, Trash2, PlusCircle, Copy } from 'lucide-react';
+import { Trash2, PlusCircle, Copy } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/errors';
 
 interface SeatMapEditorModalProps {
   open: boolean;
@@ -179,8 +181,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
         setBoxes(generateGridSeats(5, 6));
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '載入座位表失敗';
-      toast.error(msg);
+      toastError(err, '載入座位表失敗');
     } finally {
       setLoading(false);
     }
@@ -206,7 +207,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
     });
     setBoxes(bound);
     setSelectedBoxIndex(null);
-    toast.success(`已重新產生 ${gridRows} × ${gridCols} 座位網格`);
+    toast.success(`已排好 ${gridRows} 排 × ${gridCols} 位的座位`);
   };
 
   // 滑鼠拖曳移動座位框
@@ -243,20 +244,6 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
     };
   };
 
-  // 放大 / 縮小特定比例（按鈕點擊）
-  const handleScaleSelectedBox = (factor: number) => {
-    if (selectedBoxIndex === null) return;
-    setBoxes((prev) => {
-      const copy = [...prev];
-      const target = copy[selectedBoxIndex];
-      if (!target) return prev;
-      const newW = Math.max(0.02, Math.min(1 - target.x_ratio, target.w_ratio * factor));
-      const newH = Math.max(0.02, Math.min(1 - target.y_ratio, target.h_ratio * factor));
-      copy[selectedBoxIndex] = { ...target, w_ratio: newW, h_ratio: newH };
-      return copy;
-    });
-  };
-
   // 套用當前選中座位尺寸至全班座位
   const handleApplySizeToAll = () => {
     if (selectedBoxIndex === null) return;
@@ -269,7 +256,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
         h_ratio: Math.min(1 - b.y_ratio, current.h_ratio),
       }))
     );
-    toast.success('已將當前座位尺寸套用至全班座位');
+    toast.success('所有座位都改成一樣大了');
   };
 
   // 刪除選取座位
@@ -366,12 +353,11 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
 
       if (insErr) throw insErr;
 
-      toast.success('座位表已成功儲存');
+      toast.success('座位表已儲存');
       onSaved?.();
       onOpenChange(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '儲存失敗';
-      toast.error(msg);
+      toastError(err, '儲存失敗');
     } finally {
       setLoading(false);
     }
@@ -380,76 +366,66 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
-        <DialogHeader className="border-b border-border pb-3">
-          <DialogTitle className="text-lg font-bold text-foreground">
-            教室劃位管理 · {className}
-          </DialogTitle>
+        <DialogHeader>
+          <DialogTitle>{className}　座位表</DialogTitle>
+          <DialogDescription>
+            這是教室的俯視圖。先排出座位，再指定每個座位坐哪位學生，點名時鏡頭就知道誰該坐在哪裡。
+          </DialogDescription>
         </DialogHeader>
 
-        {/* 頂部操作工具列 */}
-        <div className="space-y-2 py-2 border-b border-border">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-muted-foreground">產生網格：</span>
-              <div className="flex items-center gap-1">
-                <Label className="text-xs text-muted-foreground">列</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={gridRows}
-                  onChange={(e) => setGridRows(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-14 h-8 text-center text-xs"
-                />
-              </div>
-              <div className="flex items-center gap-1">
-                <Label className="text-xs text-muted-foreground">行</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={12}
-                  value={gridCols}
-                  onChange={(e) => setGridCols(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-14 h-8 text-center text-xs"
-                />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleGenerateGrid}
-                className="h-8 text-xs font-medium"
-              >
-                重新產生網格
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleAddSeat}
-                className="h-8 text-xs font-medium text-present hover:text-present"
-              >
-                <PlusCircle className="w-3.5 h-3.5 mr-1" />
-                新增座位
-              </Button>
+        <div className="space-y-3 border-t border-border pt-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="seat-rows">幾排</Label>
+              <Input
+                id="seat-rows"
+                type="number"
+                min={1}
+                max={10}
+                value={gridRows}
+                onChange={(e) => setGridRows(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-20 text-center"
+              />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="seat-cols">每排幾位</Label>
+              <Input
+                id="seat-cols"
+                type="number"
+                min={1}
+                max={12}
+                value={gridCols}
+                onChange={(e) => setGridCols(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-20 text-center"
+              />
+            </div>
+            <Button type="button" variant="outline" onClick={handleGenerateGrid}>
+              自動排座位
+            </Button>
+            <Button type="button" variant="outline" onClick={handleAddSeat}>
+              <PlusCircle aria-hidden="true" />
+              加一個座位
+            </Button>
           </div>
+          <p className="text-sm text-muted-foreground">
+            「自動排座位」會重排所有座位。排好後，點一個座位就能移動、拉右下角調整大小，並指定學生。
+          </p>
 
           {selectedBoxIndex !== null && boxes[selectedBoxIndex] && (
-            <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-secondary border border-border rounded text-xs">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-foreground">
-                  座位 [{boxes[selectedBoxIndex]?.seat_label}]：
-                </span>
+            <div className="flex flex-wrap items-end justify-between gap-3 rounded-md border border-border bg-secondary p-3">
+              <div className="space-y-2">
+                <Label htmlFor="seat-student">
+                  座位 {boxes[selectedBoxIndex]?.seat_label} 坐的是
+                </Label>
                 <Select
                   value={boxes[selectedBoxIndex]?.student_id || 'none'}
                   onValueChange={handleAssignStudent}
                 >
-                  <SelectTrigger className="w-40 h-8 text-xs bg-card">
-                    <SelectValue placeholder="綁定學生" />
+                  <SelectTrigger id="seat-student" className="w-52 bg-card">
+                    <SelectValue placeholder="選擇學生" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">-- 無指定學生 --</SelectItem>
+                    <SelectItem value="none">還沒指定</SelectItem>
                     {currentStudents.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.seat_number} 號 {s.name}
@@ -459,69 +435,29 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
                 </Select>
               </div>
 
-              {/* 縮放與尺寸調整群組 */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground text-[11px]">
-                  寬 {Math.round(boxes[selectedBoxIndex].w_ratio * 100)}% × 高 {Math.round(boxes[selectedBoxIndex].h_ratio * 100)}%
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleScaleSelectedBox(1.1)}
-                  className="h-7 px-2 text-xs"
-                  title="放大座位 (或直接拖曳右下角把手)"
-                >
-                  <ZoomIn className="w-3.5 h-3.5 mr-1" />
-                  放大
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" onClick={handleApplySizeToAll}>
+                  <Copy aria-hidden="true" />
+                  所有座位一樣大
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleScaleSelectedBox(0.9)}
-                  className="h-7 px-2 text-xs"
-                  title="縮小座位 (或直接拖曳右下角把手)"
-                >
-                  <ZoomOut className="w-3.5 h-3.5 mr-1" />
-                  縮小
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleApplySizeToAll}
-                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  title="將此座位的寬高套用至全班所有座位"
-                >
-                  <Copy className="w-3.5 h-3.5 mr-1" />
-                  套用全班
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleDeleteSelectedBox(selectedBoxIndex)}
-                  className="h-7 px-2.5 text-xs bg-absent hover:bg-absent/90"
-                  title="刪除此座位 (可按鍵盤 Delete 鍵)"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1" />
-                  刪除座位
+                <Button type="button" variant="outline" onClick={() => handleDeleteSelectedBox(selectedBoxIndex)}>
+                  <Trash2 aria-hidden="true" />
+                  刪除這個座位
                 </Button>
               </div>
             </div>
           )}
         </div>
 
-        {/* 劃位畫布主體 (16:9 比例) */}
+        {/* Seat canvas (16:9) */}
         <div
           ref={canvasContainerRef}
           onClick={() => setSelectedBoxIndex(null)}
           className="relative w-full aspect-video bg-neutral-950 border border-border rounded overflow-hidden select-none"
         >
           {/* 黑板 / 講台方向標示 */}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 px-4 py-1 bg-black/70 border border-white/30 text-white/80 text-[11px] font-mono tracking-widest rounded-sm pointer-events-none">
-            [ 講台 / 黑板方向 ]
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 px-4 py-1 bg-black/70 border border-white/30 text-white/80 text-[11px] tracking-widest rounded-sm pointer-events-none">
+            黑板在這一側
           </div>
 
           {/* 互動座位方塊列表 */}
@@ -550,7 +486,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
                   {box.seat_label}
                 </span>
                 <span className="text-[11px] font-medium text-neutral-50 truncate max-w-full">
-                  {assignedStudent ? assignedStudent.name : '（空位）'}
+                  {assignedStudent ? assignedStudent.name : '空位'}
                 </span>
 
                 {/* 右上角快速刪除按鈕 */}
@@ -562,7 +498,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
                       handleDeleteSelectedBox(index);
                     }}
                     className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-absent hover:bg-absent/90 text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow-md z-20"
-                    title="刪除此座位 (Delete)"
+                    title="刪除這個座位"
                   >
                     ×
                   </button>
@@ -573,7 +509,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
                   <div
                     onMouseDown={(e) => handleResizeMouseDown(e, index)}
                     className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-card border-2 border-present rounded-sm cursor-se-resize shadow-md hover:scale-125 transition-transform z-20"
-                    title="拖曳右下角把手以縮放座位尺寸"
+                    title="拖曳調整大小"
                   />
                 )}
               </div>
@@ -581,29 +517,14 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
           })}
         </div>
 
-        <DialogFooter className="border-t border-border pt-3 flex justify-between items-center sm:justify-between">
-          <span className="text-xs text-muted-foreground">
-            共 {boxes.length} 個座位 · 點選座位可拖曳移動、拉右下角可放大縮小、按 Delete 鍵可刪除
+        <DialogFooter className="flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between sm:space-x-0">
+          <span className="text-sm text-muted-foreground">
+            共 {boxes.length} 個座位。點座位可移動，拉右下角可調整大小。
           </span>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-              className="text-xs"
-            >
-              取消
-            </Button>
-            <Button
-              type="button"
-              onClick={handleSave}
-              disabled={loading}
-              className="text-xs"
-            >
-              {loading ? '儲存中...' : '儲存劃位配置'}
-            </Button>
-          </div>
+          <Button type="button" onClick={handleSave} disabled={loading}>
+            {loading && <Spinner />}
+            儲存座位表
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

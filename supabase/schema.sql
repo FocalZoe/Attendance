@@ -259,18 +259,39 @@ ALTER TABLE public.class_schedules ENABLE ROW LEVEL SECURITY;
 -- Class Schedules 權限：系統總管全權、學校主管限本校班級、教師限自己任課之班級
 DROP POLICY IF EXISTS "Class schedules access" ON public.class_schedules;
 CREATE POLICY "Class schedules access" ON public.class_schedules
-    FOR ALL TO authenticated USING (
+    FOR ALL TO authenticated
+    USING (
         public.current_user_role() = 'sys_admin'
         OR (
             public.current_user_role() = 'school_admin'
-            AND class_id IN (
-                SELECT c.id FROM public.classes c WHERE c.school_id = public.current_user_school_id()
+            AND EXISTS (
+                SELECT 1 FROM public.classes c
+                WHERE c.id = class_schedules.class_id
+                  AND c.school_id = public.current_user_school_id()
             )
         )
         OR (
-            teacher_id = auth.uid()
-            AND class_id IN (
-                SELECT ct.class_id FROM public.class_teachers ct WHERE ct.teacher_id = auth.uid()
+            public.current_user_role() = 'teacher'
+            AND teacher_id = auth.uid()
+        )
+    )
+    WITH CHECK (
+        public.current_user_role() = 'sys_admin'
+        OR (
+            public.current_user_role() = 'school_admin'
+            AND EXISTS (
+                SELECT 1 FROM public.classes c
+                WHERE c.id = class_schedules.class_id
+                  AND c.school_id = public.current_user_school_id()
+            )
+        )
+        OR (
+            public.current_user_role() = 'teacher'
+            AND teacher_id = auth.uid()
+            AND EXISTS (
+                SELECT 1 FROM public.class_teachers ct
+                WHERE ct.class_id = class_schedules.class_id
+                  AND ct.teacher_id = auth.uid()
             )
         )
     );

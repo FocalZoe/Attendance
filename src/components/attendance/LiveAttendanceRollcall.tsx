@@ -35,6 +35,7 @@ import { Loader2, CheckCircle2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/errors';
 
 interface LiveAttendanceRollcallProps {
   open: boolean;
@@ -176,7 +177,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
           detector = await createDetector('CPU');
         } catch (cpuErr) {
           console.error('MediaPipe 初始化失敗:', cpuErr);
-          if (!cancelled) toast.error('無法載入 AI 影像模型，請檢查網路連線');
+          if (!cancelled) toast.error('鏡頭辨識功能載入失敗。請檢查網路後，關掉這個視窗再開一次。');
           return;
         }
       }
@@ -233,11 +234,10 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
         setChartId(null);
         setSeatingBoxes([]);
         seatingBoxesRef.current = [];
-        toast.warning('此班級尚未建立座位表，請先於「教室劃位」建立劃位');
+        toast.warning('這班還沒有座位表。請先關掉這個視窗，到班級列按「座位」排好座位。');
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '載入劃位資料失敗';
-      toast.error(msg);
+      toastError(err, '讀取座位表失敗。請關掉這個視窗再開一次。');
     }
   }, [classId]);
 
@@ -266,7 +266,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
     } catch (err) {
       console.error('劃位自動儲存失敗:', err);
       setAutoSaveStatus('error');
-      toast.error('劃位自動儲存失敗，請檢查網路連線');
+      toast.error('座位儲存失敗。請檢查網路連線。');
     }
   }, []);
 
@@ -420,8 +420,14 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
         };
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '啟動相機失敗';
-      toast.error(msg);
+      const name = err instanceof Error ? err.name : '';
+      toast.error(
+        name === 'NotAllowedError'
+          ? '瀏覽器沒有允許使用鏡頭。請按網址列旁的鎖頭圖示，把「相機」改成允許，再按一次「開啟鏡頭」。'
+          : name === 'NotFoundError'
+          ? '找不到鏡頭。請確認鏡頭已接上，再按一次「開啟鏡頭」。'
+          : '無法開啟鏡頭。請確認沒有其他程式正在使用鏡頭，再試一次。'
+      );
       setCameraActive(false);
     }
   };
@@ -487,7 +493,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
 
               ctx.font = '10px monospace';
               ctx.fillStyle = 'rgba(250, 204, 21, 0.9)';
-              ctx.fillText(`AI ${(person.score * 100).toFixed(0)}%`, px + 4, py + 12);
+              ctx.fillText(`人 ${(person.score * 100).toFixed(0)}%`, px + 4, py + 12);
             }
 
             // 執行幾何匹配
@@ -545,7 +551,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
   const handleConfirmAttendance = async () => {
     if (!classId || !teacherId) return;
     if (seatingBoxes.length === 0) {
-      toast.error('無有效座位表，無法執行點名');
+      toast.error('這班還沒有座位表，無法點名。請先到班級列按「座位」排好座位。');
       return;
     }
 
@@ -641,8 +647,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
       onAttendanceCompleted?.();
       onOpenChange(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '寫入點名資料失敗';
-      toast.error(msg);
+      toastError(err, '寫入點名資料失敗');
     } finally {
       setIsSaving(false);
     }
@@ -660,7 +665,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
         <DialogHeader>
           <DialogTitle>{className}　點名</DialogTitle>
           <DialogDescription>
-            開啟鏡頭後，系統會標出每個座位有沒有人。確認無誤再按「完成點名」。
+            三個步驟：① 按「開啟鏡頭」，對準教室　② 看每個座位標示的「在座／無人」對不對，不對可以拖曳座位框修正　③ 按「完成點名」存檔。
           </DialogDescription>
         </DialogHeader>
 
@@ -697,7 +702,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
 
           {!isMobile && selectedDeviceId === AMEBA_DEVICE_ID && (
             <div className="space-y-2">
-              <Label htmlFor="rc-ameba-ip">網路相機 IP</Label>
+              <Label htmlFor="rc-ameba-ip">網路攝影機位址</Label>
               <Input
                 id="rc-ameba-ip"
                 type="text"

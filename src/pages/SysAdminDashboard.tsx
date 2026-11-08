@@ -20,6 +20,7 @@ import {
 import { SchoolAdminModal, type SchoolAdminInfo } from '@/components/sys-admin/school-admin-modal';
 import type { School as SchoolType } from '@/types/database';
 import { toast } from 'sonner';
+import { friendlyError } from '@/lib/errors';
 
 type AdminRow = SchoolAdminInfo & { school_id: string | null };
 
@@ -84,7 +85,7 @@ export function SysAdminDashboard() {
 
       if (error) {
         setErrorMsg(
-          error.code === '23505' ? '這個學校代碼已經被使用。請換一個代碼。' : error.message
+          error.code === '23505' ? '這個學校代碼已經被使用。請換一個代碼。' : friendlyError(error, '建立學校失敗。請稍後再試。').message
         );
       } else {
         setSchoolName('');
@@ -93,7 +94,7 @@ export function SysAdminDashboard() {
         await loadData();
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '建立學校失敗。請稍後再試。';
+      const msg = friendlyError(err, '建立學校失敗。請稍後再試。').message;
       setErrorMsg(msg);
     } finally {
       setCreatingSchool(false);

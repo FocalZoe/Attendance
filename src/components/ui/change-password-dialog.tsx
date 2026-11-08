@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { friendlyError } from '@/lib/errors';
 
 interface ChangePasswordDialogProps {
   open: boolean;
@@ -68,14 +69,14 @@ export function ChangePasswordDialog({ open, onOpenChange, email }: ChangePasswo
 
       const { error } = await supabase.auth.updateUser({ password: next });
       if (error) {
-        setErrorMsg(error.message || '修改密碼失敗');
+        setErrorMsg(friendlyError(error, '修改密碼失敗。請稍後再試。').message);
         return;
       }
 
       toast.success('密碼已更新');
       onOpenChange(false);
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : '修改密碼失敗');
+      setErrorMsg(friendlyError(err, '修改密碼失敗。請稍後再試。').message);
     } finally {
       setLoading(false);
     }

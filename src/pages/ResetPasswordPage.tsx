@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
 import { InlineAlert } from '@/components/ui/inline-alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { friendlyError } from '@/lib/errors';
 
 export function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -62,12 +63,12 @@ export function ResetPasswordPage() {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) {
-        setErrorMsg(error.message || '更新密碼失敗。請稍後再試。');
+        setErrorMsg(friendlyError(error, '更新密碼失敗。請稍後再試。').message);
         return;
       }
       navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : '更新密碼失敗。請稍後再試。');
+      setErrorMsg(friendlyError(err, '更新密碼失敗。請稍後再試。').message);
     } finally {
       setLoading(false);
     }
