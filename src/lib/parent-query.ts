@@ -1,21 +1,23 @@
 import { supabase } from '@/lib/supabase';
 import type { ParentQueryResult } from '@/types/database';
 
-// 前端節流：僅降低手動/簡單腳本猜測，真正的防護仍須在 RPC 端實作限流與鎖定
+// Client-side throttle only softens casual guessing; the real lockout lives in the RPC (parent_query_attempts)
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MS = 60_000;
 let failedAttempts = 0;
 let lockedUntil = 0;
 
 export async function queryStudentAttendance(
+  schoolCode: string,
   studentNumber: string,
   parentPhoneLast4: string
 ): Promise<ParentQueryResult> {
+  const cleanSchoolCode = schoolCode.trim();
   const cleanStudentNumber = studentNumber.trim();
   const cleanLast4 = parentPhoneLast4.trim();
 
-  if (!cleanStudentNumber || !/^\d{4}$/.test(cleanLast4)) {
-    return { success: false, message: '請輸入正確的學號與家長電話後四碼' };
+  if (!cleanSchoolCode || !cleanStudentNumber || !/^\d{4}$/.test(cleanLast4)) {
+    return { success: false, message: '請輸入學校代碼、學號與家長電話後四碼' };
   }
 
   const now = Date.now();
@@ -27,6 +29,7 @@ export async function queryStudentAttendance(
   // 透過後端 SECURITY DEFINER RPC 進行查核，避免前端暴露個資與家長手機資訊
   try {
     const { data: rpcData, error: rpcError } = await supabase.rpc('query_student_attendance', {
+      p_school_code: cleanSchoolCode,
       p_student_number: cleanStudentNumber,
       p_parent_phone_last4: cleanLast4,
     });

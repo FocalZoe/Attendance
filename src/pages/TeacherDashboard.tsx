@@ -16,7 +16,9 @@ import { ListSkeleton } from '@/components/ui/skeleton';
 import { Bell, Camera, Grid3X3, PlusCircle, Trash2 } from 'lucide-react';
 import type { SchoolClass, Student } from '@/types/database';
 import { SeatMapEditorModal } from '@/components/attendance/SeatMapEditorModal';
-import { LiveAttendanceRollcall } from '@/components/attendance/LiveAttendanceRollcall';
+const LiveAttendanceRollcall = React.lazy(() =>
+  import('@/components/attendance/LiveAttendanceRollcall').then((m) => ({ default: m.LiveAttendanceRollcall }))
+);
 import { AttendanceHistoryView } from '@/components/attendance/AttendanceHistoryView';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useRollcallReminders } from '@/hooks/useRollcallReminders';
@@ -545,6 +547,7 @@ export function TeacherDashboard() {
 
         {/* AI 鏡頭點名彈窗 */}
         {activeModalClass && profile && (
+          <React.Suspense fallback={null}>
           <LiveAttendanceRollcall
             open={liveRollcallOpen}
             onOpenChange={setLiveRollcallOpen}
@@ -557,6 +560,7 @@ export function TeacherDashboard() {
               setAttendanceRefreshKey((k) => k + 1);
             }}
           />
+          </React.Suspense>
         )}
 
         {confirmDialog}

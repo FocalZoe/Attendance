@@ -13,6 +13,7 @@ import { StatusLegend, StatusMark } from '@/components/ui/status-mark';
 import type { ParentQueryResult } from '@/types/database';
 
 export function ParentQueryPage() {
+  const [schoolCode, setSchoolCode] = React.useState('');
   const [studentNumber, setStudentNumber] = React.useState('');
   const [phoneLast4, setPhoneLast4] = React.useState('');
   const [loading, setLoading] = React.useState(false);
@@ -25,7 +26,7 @@ export function ParentQueryPage() {
     setLoading(true);
 
     try {
-      const res = await queryStudentAttendance(studentNumber, phoneLast4);
+      const res = await queryStudentAttendance(schoolCode, studentNumber, phoneLast4);
       if (!res.success) {
         setErrorMsg(res.message || '找不到符合的學生。請確認學號與電話末四碼是否正確。');
         setResult(null);
@@ -53,10 +54,20 @@ export function ParentQueryPage() {
     >
       <h1 className="text-3xl font-bold text-foreground">家長查勤</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-        輸入孩子的學號，以及學校留存的家長電話末四碼，就能看到最近的出勤紀錄。
+        輸入學校代碼、孩子的學號，以及學校留存的家長電話末四碼，就能看到最近的出勤紀錄。學校代碼可以向學校詢問。
       </p>
 
-      <form onSubmit={handleQuery} className="mt-6 grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+      <form onSubmit={handleQuery} className="mt-6 grid gap-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+        <div className="space-y-2">
+          <Label htmlFor="query-school-code">學校代碼</Label>
+          <Input
+            id="query-school-code"
+            required
+            autoComplete="off"
+            value={schoolCode}
+            onChange={(e) => setSchoolCode(e.target.value)}
+          />
+        </div>
         <div className="space-y-2">
           <Label htmlFor="query-student-number">學號</Label>
           <Input

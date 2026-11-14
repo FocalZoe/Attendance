@@ -166,6 +166,7 @@ RETURNS TEXT
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
   SELECT role FROM public.profiles WHERE id = auth.uid() AND is_active;
 $$;
@@ -175,6 +176,7 @@ RETURNS UUID
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
   SELECT school_id FROM public.profiles WHERE id = auth.uid() AND is_active;
 $$;
@@ -182,50 +184,101 @@ $$;
 -- ------------------------------------------------------------------------------
 -- 11. 家長免登入雙重校驗查詢 RPC (Security Definer)
 -- ------------------------------------------------------------------------------
+-- 舊版（兩個參數）會被新版取代；student_number 只在同一學校內唯一，所以新版必須帶學校代碼
+DROP FUNCTION IF EXISTS public.query_student_attendance(TEXT, TEXT);
+
+-- 失敗次數紀錄：只有下面的 SECURITY DEFINER 函式能讀寫（啟用 RLS 且不建立任何政策）
+-- shortcut: 以「學校代碼 + 學號」計次，攻擊者仍可用大量不存在的學號讓此表變大；有需要時再加定期清理
+CREATE TABLE IF NOT EXISTS public.parent_query_attempts (
+    school_code TEXT NOT NULL,
+    student_number TEXT NOT NULL,
+    failures INTEGER NOT NULL DEFAULT 0,
+    window_start TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (school_code, student_number)
+);
+ALTER TABLE public.parent_query_attempts ENABLE ROW LEVEL SECURITY;
+
 CREATE OR REPLACE FUNCTION public.query_student_attendance(
+    p_school_code TEXT,
     p_student_number TEXT,
     p_parent_phone_last4 TEXT
 )
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
+    v_code TEXT := UPPER(TRIM(COALESCE(p_school_code, '')));
+    v_number TEXT := TRIM(COALESCE(p_student_number, ''));
     v_student RECORD;
     v_records JSONB;
+    v_failures INTEGER;
+    v_window TIMESTAMPTZ;
 BEGIN
-    -- 1. 查找符合學號且家長電話後四碼一致之學生
+    -- 0. 同一學校代碼 + 學號 15 分鐘內失敗 5 次就暫停查詢（在資料庫端計次，無法用重新整理或直接呼叫 API 繞過）
+    SELECT failures, window_start INTO v_failures, v_window
+    FROM public.parent_query_attempts
+    WHERE school_code = v_code AND student_number = v_number;
+
+    IF v_failures >= 5 AND v_window > NOW() - INTERVAL '15 minutes' THEN
+        RETURN jsonb_build_object('success', false, 'message', '嘗試次數過多，請 15 分鐘後再試');
+    END IF;
+
+    -- 1. 查找符合學校、學號且家長電話後四碼一致之學生
     SELECT s.id, s.name, s.student_number, s.seat_number, c.name AS class_name, sch.name AS school_name
     INTO v_student
     FROM public.students s
     JOIN public.classes c ON c.id = s.class_id
     JOIN public.schools sch ON sch.id = s.school_id
-    WHERE s.student_number = p_student_number
+    WHERE sch.code = v_code
+      AND s.student_number = v_number
       AND RIGHT(REPLACE(s.parent_phone, '-', ''), 4) = p_parent_phone_last4
     LIMIT 1;
 
     IF v_student.id IS NULL THEN
-        RETURN jsonb_build_object('success', false, 'message', '學號或家長電話後四碼校驗不符合');
+        INSERT INTO public.parent_query_attempts (school_code, student_number, failures, window_start)
+        VALUES (v_code, v_number, 1, NOW())
+        ON CONFLICT (school_code, student_number) DO UPDATE SET
+            failures = CASE
+                WHEN public.parent_query_attempts.window_start > NOW() - INTERVAL '15 minutes'
+                    THEN public.parent_query_attempts.failures + 1
+                ELSE 1
+            END,
+            window_start = CASE
+                WHEN public.parent_query_attempts.window_start > NOW() - INTERVAL '15 minutes'
+                    THEN public.parent_query_attempts.window_start
+                ELSE NOW()
+            END;
+        RETURN jsonb_build_object('success', false, 'message', '學校代碼、學號或家長電話後四碼不符合');
     END IF;
 
+    DELETE FROM public.parent_query_attempts WHERE school_code = v_code AND student_number = v_number;
+
     -- 2. 獲取近 30 筆出勤歷史
-    SELECT jsonb_agg(
-        jsonb_build_object(
-            'record_id', r.id,
-            'date', sess.session_date,
-            'period', sess.period,
-            'status', r.status,
-            'ai_detected_status', r.ai_detected_status,
-            'is_overridden', r.is_overridden,
-            'note', r.note,
-            'snapshot_path', sess.snapshot_path,
-            'created_at', r.created_at
-        ) ORDER BY sess.session_date DESC, sess.created_at DESC
-    )
+    SELECT jsonb_agg(t.j ORDER BY t.session_date DESC, t.created_at DESC)
     INTO v_records
-    FROM public.attendance_records r
-    JOIN public.attendance_sessions sess ON sess.id = r.session_id
-    WHERE r.student_id = v_student.id;
+    FROM (
+        SELECT
+            jsonb_build_object(
+                'record_id', r.id,
+                'date', sess.session_date,
+                'period', sess.period,
+                'status', r.status,
+                'ai_detected_status', r.ai_detected_status,
+                'is_overridden', r.is_overridden,
+                'note', r.note,
+                'snapshot_path', sess.snapshot_path,
+                'created_at', r.created_at
+            ) AS j,
+            sess.session_date,
+            sess.created_at
+        FROM public.attendance_records r
+        JOIN public.attendance_sessions sess ON sess.id = r.session_id
+        WHERE r.student_id = v_student.id
+        ORDER BY sess.session_date DESC, sess.created_at DESC
+        LIMIT 30
+    ) t;
 
     RETURN jsonb_build_object(
         'success', true,
@@ -384,18 +437,49 @@ CREATE POLICY "Class teachers manage" ON public.class_teachers
                 SELECT c.id FROM public.classes c WHERE c.school_id = public.current_user_school_id()
             )
         )
-        OR (
-            teacher_id = auth.uid()
-            AND class_id IN (
-                SELECT c.id FROM public.classes c WHERE c.school_id = public.current_user_school_id()
-            )
+    );
+
+-- 教師只能讀自己的班級指派，不能自行加入任何班級
+DROP POLICY IF EXISTS "Class teachers self read" ON public.class_teachers;
+CREATE POLICY "Class teachers self read" ON public.class_teachers
+    FOR SELECT TO authenticated USING (
+        teacher_id = auth.uid()
+        AND class_id IN (
+            SELECT c.id FROM public.classes c WHERE c.school_id = public.current_user_school_id()
         )
     );
 
--- Students 權限
+-- 誰可以修改某班的資料：系統總管、本校主管，或被指派到該班的教師。
+-- shortcut: 完全沒有被指派任何班級的教師視為可管理全校各班（與教師頁「沒有指派時顯示全校班級」一致）；主管一指派就會限縮
+CREATE OR REPLACE FUNCTION public.can_write_class(p_class_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT CASE public.current_user_role()
+    WHEN 'sys_admin' THEN true
+    WHEN 'school_admin' THEN EXISTS (
+      SELECT 1 FROM public.classes c
+      WHERE c.id = p_class_id AND c.school_id = public.current_user_school_id()
+    )
+    WHEN 'teacher' THEN EXISTS (
+      SELECT 1 FROM public.classes c
+      WHERE c.id = p_class_id AND c.school_id = public.current_user_school_id()
+    ) AND (
+      EXISTS (SELECT 1 FROM public.class_teachers ct WHERE ct.class_id = p_class_id AND ct.teacher_id = auth.uid())
+      OR NOT EXISTS (SELECT 1 FROM public.class_teachers ct WHERE ct.teacher_id = auth.uid())
+    )
+    ELSE false
+  END;
+$$;
+
+-- Students 權限：全校可讀，只有能管理該班的人可寫
 DROP POLICY IF EXISTS "Students manage" ON public.students;
-CREATE POLICY "Students manage" ON public.students
-    FOR ALL TO authenticated USING (
+DROP POLICY IF EXISTS "Students read" ON public.students;
+CREATE POLICY "Students read" ON public.students
+    FOR SELECT TO authenticated USING (
         public.current_user_role() = 'sys_admin'
         OR (
             school_id = public.current_user_school_id()
@@ -403,19 +487,34 @@ CREATE POLICY "Students manage" ON public.students
         )
     );
 
+DROP POLICY IF EXISTS "Students write" ON public.students;
+CREATE POLICY "Students write" ON public.students
+    FOR ALL TO authenticated
+    USING (public.can_write_class(class_id))
+    WITH CHECK (
+        public.can_write_class(class_id)
+        AND (public.current_user_role() = 'sys_admin' OR school_id = public.current_user_school_id())
+    );
+
 -- Seating Charts & Boxes 權限
 DROP POLICY IF EXISTS "Seating charts access" ON public.seating_charts;
-CREATE POLICY "Seating charts access" ON public.seating_charts
-    FOR ALL TO authenticated USING (
+DROP POLICY IF EXISTS "Seating charts read" ON public.seating_charts;
+CREATE POLICY "Seating charts read" ON public.seating_charts
+    FOR SELECT TO authenticated USING (
         public.current_user_role() = 'sys_admin'
         OR class_id IN (
             SELECT c.id FROM public.classes c WHERE c.school_id = public.current_user_school_id()
         )
     );
 
+DROP POLICY IF EXISTS "Seating charts write" ON public.seating_charts;
+CREATE POLICY "Seating charts write" ON public.seating_charts
+    FOR ALL TO authenticated USING (public.can_write_class(class_id));
+
 DROP POLICY IF EXISTS "Seating boxes access" ON public.seating_boxes;
-CREATE POLICY "Seating boxes access" ON public.seating_boxes
-    FOR ALL TO authenticated USING (
+DROP POLICY IF EXISTS "Seating boxes read" ON public.seating_boxes;
+CREATE POLICY "Seating boxes read" ON public.seating_boxes
+    FOR SELECT TO authenticated USING (
         public.current_user_role() = 'sys_admin'
         OR chart_id IN (
             SELECT sc.id FROM public.seating_charts sc
@@ -424,25 +523,43 @@ CREATE POLICY "Seating boxes access" ON public.seating_boxes
         )
     );
 
+DROP POLICY IF EXISTS "Seating boxes write" ON public.seating_boxes;
+CREATE POLICY "Seating boxes write" ON public.seating_boxes
+    FOR ALL TO authenticated USING (
+        public.can_write_class((SELECT sc.class_id FROM public.seating_charts sc WHERE sc.id = chart_id))
+    );
+
 -- Attendance Sessions & Records 權限
 DROP POLICY IF EXISTS "Attendance sessions access" ON public.attendance_sessions;
-CREATE POLICY "Attendance sessions access" ON public.attendance_sessions
-    FOR ALL TO authenticated USING (
+DROP POLICY IF EXISTS "Attendance sessions read" ON public.attendance_sessions;
+CREATE POLICY "Attendance sessions read" ON public.attendance_sessions
+    FOR SELECT TO authenticated USING (
         public.current_user_role() = 'sys_admin'
         OR class_id IN (
             SELECT c.id FROM public.classes c WHERE c.school_id = public.current_user_school_id()
         )
     );
 
+DROP POLICY IF EXISTS "Attendance sessions write" ON public.attendance_sessions;
+CREATE POLICY "Attendance sessions write" ON public.attendance_sessions
+    FOR ALL TO authenticated USING (public.can_write_class(class_id));
+
 DROP POLICY IF EXISTS "Attendance records access" ON public.attendance_records;
-CREATE POLICY "Attendance records access" ON public.attendance_records
-    FOR ALL TO authenticated USING (
+DROP POLICY IF EXISTS "Attendance records read" ON public.attendance_records;
+CREATE POLICY "Attendance records read" ON public.attendance_records
+    FOR SELECT TO authenticated USING (
         public.current_user_role() = 'sys_admin'
         OR session_id IN (
             SELECT s.id FROM public.attendance_sessions s
             JOIN public.classes c ON c.id = s.class_id
             WHERE c.school_id = public.current_user_school_id()
         )
+    );
+
+DROP POLICY IF EXISTS "Attendance records write" ON public.attendance_records;
+CREATE POLICY "Attendance records write" ON public.attendance_records
+    FOR ALL TO authenticated USING (
+        public.can_write_class((SELECT s.class_id FROM public.attendance_sessions s WHERE s.id = session_id))
     );
 
 -- ------------------------------------------------------------------------------
