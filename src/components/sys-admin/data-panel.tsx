@@ -315,7 +315,7 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
         }
         consequences={
           target?.kind === 'class'
-            ? ['班級裡所有學生', '這個班所有點名紀錄與座位表', '這個班所有點名時拍的照片', '這個班的課表']
+            ? ['班級裡所有學生', '這個班所有點名紀錄與座位表', '這個班所有點名時拍的照片']
             : target?.kind === 'session'
             ? ['這次點名所有學生的出缺席', '這次點名時拍的照片']
             : ['這位學生的資料', '這位學生所有出缺席紀錄']

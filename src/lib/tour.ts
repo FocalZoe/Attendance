@@ -64,9 +64,9 @@ export const TOUR_STEPS: Record<TourRole, TourStep[]> = {
     },
     {
       selector: '[data-tour="sa-schedule"]',
-      title: '設定每位老師的點名時間',
-      description: '在班級列按「課表」，選老師、星期與節次。時間快到時，老師的網頁會提醒他點名。',
-      side: 'left',
+      title: '設定全校點名時間',
+      description: '在這裡設定每一節的上課時間，設定一次，全校所有班級與老師都會套用，時間快到時老師會收到提醒。',
+      side: 'top',
     },
     {
       selector: '[data-tour="sa-students"]',

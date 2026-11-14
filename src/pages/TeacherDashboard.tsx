@@ -235,6 +235,7 @@ export function TeacherDashboard() {
 
   const { schedules, permission, requestPermission } = useRollcallReminders({
     teacherId: profile?.id,
+    schoolId,
     onStart: handleReminderStart,
   });
 

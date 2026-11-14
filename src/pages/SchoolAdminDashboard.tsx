@@ -18,11 +18,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AttendanceHistoryView } from '@/components/attendance/AttendanceHistoryView';
 import { SeatMapEditorModal } from '@/components/attendance/SeatMapEditorModal';
-import { ClassScheduleDialog } from '@/components/attendance/ClassScheduleDialog';
+import { SchoolPeriodsSection } from '@/components/attendance/SchoolPeriodsSection';
 import { IconButton } from '@/components/ui/icon-button';
 import { Spinner } from '@/components/ui/spinner';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Clock, Grid3X3, Trash2, UserCheck, UserX } from 'lucide-react';
+import { Grid3X3, Trash2, UserCheck, UserX } from 'lucide-react';
 import type { SchoolClass, Profile, Student, ClassTeacher } from '@/types/database';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/errors';
@@ -51,7 +51,6 @@ export function SchoolAdminDashboard() {
 
   // 班級指派與關聯列表
   const [classTeachers, setClassTeachers] = React.useState<ClassTeacher[]>([]);
-  const [scheduleClass, setScheduleClass] = React.useState<{ id: string; name: string } | null>(null);
   const [assignClassId, setAssignClassId] = React.useState<string>('');
   const [assignTeacherId, setAssignTeacherId] = React.useState<string>('');
   const [assignRole, setAssignRole] = React.useState<'homeroom' | 'subject'>('homeroom');
@@ -377,7 +376,7 @@ export function SchoolAdminDashboard() {
   const handleDeactivateTeacher = (teacherId: string, teacherName: string) => {
     requestConfirm({
       title: `停用教師「${teacherName}」？`,
-      description: '停用後這位教師無法登入，並會解除所有班級指派與課表。歷史點名紀錄會保留，之後可以重新啟用。',
+      description: '停用後這位教師無法登入，並會解除所有班級指派。歷史點名紀錄會保留，之後可以重新啟用。',
       confirmLabel: '停用帳號',
       destructive: true,
       action: () => setTeacherActive(teacherId, false),
@@ -452,7 +451,7 @@ export function SchoolAdminDashboard() {
                       />
                     ) : (
                       <ul className="divide-y divide-border border-y border-border">
-                        {classes.map((c, index) => (
+                        {classes.map((c) => (
                           <li key={c.id} className="flex items-center justify-between gap-3 py-3">
                             <div className="min-w-0">
                               <p className="font-medium text-foreground">{c.name}</p>
@@ -460,7 +459,6 @@ export function SchoolAdminDashboard() {
                                 {c.academic_year} 學年　{c.grade}
                               </p>
                             </div>
-                            <div className="flex shrink-0 gap-2">
                             <Button
                               type="button"
                               variant="outline"
@@ -473,17 +471,6 @@ export function SchoolAdminDashboard() {
                               <Grid3X3 aria-hidden="true" />
                               座位
                             </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              data-tour={index === 0 ? 'sa-schedule' : undefined}
-                              onClick={() => setScheduleClass({ id: c.id, name: c.name })}
-                            >
-                              <Clock aria-hidden="true" />
-                              課表
-                            </Button>
-                            </div>
                           </li>
                         ))}
                       </ul>
@@ -532,6 +519,8 @@ export function SchoolAdminDashboard() {
                       </Button>
                     </form>
                   </section>
+
+                  {schoolId && <SchoolPeriodsSection schoolId={schoolId} />}
                 </div>
 
                 {/* 教師 */}
@@ -894,19 +883,6 @@ export function SchoolAdminDashboard() {
             classId={activeModalClass.id}
             className={activeModalClass.name}
             students={classStudents}
-          />
-        )}
-
-        {/* 學校主管設定每班每位教師的點名時間 */}
-        {scheduleClass && (
-          <ClassScheduleDialog
-            open={!!scheduleClass}
-            onOpenChange={(o) => !o && setScheduleClass(null)}
-            classId={scheduleClass.id}
-            className={scheduleClass.name}
-            teachers={classTeachers
-              .filter((ct) => ct.class_id === scheduleClass.id && ct.teacher)
-              .map((ct) => ({ id: ct.teacher_id, name: ct.teacher?.name ?? '未知教師' }))}
           />
         )}
 

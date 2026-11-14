@@ -331,7 +331,7 @@ export function SysAdminDashboard() {
           confirmText={deleteTarget?.name ?? ''}
           consequences={[
             impact ? `${impact.classes} 個班級、${impact.students} 位學生` : '正在計算要刪除的內容…',
-            '所有座位表、點名紀錄和課表',
+            '所有座位表、點名紀錄和點名時間',
             '所有點名時拍的照片',
             ...(deleteAccounts ? [impact ? `這間學校的 ${impact.accounts} 個教師與主管帳號` : '這間學校的教師與主管帳號'] : []),
           ]}

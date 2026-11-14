@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  expandPeriods,
   getNextSchedule,
   getTodaySchedules,
   isReminderDue,
@@ -80,5 +81,23 @@ describe('reminderKey', () => {
   it('is stable within a day and differs across days', () => {
     expect(reminderKey('s1', at(9, 8, 0))).toBe(reminderKey('s1', at(9, 8, 14)));
     expect(reminderKey('s1', at(9, 8, 0))).not.toBe(reminderKey('s1', at(10, 8, 0)));
+  });
+});
+
+describe('expandPeriods', () => {
+  it('creates one entry per class, weekday (Mon-Fri) and period with unique ids', () => {
+    const out = expandPeriods(
+      [
+        { period: '1', start_time: '08:00:00', remind_before_min: 5 },
+        { period: '2', start_time: '09:00:00', remind_before_min: 5 },
+      ],
+      [
+        { id: 'a', name: 'A' },
+        { id: 'b', name: 'B' },
+      ]
+    );
+    expect(out).toHaveLength(2 * 5 * 2);
+    expect(new Set(out.map((o) => o.id)).size).toBe(out.length);
+    expect(out.every((o) => o.weekday >= 1 && o.weekday <= 5)).toBe(true);
   });
 });

@@ -193,7 +193,7 @@ export function AccountsPanel() {
         confirmText={target?.email ?? ''}
         consequences={[
           `${target?.email ?? ''} 無法再登入，也無法用「忘記密碼」找回`,
-          '個人資料、班級指派與課表會一起刪除',
+          '個人資料與班級指派會一起刪除',
           '他以前點過的名會保留，但不再顯示是誰點的',
         ]}
         onConfirm={handleDelete}

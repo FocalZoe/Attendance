@@ -1,14 +1,13 @@
 import * as React from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { isReminderDue, localDateString, reminderKey } from '@/lib/schedule';
+import { expandPeriods, isReminderDue, localDateString, reminderKey, type ExpandedSchedule } from '@/lib/schedule';
 import { periodLabel } from '@/lib/periods';
-import type { ClassSchedule } from '@/types/database';
 
 const CHECK_INTERVAL_MS = 30_000;
 const STORAGE_KEY = 'rollcall-reminders-fired';
 
-export type ScheduleWithClass = ClassSchedule & { class?: { name: string } | null };
+export type ScheduleWithClass = ExpandedSchedule;
 
 function readFired(today: string): Set<string> {
   try {
@@ -31,11 +30,12 @@ function writeFired(keys: Set<string>) {
 
 interface UseRollcallRemindersOptions {
   teacherId: string | undefined;
+  schoolId: string | null | undefined;
   /** 使用者點選「開始點名」時呼叫 */
   onStart: (classId: string, period: string) => void;
 }
 
-export function useRollcallReminders({ teacherId, onStart }: UseRollcallRemindersOptions) {
+export function useRollcallReminders({ teacherId, schoolId, onStart }: UseRollcallRemindersOptions) {
   const [schedules, setSchedules] = React.useState<ScheduleWithClass[]>([]);
   const [permission, setPermission] = React.useState<NotificationPermission | 'unsupported'>(
     typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
@@ -48,19 +48,21 @@ export function useRollcallReminders({ teacherId, onStart }: UseRollcallReminder
   }, [onStart]);
 
   const reload = React.useCallback(async () => {
-    if (!teacherId) return;
-    const { data, error } = await supabase
-      .from('class_schedules')
-      .select('*, class:classes(name)')
-      .eq('teacher_id', teacherId)
-      .eq('is_active', true);
+    if (!teacherId || !schoolId) return;
+    const [periodsRes, classesRes] = await Promise.all([
+      supabase.from('school_periods').select('period, start_time, remind_before_min').eq('school_id', schoolId),
+      supabase.from('class_teachers').select('class:classes(id, name)').eq('teacher_id', teacherId),
+    ]);
 
-    if (error) {
-      console.error('載入課表失敗:', error);
+    if (periodsRes.error || classesRes.error) {
+      console.error('Failed to load rollcall times:', periodsRes.error ?? classesRes.error);
       return;
     }
-    setSchedules((data || []) as unknown as ScheduleWithClass[]);
-  }, [teacherId]);
+    const classes = (classesRes.data || [])
+      .map((row) => row.class as unknown as { id: string; name: string } | null)
+      .filter((c): c is { id: string; name: string } => !!c);
+    setSchedules(expandPeriods(periodsRes.data || [], classes));
+  }, [teacherId, schoolId]);
 
   React.useEffect(() => {
     reload();

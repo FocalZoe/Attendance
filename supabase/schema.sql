@@ -143,18 +143,18 @@ CREATE TABLE IF NOT EXISTS public.attendance_records (
     UNIQUE (session_id, student_id)
 );
 
--- 9b. 課表（定時點名提醒）
-CREATE TABLE IF NOT EXISTS public.class_schedules (
+-- 9b. 全校統一點名時間表（學校主管建立一次，全校班級與教師每週一到週五套用）
+-- 取代舊的逐班課表 class_schedules
+DROP TABLE IF EXISTS public.class_schedules CASCADE;
+
+CREATE TABLE IF NOT EXISTS public.school_periods (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    class_id UUID NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
-    teacher_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    weekday SMALLINT NOT NULL CHECK (weekday BETWEEN 1 AND 7),
+    school_id UUID NOT NULL REFERENCES public.schools(id) ON DELETE CASCADE,
     period TEXT NOT NULL,
     start_time TIME NOT NULL,
     remind_before_min INTEGER NOT NULL DEFAULT 5 CHECK (remind_before_min BETWEEN 0 AND 60),
-    is_active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
-    UNIQUE (class_id, teacher_id, weekday, period)
+    UNIQUE (school_id, period)
 );
 
 -- ------------------------------------------------------------------------------
@@ -254,62 +254,28 @@ ALTER TABLE public.seating_charts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.seating_boxes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_records ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.class_schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.school_periods ENABLE ROW LEVEL SECURITY;
 
--- Class Schedules 權限：課表由系統總管與學校主管管理；教師只能讀取自己的課表（供提醒使用）
-DROP POLICY IF EXISTS "Class schedules access" ON public.class_schedules;
-DROP POLICY IF EXISTS "Class schedules read" ON public.class_schedules;
-DROP POLICY IF EXISTS "Class schedules admin write" ON public.class_schedules;
+-- School Periods 權限：系統總管與本校主管可管理；本校教師唯讀（供提醒使用）
+DROP POLICY IF EXISTS "School periods read" ON public.school_periods;
+DROP POLICY IF EXISTS "School periods admin write" ON public.school_periods;
 
-CREATE POLICY "Class schedules read" ON public.class_schedules
+CREATE POLICY "School periods read" ON public.school_periods
     FOR SELECT TO authenticated
     USING (
         public.current_user_role() = 'sys_admin'
-        OR (
-            public.current_user_role() = 'school_admin'
-            AND EXISTS (
-                SELECT 1 FROM public.classes c
-                WHERE c.id = class_schedules.class_id
-                  AND c.school_id = public.current_user_school_id()
-            )
-        )
-        OR (
-            public.current_user_role() = 'teacher'
-            AND teacher_id = auth.uid()
-        )
+        OR school_id = public.current_user_school_id()
     );
 
--- 寫入：僅系統總管與學校主管；教師必須已被指派到該班
-CREATE POLICY "Class schedules admin write" ON public.class_schedules
+CREATE POLICY "School periods admin write" ON public.school_periods
     FOR ALL TO authenticated
     USING (
         public.current_user_role() = 'sys_admin'
-        OR (
-            public.current_user_role() = 'school_admin'
-            AND EXISTS (
-                SELECT 1 FROM public.classes c
-                WHERE c.id = class_schedules.class_id
-                  AND c.school_id = public.current_user_school_id()
-            )
-        )
+        OR (public.current_user_role() = 'school_admin' AND school_id = public.current_user_school_id())
     )
     WITH CHECK (
-        (
-            public.current_user_role() = 'sys_admin'
-            OR (
-                public.current_user_role() = 'school_admin'
-                AND EXISTS (
-                    SELECT 1 FROM public.classes c
-                    WHERE c.id = class_schedules.class_id
-                      AND c.school_id = public.current_user_school_id()
-                )
-            )
-        )
-        AND EXISTS (
-            SELECT 1 FROM public.class_teachers ct
-            WHERE ct.class_id = class_schedules.class_id
-              AND ct.teacher_id = class_schedules.teacher_id
-        )
+        public.current_user_role() = 'sys_admin'
+        OR (public.current_user_role() = 'school_admin' AND school_id = public.current_user_school_id())
     );
 
 -- Schools 權限
@@ -691,7 +657,6 @@ BEGIN
 
     IF NOT p_active THEN
         DELETE FROM public.class_teachers WHERE teacher_id = p_profile_id;
-        DELETE FROM public.class_schedules WHERE teacher_id = p_profile_id;
     END IF;
 
     RETURN jsonb_build_object('success', true, 'is_active', p_active);
@@ -795,7 +760,7 @@ BEGIN
         jsonb_build_object('name', v_target.name, 'role', v_target.role, 'school_id', v_target.school_id)
     );
 
-    -- profiles.id 以 ON DELETE CASCADE 參照 auth.users，連帶刪除 profile、class_teachers、class_schedules；
+    -- profiles.id 以 ON DELETE CASCADE 參照 auth.users，連帶刪除 profile、class_teachers；
     -- attendance_sessions.teacher_id 與 seating_charts.created_by 為 SET NULL，歷史紀錄保留
     DELETE FROM auth.users WHERE id = p_profile_id;
 

@@ -81,3 +81,36 @@ export const WEEKDAY_LABELS: Record<number, string> = {
   6: '週六',
   7: '週日',
 };
+
+export interface ExpandedSchedule extends ReminderSchedule {
+  class_id: string;
+  period: string;
+  class?: { name: string } | null;
+}
+
+/**
+ * The school-wide period table applies to every class and every weekday (Mon-Fri).
+ * shortcut: no per-class timetable, so a teacher is reminded for each of their classes in every period; upgrade when a real timetable exists.
+ */
+export function expandPeriods(
+  periods: Array<{ period: string; start_time: string; remind_before_min: number }>,
+  classes: Array<{ id: string; name: string }>
+): ExpandedSchedule[] {
+  const out: ExpandedSchedule[] = [];
+  for (const c of classes) {
+    for (let weekday = 1; weekday <= 5; weekday++) {
+      for (const p of periods) {
+        out.push({
+          id: `${c.id}:${weekday}:${p.period}`,
+          weekday,
+          class_id: c.id,
+          period: p.period,
+          start_time: p.start_time,
+          remind_before_min: p.remind_before_min,
+          class: { name: c.name },
+        });
+      }
+    }
+  }
+  return out;
+}

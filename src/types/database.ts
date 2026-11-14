@@ -22,17 +22,13 @@ export interface Profile {
   school?: School;
 }
 
-export interface ClassSchedule {
+export interface SchoolPeriod {
   id: string;
-  class_id: string;
-  teacher_id: string;
-  weekday: number; // 1 (Mon) - 7 (Sun)
+  school_id: string;
   period: string;
   start_time: string; // HH:MM:SS
   remind_before_min: number;
-  is_active: boolean;
   created_at: string;
-  class?: SchoolClass;
 }
 
 export interface SchoolClass {
