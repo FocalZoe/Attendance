@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
-import { SeatingBox, Student } from '@/types/database';
+import { SeatingBox, SeatingLayout, Student } from '@/types/database';
 import {
   CameraSource,
   isMobileDevice,
@@ -31,7 +31,6 @@ import {
   compileAttendanceRecords,
 } from '@/services/seatOccupancyService';
 import { PERIOD_OPTIONS } from '@/lib/periods';
-import { Loader2, CheckCircle2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
@@ -83,26 +82,8 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
   const [chartId, setChartId] = useState<string | null>(null);
   const [seatingBoxes, setSeatingBoxes] = useState<SeatingBox[]>([]);
   const seatingBoxesRef = useRef<SeatingBox[]>([]);
-  const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null);
   const [occupancies, setOccupancies] = useState<Record<string, boolean>>({});
   const lastOccupancyMapRef = useRef<Record<string, boolean>>({});
-
-  // 自動儲存狀態
-  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // 容器與指標互動參照
-  const videoContainerRef = useRef<HTMLDivElement>(null);
-  const interactionRef = useRef<{
-    type: 'drag' | 'resize';
-    boxId: string;
-    startX: number;
-    startY: number;
-    origX: number;
-    origY: number;
-    origW: number;
-    origH: number;
-  } | null>(null);
 
   useEffect(() => {
     seatingBoxesRef.current = seatingBoxes;
@@ -237,10 +218,13 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
         if (bErr) throw bErr;
         setSeatingBoxes(boxes || []);
         seatingBoxesRef.current = boxes || [];
+        classBoxesRef.current = boxes || [];
+        setActiveLayoutId('class');
       } else {
         setChartId(null);
         setSeatingBoxes([]);
         seatingBoxesRef.current = [];
+        classBoxesRef.current = [];
         toast.warning('這班還沒有座位表。請先關掉這個視窗，到班級列按「座位」排好座位。');
       }
     } catch (err: unknown) {
@@ -249,120 +233,58 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
   }, [classId]);
 
   // 自動儲存單一座位劃位變更至 Supabase
-  const autoSaveBox = useCallback(async (boxToSave: SeatingBox) => {
-    if (!boxToSave.id) return;
-    setAutoSaveStatus('saving');
-    try {
-      const { error } = await supabase
-        .from('seating_boxes')
-        .update({
-          x_ratio: boxToSave.x_ratio,
-          y_ratio: boxToSave.y_ratio,
-          w_ratio: boxToSave.w_ratio,
-          h_ratio: boxToSave.h_ratio,
-        })
-        .eq('id', boxToSave.id);
+  // 座位佈局：點名時只能切換，不能編輯。'class' 代表班級目前的座位表
+  const [layouts, setLayouts] = useState<SeatingLayout[]>([]);
+  const [activeLayoutId, setActiveLayoutId] = useState<string>('class');
+  const classBoxesRef = useRef<SeatingBox[]>([]);
 
-      if (error) throw error;
-
-      setAutoSaveStatus('saved');
-      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = setTimeout(() => {
-        setAutoSaveStatus('idle');
-      }, 2500);
-    } catch (err) {
-      console.error('劃位自動儲存失敗:', err);
-      setAutoSaveStatus('error');
-      toast.error('座位儲存失敗。請檢查網路連線。');
+  const loadLayouts = useCallback(async () => {
+    if (!classId) return;
+    const { data: cls } = await supabase.from('classes').select('school_id').eq('id', classId).single();
+    if (!cls) return;
+    const { data, error } = await supabase
+      .from('seating_layouts')
+      .select('*')
+      .eq('school_id', cls.school_id)
+      .order('created_at', { ascending: false });
+    if (error) {
+      toastError(error, '讀取座位佈局失敗。座位表仍可使用。');
+      return;
     }
-  }, []);
+    setLayouts((data ?? []) as SeatingLayout[]);
+  }, [classId]);
 
-  // 全域指標監聽，支援拖曳移動與右下角把手縮放
   useEffect(() => {
-    const handleGlobalPointerMove = (e: PointerEvent) => {
-      if (!interactionRef.current || !videoContainerRef.current) return;
-      const rect = videoContainerRef.current.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return;
+    if (open) loadLayouts();
+  }, [open, loadLayouts]);
 
-      const { type, boxId, startX, startY, origX, origY, origW, origH } = interactionRef.current;
-      const deltaX = (e.clientX - startX) / rect.width;
-      const deltaY = (e.clientY - startY) / rect.height;
-
-      setSeatingBoxes((prev) => {
-        const copy = prev.map((box) => {
-          if (box.id !== boxId) return box;
-          if (type === 'drag') {
-            const newX = Math.max(0, Math.min(1 - box.w_ratio, origX + deltaX));
-            const newY = Math.max(0, Math.min(1 - box.h_ratio, origY + deltaY));
-            return { ...box, x_ratio: newX, y_ratio: newY };
-          } else {
-            // resize
-            const newW = Math.max(0.02, Math.min(1 - box.x_ratio, origW + deltaX));
-            const newH = Math.max(0.02, Math.min(1 - box.y_ratio, origH + deltaY));
-            return { ...box, w_ratio: newW, h_ratio: newH };
-          }
-        });
-        seatingBoxesRef.current = copy;
-        return copy;
-      });
-    };
-
-    const handleGlobalPointerUp = () => {
-      if (interactionRef.current) {
-        const { boxId } = interactionRef.current;
-        const targetBox = seatingBoxesRef.current.find((b) => b.id === boxId);
-        if (targetBox) {
-          autoSaveBox(targetBox);
-        }
-        interactionRef.current = null;
-      }
-    };
-
-    window.addEventListener('pointermove', handleGlobalPointerMove);
-    window.addEventListener('pointerup', handleGlobalPointerUp);
-
-    return () => {
-      window.removeEventListener('pointermove', handleGlobalPointerMove);
-      window.removeEventListener('pointerup', handleGlobalPointerUp);
-    };
-  }, [autoSaveBox]);
-
-  // 滑鼠/觸控按下座位框 (開始拖曳)
-  const handleBoxPointerDown = (e: React.PointerEvent, boxId: string) => {
-    e.stopPropagation();
-    setSelectedBoxId(boxId);
-    const box = seatingBoxesRef.current.find((b) => b.id === boxId);
-    if (!box) return;
-
-    interactionRef.current = {
-      type: 'drag',
-      boxId,
-      startX: e.clientX,
-      startY: e.clientY,
-      origX: box.x_ratio,
-      origY: box.y_ratio,
-      origW: box.w_ratio,
-      origH: box.h_ratio,
-    };
-  };
-
-  // 滑鼠/觸控按下右下角縮放把手 (開始縮放)
-  const handleResizePointerDown = (e: React.PointerEvent, boxId: string) => {
-    e.stopPropagation();
-    setSelectedBoxId(boxId);
-    const box = seatingBoxesRef.current.find((b) => b.id === boxId);
-    if (!box) return;
-
-    interactionRef.current = {
-      type: 'resize',
-      boxId,
-      startX: e.clientX,
-      startY: e.clientY,
-      origX: box.x_ratio,
-      origY: box.y_ratio,
-      origW: box.w_ratio,
-      origH: box.h_ratio,
-    };
+  // 切換佈局只影響這次點名，不會改動班級已儲存的座位表；學生依座號自動對上
+  const handleSwitchLayout = (id: string) => {
+    let next: SeatingBox[];
+    if (id === 'class') {
+      next = classBoxesRef.current;
+    } else {
+      const layout = layouts.find((l) => l.id === id);
+      if (!layout) return;
+      next = layout.boxes.map((b, index) => ({
+        id: `layout-${id}-${index}`,
+        chart_id: chartId ?? '',
+        student_id: currentStudents.find((st) => String(st.seat_number) === b.seat_label)?.id ?? null,
+        seat_label: b.seat_label,
+        x_ratio: b.x_ratio,
+        y_ratio: b.y_ratio,
+        w_ratio: b.w_ratio,
+        h_ratio: b.h_ratio,
+        created_at: '',
+      }));
+    }
+    setActiveLayoutId(id);
+    setSeatingBoxes(next);
+    seatingBoxesRef.current = next;
+    setOccupancies({});
+    setPresentCount(0);
+    lastOccupancyMapRef.current = {};
+    trackerRef.current.reset();
   };
 
   useEffect(() => {
@@ -373,7 +295,6 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
       setCameraActive(false);
       setOccupancies({});
       setPresentCount(0);
-      setSelectedBoxId(null);
       lastOccupancyMapRef.current = {};
       latestOccupancyRef.current = new Map();
       loadClassSeatingChart();
@@ -702,24 +623,93 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
     }
   };
 
-  const selectedBox = seatingBoxes.find((b) => b.id === selectedBoxId);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* 手機與平板直式：滿版；寬螢幕：置中對話框 */}
       <DialogContent
         scroll={false}
-        className="flex h-[100dvh] max-h-none w-screen max-w-none flex-col gap-4 rounded-none p-4 sm:h-auto sm:max-h-[calc(100dvh-1.5rem)] sm:w-[calc(100%-1.5rem)] sm:max-w-4xl sm:rounded-lg sm:p-6"
+        className="flex h-[100dvh] max-h-none w-screen max-w-none flex-col gap-4 rounded-none p-4 sm:h-auto sm:max-h-[calc(100dvh-1.5rem)] sm:w-[calc(100%-1.5rem)] sm:max-w-6xl sm:rounded-lg sm:p-6"
       >
         <DialogHeader>
           <DialogTitle>{className}　點名</DialogTitle>
           <DialogDescription>
-            三個步驟：① 按「開啟鏡頭」，對準教室　② 看每個座位標示的「在座／無人」對不對，不對可以拖曳座位框修正　③ 按「完成點名」存檔。
+            三個步驟：① 按「開啟鏡頭」，對準教室　② 看每個座位標示的「在座／無人」對不對，座位對不上可以在左側切換佈局　③ 按「完成點名」存檔。
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="min-h-0 flex-1" viewportClassName="max-h-[calc(100dvh-12rem)]">
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4 lg:flex-row">
+        {/* 座位佈局：只能看，不能改。要改座位請到班級列按「座位」 */}
+        <aside
+          aria-label="座位佈局"
+          className="order-last space-y-3 lg:order-first lg:w-56 lg:shrink-0 lg:border-r lg:border-border lg:pr-4"
+        >
+          <h3 className="font-display text-base font-bold text-foreground">座位佈局</h3>
+          <p className="text-xs text-muted-foreground">
+            點一下就能切換座位佈局，只影響這次點名。要改座位，請關掉點名視窗，到班級列按「座位」。
+          </p>
+          <ul className="max-h-48 space-y-1 overflow-y-auto">
+            {[{ id: 'class', name: '班級目前的座位表', count: classBoxesRef.current.length }, ...layouts.map((l) => ({ id: l.id, name: l.name, count: l.boxes.length }))].map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  aria-pressed={item.id === activeLayoutId}
+                  disabled={isSaving}
+                  onClick={() => handleSwitchLayout(item.id)}
+                  className={cn(
+                    'w-full rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-secondary/60 disabled:opacity-50',
+                    item.id === activeLayoutId ? 'border-primary bg-secondary' : 'border-border'
+                  )}
+                >
+                  <span className="block truncate font-medium text-foreground">{item.name}</span>
+                  <span className="block text-xs text-muted-foreground">{item.count} 個座位</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {seatingBoxes.length === 0 ? (
+            <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-sm text-muted-foreground">
+              這班還沒有座位表
+            </p>
+          ) : (
+            <div className="relative aspect-video w-full overflow-hidden rounded-md border border-border bg-neutral-950">
+              {seatingBoxes.map((box) => {
+                const student = currentStudents.find((st) => st.id === box.student_id);
+                const occupied = cameraActive && (occupancies[box.id] || false);
+                return (
+                  <div
+                    key={box.id}
+                    title={`${box.seat_label} 號　${student ? student.name : '空位'}`}
+                    style={{
+                      left: `${box.x_ratio * 100}%`,
+                      top: `${box.y_ratio * 100}%`,
+                      width: `${box.w_ratio * 100}%`,
+                      height: `${box.h_ratio * 100}%`,
+                    }}
+                    className={cn(
+                      'absolute flex items-center justify-center overflow-hidden rounded-[2px] border text-[9px] font-bold text-white',
+                      occupied ? 'border-[#8fba87] bg-[#8fba87]/40' : 'border-white/50 bg-black/40'
+                    )}
+                  >
+                    {box.seat_label}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <p className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2.5 w-2.5 rounded-[2px] border border-[#8fba87] bg-[#8fba87]/40" />
+              在座
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2.5 w-2.5 rounded-[2px] border border-white/50 bg-black/40" />
+              無人
+            </span>
+          </p>
+        </aside>
+
+        <div className="min-w-0 flex-1 space-y-4">
         {/* 設定列 */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="space-y-2">
@@ -779,36 +769,21 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
           </div>
         </div>
 
-        {selectedBox && (
-          <p className="rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground">
-            <span className="font-bold">座位 {selectedBox.seat_label}</span>
-            <span className="ml-2 text-muted-foreground">拖曳移動，拉右下角縮放，放開後自動儲存。</span>
-          </p>
-        )}
-
         {/* 影像與座位疊圖：影像區固定使用深色，不隨主題變動 */}
         <div
-          ref={videoContainerRef}
-          onClick={() => setSelectedBoxId(null)}
-          className="relative aspect-video w-full select-none overflow-hidden rounded-lg border border-border bg-neutral-950 touch-none"
+          className="relative aspect-video w-full select-none overflow-hidden rounded-lg border border-border bg-neutral-950"
         >
           <video ref={videoRef} playsInline muted className="h-full w-full object-cover" />
           <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
 
           {cameraActive &&
             seatingBoxes.map((box) => {
-              const isSelected = selectedBoxId === box.id;
               const isOccupied = occupancies[box.id] || false;
               const assignedStudent = currentStudents.find((s) => s.id === box.student_id);
 
               return (
                 <div
                   key={box.id}
-                  onPointerDown={(e) => handleBoxPointerDown(e, box.id)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedBoxId(box.id);
-                  }}
                   style={{
                     left: `${box.x_ratio * 100}%`,
                     top: `${box.y_ratio * 100}%`,
@@ -816,15 +791,11 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
                     height: `${box.h_ratio * 100}%`,
                   }}
                   className={cn(
-                    'absolute flex cursor-move select-none flex-col justify-between rounded-sm border-2 p-1 transition-colors',
-                    isSelected
-                      ? 'z-20 border-[#e8c98b] bg-[#e8c98b]/25'
-                      : isOccupied
-                      ? 'z-10 border-[#8fba87] bg-[#8fba87]/25'
-                      : 'z-10 border-white/60 bg-black/40'
+                    'pointer-events-none absolute z-10 flex select-none flex-col justify-between rounded-sm border-2 p-1 transition-colors',
+                    isOccupied ? 'border-[#8fba87] bg-[#8fba87]/25' : 'border-white/60 bg-black/40'
                   )}
                 >
-                  <div className="pointer-events-none flex items-center justify-between gap-1">
+                  <div className="flex items-center justify-between gap-1">
                     <span className="tabular text-[11px] font-bold text-white">{box.seat_label}</span>
                     <span
                       className={cn(
@@ -835,17 +806,9 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
                       {isOccupied ? '在座' : '無人'}
                     </span>
                   </div>
-                  <div className="pointer-events-none max-w-full truncate text-xs font-medium text-white">
+                  <div className="max-w-full truncate text-xs font-medium text-white">
                     {assignedStudent ? assignedStudent.name : '空位'}
                   </div>
-
-                  {isSelected && (
-                    <div
-                      onPointerDown={(e) => handleResizePointerDown(e, box.id)}
-                      className="pointer-events-auto absolute -bottom-2 -right-2 z-30 h-5 w-5 cursor-se-resize rounded-sm border-2 border-[#e8c98b] bg-white"
-                      title="拖曳以縮放座位"
-                    />
-                  )}
                 </div>
               );
             })}
@@ -884,6 +847,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
         </div>
 
         </div>
+        </div>
         </ScrollArea>
 
         <DialogFooter className="mt-auto flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between sm:space-x-0">
@@ -892,18 +856,6 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
               <span className="tabular font-display text-2xl font-bold text-present">{presentCount}</span>
               <span className="tabular text-muted-foreground"> / {seatingBoxes.length} 個座位有人</span>
             </p>
-            {autoSaveStatus === 'saving' && (
-              <span className="flex items-center text-sm text-muted-foreground">
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" />
-                正在儲存座位
-              </span>
-            )}
-            {autoSaveStatus === 'saved' && (
-              <span className="flex items-center text-sm text-present">
-                <CheckCircle2 className="mr-1 h-4 w-4" aria-hidden="true" />
-                座位已儲存
-              </span>
-            )}
           </div>
           <div className="flex gap-2">
             <Button

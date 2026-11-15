@@ -15,8 +15,8 @@ export const TOUR_STEPS: Record<TourRole, TourStep[]> = {
     {
       selector: '[data-tour="today"]',
       title: '今天的點名',
-      description: '這裡會顯示今天的點名時間。時間快到時會提醒你，並讓你一鍵開始點名。',
-      side: 'bottom',
+      description: '這裡是今天的點名提醒，平常收合在旁邊，點開就能看到下一節並一鍵開始點名。時間快到時也會提醒你。',
+      side: 'left',
     },
     {
       selector: '[data-tour="camera-permission"]',

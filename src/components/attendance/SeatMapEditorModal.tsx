@@ -470,7 +470,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-6xl">
         <DialogHeader>
           <DialogTitle>{className}　座位表</DialogTitle>
           <DialogDescription>
@@ -478,42 +478,60 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 border-t border-border pt-4">
-          <div className="flex flex-wrap items-end gap-3 rounded-md border border-border bg-secondary/40 p-3">
-            <div className="space-y-2">
-              <Label htmlFor="seat-layout">座位佈局</Label>
-              <Select value={selectedLayoutId} onValueChange={setSelectedLayoutId}>
-                <SelectTrigger id="seat-layout" className="w-56 bg-card">
-                  <SelectValue placeholder={layouts.length === 0 ? '還沒有儲存的佈局' : '選擇已儲存的佈局'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {layouts.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.name}（{l.boxes.length} 位）
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button type="button" variant="outline" disabled={!selectedLayoutId} onClick={handleApplyLayout}>
-              <LayoutTemplate aria-hidden="true" />
-              套用佈局
-            </Button>
-            {selectedLayoutId && (
-              <IconButton label="刪除這個佈局" onClick={handleDeleteLayout} className="text-absent hover:text-absent">
-                <Trash2 aria-hidden="true" />
-              </IconButton>
+        <div className="flex flex-col gap-4 border-t border-border pt-4 lg:flex-row">
+          <aside className="space-y-3 lg:w-56 lg:shrink-0 lg:border-r lg:border-border lg:pr-4">
+            <h3 className="font-display text-base font-bold text-foreground">座位佈局</h3>
+            <p className="text-xs text-muted-foreground">
+              佈局只記座位的位置與大小，全校的班級都能套用，學生會依座號自動對上。
+            </p>
+            {layouts.length === 0 ? (
+              <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-sm text-muted-foreground">
+                還沒有儲存的佈局
+              </p>
+            ) : (
+              <ul className="max-h-60 space-y-1 overflow-y-auto lg:max-h-[22rem]">
+                {layouts.map((l) => (
+                  <li key={l.id}>
+                    <button
+                      type="button"
+                      aria-pressed={l.id === selectedLayoutId}
+                      onClick={() => setSelectedLayoutId(l.id)}
+                      className={`w-full rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-secondary/60 ${
+                        l.id === selectedLayoutId ? 'border-primary bg-secondary' : 'border-border'
+                      }`}
+                    >
+                      <span className="block truncate font-medium text-foreground">{l.name}</span>
+                      <span className="block text-xs text-muted-foreground">{l.boxes.length} 個座位</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
-            <Button type="button" variant="outline" className="ml-auto" onClick={() => setSaveLayoutOpen(true)}>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                disabled={!selectedLayoutId}
+                onClick={handleApplyLayout}
+              >
+                <LayoutTemplate aria-hidden="true" />
+                套用
+              </Button>
+              {selectedLayoutId && (
+                <IconButton label="刪除這個佈局" onClick={handleDeleteLayout} className="text-absent hover:text-absent">
+                  <Trash2 aria-hidden="true" />
+                </IconButton>
+              )}
+            </div>
+            <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => setSaveLayoutOpen(true)}>
               把目前座位存成佈局
             </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            佈局只記座位的位置與大小，全校的班級都能套用，學生會依座號自動對上。
-          </p>
-        </div>
+          </aside>
 
-        <div className="space-y-3 border-t border-border pt-4">
+          <div className="min-w-0 flex-1 space-y-4">
+        <div className="space-y-3 ">
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-2">
               <Label htmlFor="seat-rows">幾排</Label>
@@ -655,6 +673,9 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
               </div>
             );
           })}
+        </div>
+
+          </div>
         </div>
 
         <DialogFooter className="flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between sm:space-x-0">

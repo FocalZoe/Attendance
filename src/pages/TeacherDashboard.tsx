@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconButton } from '@/components/ui/icon-button';
 import { ListSkeleton } from '@/components/ui/skeleton';
-import { Bell, Camera, Grid3X3, PlusCircle, Trash2 } from 'lucide-react';
+import { Bell, Camera, Grid3X3, PanelRightClose, PanelRightOpen, PlusCircle, Trash2 } from 'lucide-react';
 import type { SchoolClass, Student } from '@/types/database';
 import { SeatMapEditorModal } from '@/components/attendance/SeatMapEditorModal';
 const LiveAttendanceRollcall = React.lazy(() =>
@@ -236,55 +236,25 @@ export function TeacherDashboard() {
     ? assignedClasses.find((item) => item.class.id === nextSchedule.class_id)?.class
     : undefined;
 
+  // Sidebar is collapsed by default; the badge counts the next period plus the ones after it
+  const [remindersOpen, setRemindersOpen] = React.useState<boolean>(false);
+  const remainingToday = (nextSchedule ? 1 : 0) + laterToday.length;
+
   const dateLabel = `${now.getMonth() + 1} 月 ${now.getDate()} 日　${WEEKDAY_LABELS[weekdayOf(now)]}`;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Navbar profile={profile} />
 
-      <main className="mx-auto w-full max-w-7xl flex-1 space-y-10 px-4 py-8 sm:px-6 lg:px-8">
-        {/* 今日優先 */}
-        <section aria-labelledby="today-heading" data-tour="today">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-8 lg:flex-row lg:gap-10">
+        <div className="min-w-0 flex-1 space-y-10 lg:order-first">
+        {/* 問候 */}
+        <section aria-labelledby="today-heading">
           <p className="tabular text-sm text-muted-foreground">{dateLabel}</p>
           <h1 id="today-heading" className="mt-1 text-3xl font-bold text-foreground">
             {profile?.name || ''} 老師，今天的點名
           </h1>
-
-          {loading ? (
-            <div className="mt-5">
-              <ListSkeleton rows={2} />
-            </div>
-          ) : nextSchedule && nextClass ? (
-            <div className="mt-5 rounded-lg bg-primary p-5 text-primary-foreground sm:p-6">
-              <p className="text-sm opacity-90">下一節</p>
-              <p className="mt-1 font-display text-2xl font-bold">
-                {nextClass.name}　{periodLabel(nextSchedule.period)}
-              </p>
-              <p className="tabular mt-1 text-sm opacity-90">
-                {formatTime(nextSchedule.start_time)} 開始
-              </p>
-              <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-                <Button
-                  size="lg"
-                  className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
-                  onClick={() => handleOpenRollcall(nextClass, nextSchedule.period)}
-                >
-                  <Camera aria-hidden="true" />
-                  開始點名
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <EmptyState
-              className="mt-5"
-              title={schedules.length === 0 ? '學校主管還沒有為你設定點名時間' : '今天沒有其他點名時段了'}
-              description={
-                schedules.length === 0
-                  ? '點名時間由學校主管設定，設定好後時間快到時這裡會提醒你。想臨時點名，可以從下方選一個班級直接開始。'
-                  : '想臨時點名，可以從下方選一個班級直接開始。'
-              }
-            />
-          )}
 
           {(cameraPermission.state === 'prompt' || cameraPermission.state === 'denied') && (
             <div
@@ -322,28 +292,6 @@ export function TeacherDashboard() {
             </div>
           )}
 
-          {laterToday.length > 0 && (
-            <div className="mt-5">
-              <h2 className="text-base font-bold text-foreground">今天稍後</h2>
-              <ul className="mt-2 divide-y divide-border border-y border-border">
-                {laterToday.map((s) => (
-                  <li key={s.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-                    <span className="tabular w-14 shrink-0 text-muted-foreground">{formatTime(s.start_time)}</span>
-                    <span className="min-w-0 flex-1 truncate text-foreground">
-                      {s.class?.name ?? '班級'}　{periodLabel(s.period)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {permission === 'default' && schedules.length > 0 && (
-            <Button type="button" variant="ghost" size="sm" className="mt-4" onClick={requestPermission}>
-              <Bell aria-hidden="true" />
-              開啟桌面提醒（分頁在背景時也會通知）
-            </Button>
-          )}
         </section>
 
         {/* 我的班級 */}
@@ -634,6 +582,97 @@ export function TeacherDashboard() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
+        {/* 提醒側欄：預設收合，只顯示今天還剩幾節 */}
+        <aside
+          aria-label="今天的點名提醒"
+          data-tour="today"
+          className={cn('order-first shrink-0 lg:order-last', remindersOpen ? 'lg:w-80' : 'lg:w-14')}
+        >
+          {!remindersOpen ? (
+            <button
+              type="button"
+              onClick={() => setRemindersOpen(true)}
+              aria-expanded={false}
+              className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-secondary/40 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-secondary lg:h-auto lg:flex-col lg:justify-start lg:py-4"
+            >
+              <span className="flex items-center gap-2 lg:flex-col">
+                <Bell aria-hidden="true" className="size-5" />
+                <span className="lg:hidden">今天的點名提醒</span>
+              </span>
+              <span className="flex items-center gap-1 text-muted-foreground lg:flex-col">
+                <span className="tabular rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
+                  {remainingToday}
+                </span>
+                <span className="text-xs lg:[writing-mode:vertical-rl]">
+                  {nextSchedule ? `下一節 ${formatTime(nextSchedule.start_time)}` : '今天沒有了'}
+                </span>
+                <PanelRightOpen aria-hidden="true" className="size-4 lg:mt-1" />
+              </span>
+            </button>
+          ) : (
+            <div className="space-y-5 rounded-lg border border-border bg-secondary/30 p-4 lg:sticky lg:top-6">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-base font-bold text-foreground">今天的點名</h2>
+                <IconButton label="收合提醒" onClick={() => setRemindersOpen(false)}>
+                  <PanelRightClose aria-hidden="true" />
+                </IconButton>
+              </div>
+
+              {loading ? (
+                <ListSkeleton rows={2} />
+              ) : nextSchedule && nextClass ? (
+                <div className="rounded-lg bg-primary p-4 text-primary-foreground">
+                  <p className="text-sm opacity-90">下一節</p>
+                  <p className="mt-1 font-display text-xl font-bold">
+                    {nextClass.name}　{periodLabel(nextSchedule.period)}
+                  </p>
+                  <p className="tabular mt-1 text-sm opacity-90">{formatTime(nextSchedule.start_time)} 開始</p>
+                  <Button
+                    className="mt-4 w-full bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+                    onClick={() => handleOpenRollcall(nextClass, nextSchedule.period)}
+                  >
+                    <Camera aria-hidden="true" />
+                    開始點名
+                  </Button>
+                </div>
+              ) : (
+                <EmptyState
+                  title={schedules.length === 0 ? '學校主管還沒有為你設定點名時間' : '今天沒有其他點名時段了'}
+                  description={
+                    schedules.length === 0
+                      ? '點名時間由學校主管設定，設定好後時間快到時這裡會提醒你。想臨時點名，可以從班級列表直接開始。'
+                      : '想臨時點名，可以從班級列表直接開始。'
+                  }
+                />
+              )}
+
+              {laterToday.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">今天稍後</h3>
+                  <ul className="mt-2 max-h-72 divide-y divide-border overflow-y-auto border-y border-border">
+                    {laterToday.map((s) => (
+                      <li key={s.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                        <span className="tabular w-12 shrink-0 text-muted-foreground">{formatTime(s.start_time)}</span>
+                        <span className="min-w-0 flex-1 truncate text-foreground">
+                          {s.class?.name ?? '班級'}　{periodLabel(s.period)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {permission === 'default' && schedules.length > 0 && (
+                <Button type="button" variant="ghost" size="sm" className="w-full" onClick={requestPermission}>
+                  <Bell aria-hidden="true" />
+                  開啟桌面提醒
+                </Button>
+              )}
+            </div>
+          )}
+        </aside>
+        </div>
       </main>
     </div>
   );
