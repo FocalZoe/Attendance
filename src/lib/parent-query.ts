@@ -17,7 +17,7 @@ export async function queryStudentAttendance(
   const cleanLast4 = parentPhoneLast4.trim();
 
   if (!cleanSchoolCode || !cleanStudentNumber || !/^\d{4}$/.test(cleanLast4)) {
-    return { success: false, message: '請輸入學校代碼、學號與家長電話後四碼' };
+    return { success: false, message: '請選擇學校，並輸入學號與家長電話後四碼' };
   }
 
   const now = Date.now();

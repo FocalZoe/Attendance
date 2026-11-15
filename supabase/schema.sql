@@ -569,6 +569,18 @@ CREATE POLICY "Seating layouts delete" ON public.seating_layouts
             AND (created_by = auth.uid() OR public.current_user_role() = 'school_admin'))
     );
 
+-- 家長查勤頁的學校下拉選單：未登入也能取得學校名稱與代碼（只回傳這兩個欄位）
+CREATE OR REPLACE FUNCTION public.list_schools_for_parent()
+RETURNS TABLE (name TEXT, code TEXT)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT s.name, s.code FROM public.schools s ORDER BY s.name;
+$$;
+GRANT EXECUTE ON FUNCTION public.list_schools_for_parent() TO anon, authenticated;
+
 -- Attendance Sessions & Records 權限
 DROP POLICY IF EXISTS "Attendance sessions access" ON public.attendance_sessions;
 DROP POLICY IF EXISTS "Attendance sessions read" ON public.attendance_sessions;

@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/lib/supabase';
 import { InlineAlert } from '@/components/ui/inline-alert';
 import { EmptyState } from '@/components/ui/empty-state';
 import { StatusLegend, StatusMark } from '@/components/ui/status-mark';
@@ -14,11 +16,21 @@ import type { ParentQueryResult } from '@/types/database';
 
 export function ParentQueryPage() {
   const [schoolCode, setSchoolCode] = React.useState('');
+  const [schools, setSchools] = React.useState<{ name: string; code: string }[]>([]);
+  const [schoolsLoading, setSchoolsLoading] = React.useState(true);
   const [studentNumber, setStudentNumber] = React.useState('');
   const [phoneLast4, setPhoneLast4] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState('');
   const [result, setResult] = React.useState<ParentQueryResult | null>(null);
+
+  React.useEffect(() => {
+    supabase.rpc('list_schools_for_parent').then(({ data, error }) => {
+      if (error) setErrorMsg('暫時讀不到學校清單。請重新整理頁面再試一次。');
+      else setSchools((data ?? []) as { name: string; code: string }[]);
+      setSchoolsLoading(false);
+    });
+  }, []);
 
   const handleQuery = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,19 +66,24 @@ export function ParentQueryPage() {
     >
       <h1 className="text-3xl font-bold text-foreground">家長查勤</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-        輸入學校代碼、孩子的學號，以及學校留存的家長電話末四碼，就能看到最近的出勤紀錄。學校代碼可以向學校詢問。
+        選擇孩子的學校，輸入學號，以及學校留存的家長電話末四碼，就能看到最近的出勤紀錄。
       </p>
 
       <form onSubmit={handleQuery} className="mt-6 grid gap-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
         <div className="space-y-2">
-          <Label htmlFor="query-school-code">學校代碼</Label>
-          <Input
-            id="query-school-code"
-            required
-            autoComplete="off"
-            value={schoolCode}
-            onChange={(e) => setSchoolCode(e.target.value)}
-          />
+          <Label htmlFor="query-school-code">學校</Label>
+          <Select value={schoolCode} onValueChange={setSchoolCode}>
+            <SelectTrigger id="query-school-code">
+              <SelectValue placeholder={schoolsLoading ? '載入學校中…' : '選擇學校'} />
+            </SelectTrigger>
+            <SelectContent>
+              {schools.map((s) => (
+                <SelectItem key={s.code} value={s.code}>
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label htmlFor="query-student-number">學號</Label>
