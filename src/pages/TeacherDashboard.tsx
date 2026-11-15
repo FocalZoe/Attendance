@@ -360,7 +360,7 @@ export function TeacherDashboard() {
             <EmptyState
               className="mt-4"
               title="你還沒有被指派任何班級"
-              description="請聯繫學校主管，請他在「班級與教師」頁籤的「指派導師與科任老師」把你加入班級。"
+              description="請聯繫學校主管，請他在「班級」頁面把你指派為導師或科任老師。"
             />
           ) : (
             <ul className="mt-4 divide-y divide-border border-y border-border">
@@ -369,17 +369,19 @@ export function TeacherDashboard() {
                 const isHomeroom = item.role === 'homeroom';
 
                 return (
+                  // The whole row selects the class; the inner button keeps keyboard access
                   <li
                     key={item.class.id}
+                    onClick={() => setSelectedClassId(item.class.id)}
                     className={cn(
-                      'flex flex-col gap-3 border-l-2 py-4 pl-4 sm:flex-row sm:items-center sm:justify-between',
+                      'flex cursor-pointer flex-col gap-3 border-l-2 py-4 pl-4 transition-colors hover:bg-secondary/30 sm:flex-row sm:items-center sm:justify-between',
                       isSelected ? 'border-primary bg-secondary/50' : 'border-transparent'
                     )}
                   >
                     <button
                       type="button"
                       onClick={() => setSelectedClassId(item.class.id)}
-                      className="min-w-0 text-left"
+                      className="min-w-0 flex-1 text-left"
                       aria-pressed={isSelected}
                     >
                       <span className="flex flex-wrap items-center gap-2">
@@ -391,7 +393,7 @@ export function TeacherDashboard() {
                       </span>
                     </button>
 
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2 pr-2" onClick={(e) => e.stopPropagation()}>
                       <Button size="sm" data-tour={index === 0 ? 'rollcall' : undefined} onClick={() => handleOpenRollcall(item.class)}>
                         <Camera aria-hidden="true" />
                         點名

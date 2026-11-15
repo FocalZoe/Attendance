@@ -200,11 +200,15 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
             <h3 className="text-base font-bold text-foreground">班級（{classes.length}）</h3>
             <ul className="divide-y divide-border rounded-lg border border-border">
               {classes.map((c) => (
+                // The whole row selects the class; the inner button keeps keyboard access
                 <li
                   key={c.id}
-                  className={`flex items-center justify-between gap-3 px-3 py-3 ${c.id === classId ? 'bg-secondary/60' : ''}`}
+                  onClick={() => setClassId(c.id)}
+                  className={`flex cursor-pointer items-center justify-between gap-3 border-l-2 px-3 py-3 transition-colors hover:bg-secondary/40 ${
+                    c.id === classId ? 'border-primary bg-secondary/60' : 'border-transparent'
+                  }`}
                 >
-                  <button type="button" className="min-w-0 text-left" onClick={() => setClassId(c.id)} aria-pressed={c.id === classId}>
+                  <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setClassId(c.id)} aria-pressed={c.id === classId}>
                     <span className="block font-medium text-foreground">{c.name}</span>
                     <span className="block text-sm text-muted-foreground">
                       {c.academic_year} 學年　{c.grade}
@@ -212,7 +216,10 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
                   </button>
                   <IconButton
                     label={`永久刪除班級 ${c.name}`}
-                    onClick={() => setTarget({ kind: 'class', item: c })}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTarget({ kind: 'class', item: c });
+                    }}
                     className="text-absent hover:text-absent"
                   >
                     <Trash2 aria-hidden="true" />

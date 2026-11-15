@@ -527,6 +527,48 @@ CREATE POLICY "Seating boxes write" ON public.seating_boxes
         public.can_write_class((SELECT sc.class_id FROM public.seating_charts sc WHERE sc.id = chart_id))
     );
 
+-- ------------------------------------------------------------------------------
+-- 座位佈局範本 (Seating Layouts)：把座位框的位置存成範本，全校班級都能套用
+-- boxes 為 [{seat_label, x_ratio, y_ratio, w_ratio, h_ratio}]，不含學生綁定
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.seating_layouts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    school_id UUID NOT NULL REFERENCES public.schools(id) ON DELETE CASCADE,
+    name TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 40),
+    boxes JSONB NOT NULL,
+    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+ALTER TABLE public.seating_layouts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Seating layouts read" ON public.seating_layouts;
+CREATE POLICY "Seating layouts read" ON public.seating_layouts
+    FOR SELECT TO authenticated
+    USING (
+        public.current_user_role() = 'sys_admin'
+        OR school_id = public.current_user_school_id()
+    );
+
+DROP POLICY IF EXISTS "Seating layouts insert" ON public.seating_layouts;
+CREATE POLICY "Seating layouts insert" ON public.seating_layouts
+    FOR INSERT TO authenticated
+    WITH CHECK (
+        public.current_user_role() IN ('school_admin', 'teacher')
+        AND school_id = public.current_user_school_id()
+        AND created_by = auth.uid()
+    );
+
+-- 建立者、本校主管、系統總管可刪除
+DROP POLICY IF EXISTS "Seating layouts delete" ON public.seating_layouts;
+CREATE POLICY "Seating layouts delete" ON public.seating_layouts
+    FOR DELETE TO authenticated
+    USING (
+        public.current_user_role() = 'sys_admin'
+        OR (school_id = public.current_user_school_id()
+            AND (created_by = auth.uid() OR public.current_user_role() = 'school_admin'))
+    );
+
 -- Attendance Sessions & Records 權限
 DROP POLICY IF EXISTS "Attendance sessions access" ON public.attendance_sessions;
 DROP POLICY IF EXISTS "Attendance sessions read" ON public.attendance_sessions;

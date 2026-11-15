@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 /** School-wide rollcall times: set once, applied to every class and teacher (Mon-Fri) */
@@ -20,6 +21,7 @@ export function SchoolPeriodsSection({ schoolId }: { schoolId: string }) {
   const [startTime, setStartTime] = React.useState('08:00');
   const [remindBefore, setRemindBefore] = React.useState(5);
   const [saving, setSaving] = React.useState(false);
+  const [dialogOpen, setDialogOpen] = React.useState(false);
 
   const load = React.useCallback(async () => {
     const { data, error } = await supabase
@@ -55,6 +57,7 @@ export function SchoolPeriodsSection({ schoolId }: { schoolId: string }) {
       return;
     }
     toast.success('已加入點名時間');
+    setDialogOpen(false);
     await load();
   };
 
@@ -68,14 +71,44 @@ export function SchoolPeriodsSection({ schoolId }: { schoolId: string }) {
   };
 
   return (
-    <section className="space-y-4" data-tour="sa-schedule">
-      <h2 className="font-display text-lg font-bold text-foreground">全校點名時間</h2>
+    <section className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-display text-lg font-bold text-foreground">全校點名時間（{items.length}）</h2>
+        <Button type="button" size="sm" onClick={() => setDialogOpen(true)}>
+          <Plus aria-hidden="true" />
+          新增點名時間
+        </Button>
+      </div>
       <p className="text-sm text-muted-foreground">
         設定一次，全校所有班級與老師每週一到週五都會套用。時間快到時，老師的網頁會提醒他點名。
       </p>
 
+
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">還沒有設定任何點名時間，按右上角的「新增點名時間」開始設定。</p>
+      ) : (
+        <ul className="divide-y divide-border rounded-md border border-border">
+          {items.map((item) => (
+            <li key={item.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+              <span className="text-foreground">
+                <span className="font-bold">{periodLabel(item.period)}</span>
+                <span className="tabular ml-3">{formatTime(item.start_time)}</span>
+                <span className="ml-3 text-muted-foreground">提前 {item.remind_before_min} 分鐘提醒</span>
+              </span>
+              <IconButton label="刪除這個時間" onClick={() => handleDelete(item.id)}>
+                <Trash2 aria-hidden="true" />
+              </IconButton>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>新增點名時間</DialogTitle>
+          </DialogHeader>
       <form onSubmit={handleAdd} className="space-y-4">
-        <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 items-start gap-3">
           <div className="space-y-2">
             <Label htmlFor="sp-period">節次</Label>
             <Select value={period} onValueChange={setPeriod}>
@@ -107,30 +140,15 @@ export function SchoolPeriodsSection({ schoolId }: { schoolId: string }) {
             />
           </div>
         </div>
-        <Button type="submit" disabled={saving}>
-          {saving && <Spinner />}
-          加入點名時間
-        </Button>
+        <DialogFooter className="gap-2 sm:space-x-0">
+          <Button type="submit" disabled={saving}>
+            {saving && <Spinner />}
+            加入點名時間
+          </Button>
+        </DialogFooter>
       </form>
-
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">還沒有設定任何點名時間。</p>
-      ) : (
-        <ul className="divide-y divide-border rounded-md border border-border">
-          {items.map((item) => (
-            <li key={item.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-              <span className="text-foreground">
-                <span className="font-bold">{periodLabel(item.period)}</span>
-                <span className="tabular ml-3">{formatTime(item.start_time)}</span>
-                <span className="ml-3 text-muted-foreground">提前 {item.remind_before_min} 分鐘提醒</span>
-              </span>
-              <IconButton label="刪除這個時間" onClick={() => handleDelete(item.id)}>
-                <Trash2 aria-hidden="true" />
-              </IconButton>
-            </li>
-          ))}
-        </ul>
-      )}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

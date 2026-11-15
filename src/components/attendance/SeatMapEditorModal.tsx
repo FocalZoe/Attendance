@@ -6,9 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
-import { SeatingChart, SeatingBox, Student } from '@/types/database';
+import { SeatingChart, SeatingBox, SeatingLayout, Student } from '@/types/database';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import { IconButton } from '@/components/ui/icon-button';
 import { generateGridSeats, NormalizedBox } from '@/services/seatOccupancyService';
-import { Trash2, PlusCircle, Copy } from 'lucide-react';
+import { Trash2, PlusCircle, Copy, LayoutTemplate } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/errors';
 
@@ -34,6 +37,16 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
   const [boxes, setBoxes] = useState<NormalizedBox[]>([]);
   const [selectedBoxIndex, setSelectedBoxIndex] = useState<number | null>(null);
   const [currentStudents, setCurrentStudents] = useState<Student[]>(students);
+
+  // 座位佈局範本：全校共用，可儲存目前的座位位置，也可套用到其他班級
+  const { profile } = useAuthStore();
+  const { request: requestConfirm, dialog: confirmDialog } = useConfirm();
+  const [schoolId, setSchoolId] = useState<string>('');
+  const [layouts, setLayouts] = useState<SeatingLayout[]>([]);
+  const [selectedLayoutId, setSelectedLayoutId] = useState<string>('');
+  const [saveLayoutOpen, setSaveLayoutOpen] = useState<boolean>(false);
+  const [layoutName, setLayoutName] = useState<string>('');
+  const [savingLayout, setSavingLayout] = useState<boolean>(false);
 
   // 網格快速產生器參數
   const [gridRows, setGridRows] = useState<number>(5);
@@ -193,6 +206,97 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
       setSelectedBoxIndex(null);
     }
   }, [open, loadSeatingChart]);
+
+  const loadLayouts = useCallback(async () => {
+    if (!classId) return;
+    const { data: cls } = await supabase.from('classes').select('school_id').eq('id', classId).single();
+    if (!cls) return;
+    setSchoolId(cls.school_id);
+    const { data, error } = await supabase
+      .from('seating_layouts')
+      .select('*')
+      .eq('school_id', cls.school_id)
+      .order('created_at', { ascending: false });
+    if (error) {
+      toastError(error, '讀取座位佈局失敗。請稍後再試。');
+      return;
+    }
+    setLayouts((data ?? []) as SeatingLayout[]);
+  }, [classId]);
+
+  useEffect(() => {
+    if (open) {
+      loadLayouts();
+      setSelectedLayoutId('');
+    }
+  }, [open, loadLayouts]);
+
+  // 把目前的座位位置存成佈局（不含學生）
+  const handleSaveLayout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = layoutName.trim();
+    if (!name || !schoolId || !profile) return;
+    if (boxes.length === 0) {
+      toast.error('目前沒有座位，請先排好座位再儲存佈局。');
+      return;
+    }
+    setSavingLayout(true);
+    const { error } = await supabase.from('seating_layouts').insert({
+      school_id: schoolId,
+      name,
+      created_by: profile.id,
+      boxes: boxes.map((b) => ({
+        seat_label: b.seat_label,
+        x_ratio: b.x_ratio,
+        y_ratio: b.y_ratio,
+        w_ratio: b.w_ratio,
+        h_ratio: b.h_ratio,
+      })),
+    });
+    setSavingLayout(false);
+    if (error) {
+      toastError(error, '儲存佈局失敗。請稍後再試。');
+      return;
+    }
+    toast.success(`已儲存佈局「${name}」`);
+    setSaveLayoutOpen(false);
+    setLayoutName('');
+    await loadLayouts();
+  };
+
+  // 套用佈局：只換座位位置，學生依座號自動對上；按「儲存座位表」後才會生效
+  const handleApplyLayout = () => {
+    const layout = layouts.find((l) => l.id === selectedLayoutId);
+    if (!layout) return;
+    setBoxes(
+      layout.boxes.map((b) => {
+        const matched = currentStudents.find((s) => String(s.seat_number) === b.seat_label);
+        return { ...b, student_id: matched ? matched.id : null };
+      })
+    );
+    setSelectedBoxIndex(null);
+    toast.success(`已套用佈局「${layout.name}」。確認後請按「儲存座位表」。`);
+  };
+
+  const handleDeleteLayout = () => {
+    const layout = layouts.find((l) => l.id === selectedLayoutId);
+    if (!layout) return;
+    requestConfirm({
+      title: `刪除佈局「${layout.name}」？`,
+      description: '只會刪除這個佈局範本，已經套用的班級座位表不受影響。',
+      confirmLabel: '刪除佈局',
+      destructive: true,
+      action: async () => {
+        const { error } = await supabase.from('seating_layouts').delete().eq('id', layout.id);
+        if (error) {
+          toastError(error, '刪除佈局失敗。請稍後再試。');
+          return;
+        }
+        setSelectedLayoutId('');
+        await loadLayouts();
+      },
+    });
+  };
 
   // 重新產生網格座位
   const handleGenerateGrid = () => {
@@ -364,6 +468,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
@@ -372,6 +477,41 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
             這是教室的俯視圖。先排出座位，再指定每個座位坐哪位學生，點名時鏡頭就知道誰該坐在哪裡。
           </DialogDescription>
         </DialogHeader>
+
+        <div className="space-y-3 border-t border-border pt-4">
+          <div className="flex flex-wrap items-end gap-3 rounded-md border border-border bg-secondary/40 p-3">
+            <div className="space-y-2">
+              <Label htmlFor="seat-layout">座位佈局</Label>
+              <Select value={selectedLayoutId} onValueChange={setSelectedLayoutId}>
+                <SelectTrigger id="seat-layout" className="w-56 bg-card">
+                  <SelectValue placeholder={layouts.length === 0 ? '還沒有儲存的佈局' : '選擇已儲存的佈局'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {layouts.map((l) => (
+                    <SelectItem key={l.id} value={l.id}>
+                      {l.name}（{l.boxes.length} 位）
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button type="button" variant="outline" disabled={!selectedLayoutId} onClick={handleApplyLayout}>
+              <LayoutTemplate aria-hidden="true" />
+              套用佈局
+            </Button>
+            {selectedLayoutId && (
+              <IconButton label="刪除這個佈局" onClick={handleDeleteLayout} className="text-absent hover:text-absent">
+                <Trash2 aria-hidden="true" />
+              </IconButton>
+            )}
+            <Button type="button" variant="outline" className="ml-auto" onClick={() => setSaveLayoutOpen(true)}>
+              把目前座位存成佈局
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            佈局只記座位的位置與大小，全校的班級都能套用，學生會依座號自動對上。
+          </p>
+        </div>
 
         <div className="space-y-3 border-t border-border pt-4">
           <div className="flex flex-wrap items-end gap-3">
@@ -528,5 +668,38 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+      <Dialog open={saveLayoutOpen} onOpenChange={setSaveLayoutOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>儲存座位佈局</DialogTitle>
+            <DialogDescription>為目前的 {boxes.length} 個座位取個名字，之後任何班級都能套用。</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveLayout} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="layout-name">佈局名稱</Label>
+              <Input
+                id="layout-name"
+                required
+                autoFocus
+                maxLength={40}
+                placeholder="例如 5 排 6 列、分組討論"
+                value={layoutName}
+                onChange={(e) => setLayoutName(e.target.value)}
+              />
+            </div>
+            <DialogFooter className="gap-2 sm:space-x-0">
+              <Button type="button" variant="outline" onClick={() => setSaveLayoutOpen(false)}>
+                取消
+              </Button>
+              <Button type="submit" disabled={savingLayout}>
+                {savingLayout && <Spinner />}
+                儲存佈局
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      {confirmDialog}
+    </>
   );
 };

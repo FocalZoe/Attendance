@@ -290,7 +290,7 @@ export function SysAdminDashboard() {
           </TabsContent>
 
           <TabsContent value="accounts" className="mt-6">
-            <AccountsPanel />
+            <AccountsPanel schools={schools} />
           </TabsContent>
 
           <TabsContent value="data" className="mt-6">

@@ -45,6 +45,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
   const [showAddForm, setShowAddForm] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState('');
+  const [addError, setAddError] = React.useState('');
 
   const { request: requestConfirm, dialog: confirmDialog } = useConfirm();
 
@@ -83,7 +84,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
   const handleAdd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
-    setErrorMsg('');
+    setAddError('');
 
     const formData = new FormData(e.currentTarget);
     const name = (formData.get('name') as string)?.trim();
@@ -92,14 +93,14 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
     const phone = (formData.get('phone') as string)?.trim() || null;
 
     if (!name || !email || !password) {
-      setErrorMsg('請填寫主管姓名、信箱與初始密碼。');
+      setAddError('請填寫主管姓名、信箱與初始密碼。');
       setLoading(false);
       return;
     }
 
     const passwordError = validatePassword(password);
     if (passwordError) {
-      setErrorMsg(passwordError);
+      setAddError(passwordError);
       setLoading(false);
       return;
     }
@@ -126,7 +127,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
             .eq('id', existingProfile.id);
 
           if (updateError) {
-            setErrorMsg(friendlyError(updateError, '更新主管資料失敗。請稍後再試。').message);
+            setAddError(friendlyError(updateError, '更新主管資料失敗。請稍後再試。').message);
             setLoading(false);
             return;
           }
@@ -145,7 +146,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
         });
 
         if (signUpError) {
-          setErrorMsg(friendlyError(signUpError, '建立主管帳號失敗。請稍後再試。').message);
+          setAddError(friendlyError(signUpError, '建立主管帳號失敗。請稍後再試。').message);
           setLoading(false);
           return;
         }
@@ -158,7 +159,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
           p_phone: phone,
         });
         if (assignError) {
-          setErrorMsg(friendlyError(assignError, '指派主管失敗。請稍後再試。').message);
+          setAddError(friendlyError(assignError, '指派主管失敗。請稍後再試。').message);
           setLoading(false);
           return;
         }
@@ -167,7 +168,7 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
       setShowAddForm(false);
       onRefresh?.();
     } catch (err: unknown) {
-      setErrorMsg(friendlyError(err, '指派主管失敗。請稍後再試。').message);
+      setAddError(friendlyError(err, '指派主管失敗。請稍後再試。').message);
     } finally {
       setLoading(false);
     }
@@ -204,12 +205,16 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
               <h3 className="font-display text-base font-bold text-foreground">
                 學校主管（{admins.length}）
               </h3>
-              {!showAddForm && (
-                <Button size="sm" onClick={() => setShowAddForm(true)}>
-                  <UserPlus aria-hidden="true" />
-                  新增主管
-                </Button>
-              )}
+              <Button
+                size="sm"
+                onClick={() => {
+                  setAddError('');
+                  setShowAddForm(true);
+                }}
+              >
+                <UserPlus aria-hidden="true" />
+                新增主管
+              </Button>
             </div>
 
             {admins.length === 0 ? (
@@ -261,9 +266,16 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
             )}
           </section>
 
-          {showAddForm && (
-            <form onSubmit={handleAdd} className="space-y-4 border-t border-border pt-4">
-              <h3 className="font-display text-base font-bold text-foreground">新增主管</h3>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showAddForm} onOpenChange={(open) => { setShowAddForm(open); if (!open) setAddError(''); }}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>新增主管</DialogTitle>
+            <DialogDescription>{school.name}</DialogDescription>
+          </DialogHeader>
+          {addError && <InlineAlert>{addError}</InlineAlert>}
+          <form onSubmit={handleAdd} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="admin-name">姓名</Label>
@@ -294,12 +306,16 @@ export function SchoolAdminModal({ school, admins, onRefresh }: SchoolAdminModal
                   <Input id="admin-phone" name="phone" type="tel" placeholder="0912-345-678" />
                 </div>
               </div>
-              <Button type="submit" disabled={loading}>
-                {loading && <Spinner />}
-                新增主管
-              </Button>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
+                  取消
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading && <Spinner />}
+                  新增主管
+                </Button>
+              </div>
             </form>
-          )}
         </DialogContent>
       </Dialog>
       {confirmDialog}

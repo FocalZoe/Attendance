@@ -58,26 +58,26 @@ export const TOUR_STEPS: Record<TourRole, TourStep[]> = {
   school_admin: [
     {
       selector: '[data-tour="sa-classes"]',
-      title: '建立班級與教師',
-      description: '先在「班級與教師」建立班級、新增教師帳號，再指派誰是導師或科任老師。',
+      title: '建立班級',
+      description: '在「班級」建立班級。點一個班級，下方就會出現這個班的老師、學生名冊、座位表與出勤紀錄。',
+      side: 'bottom',
+    },
+    {
+      selector: '[data-tour="sa-class-detail"]',
+      title: '管理這個班級',
+      description: '在這裡指派導師與科任老師、新增學生、排座位，也能查看每次點名的結果並更正。',
+      side: 'top',
+    },
+    {
+      selector: '[data-tour="sa-teachers"]',
+      title: '新增教師帳號',
+      description: '到「教師」新增帳號，建立時可以直接指派班級，也能看到每位老師負責哪些班。',
       side: 'bottom',
     },
     {
       selector: '[data-tour="sa-schedule"]',
       title: '設定全校點名時間',
-      description: '在這裡設定每一節的上課時間，設定一次，全校所有班級與老師都會套用，時間快到時老師會收到提醒。',
-      side: 'top',
-    },
-    {
-      selector: '[data-tour="sa-students"]',
-      title: '建立學生名冊',
-      description: '到「學生名冊」選一個班級，新增學生。有名冊，老師才能排座位與點名。',
-      side: 'bottom',
-    },
-    {
-      selector: '[data-tour="sa-attendance"]',
-      title: '查看全校出勤',
-      description: '選一個班級，就能看到每次點名的結果，也可以更正或下載成 Excel 檔。',
+      description: '在「點名時間」設定每一節的上課時間，設定一次，全校所有班級與老師都會套用，時間快到時老師會收到提醒。',
       side: 'bottom',
     },
     {

@@ -86,6 +86,23 @@ export interface SeatingBox {
   student?: Student;
 }
 
+export interface SeatingLayoutBox {
+  seat_label: string;
+  x_ratio: number;
+  y_ratio: number;
+  w_ratio: number;
+  h_ratio: number;
+}
+
+export interface SeatingLayout {
+  id: string;
+  school_id: string;
+  name: string;
+  boxes: SeatingLayoutBox[];
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface AttendanceSession {
   id: string;
   class_id: string;
