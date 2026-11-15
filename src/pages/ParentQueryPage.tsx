@@ -72,6 +72,8 @@ export function ParentQueryPage() {
       <form onSubmit={handleQuery} className="mt-6 grid gap-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
         <div className="space-y-2">
           <Label htmlFor="query-school-code">學校</Label>
+          {/* Wrapped so the hidden native select Radix adds inside forms does not get the column spacing */}
+          <div>
           <Select value={schoolCode} onValueChange={setSchoolCode}>
             <SelectTrigger id="query-school-code">
               <SelectValue placeholder={schoolsLoading ? '載入學校中…' : '選擇學校'} />
@@ -84,6 +86,7 @@ export function ParentQueryPage() {
               ))}
             </SelectContent>
           </Select>
+          </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor="query-student-number">學號</Label>
