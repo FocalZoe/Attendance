@@ -450,7 +450,6 @@ CREATE POLICY "Class teachers self read" ON public.class_teachers
     );
 
 -- 誰可以修改某班的資料：系統總管、本校主管，或被指派到該班的教師。
--- shortcut: 完全沒有被指派任何班級的教師視為可管理全校各班（與教師頁「沒有指派時顯示全校班級」一致）；主管一指派就會限縮
 CREATE OR REPLACE FUNCTION public.can_write_class(p_class_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
@@ -467,9 +466,8 @@ AS $$
     WHEN 'teacher' THEN EXISTS (
       SELECT 1 FROM public.classes c
       WHERE c.id = p_class_id AND c.school_id = public.current_user_school_id()
-    ) AND (
-      EXISTS (SELECT 1 FROM public.class_teachers ct WHERE ct.class_id = p_class_id AND ct.teacher_id = auth.uid())
-      OR NOT EXISTS (SELECT 1 FROM public.class_teachers ct WHERE ct.teacher_id = auth.uid())
+    ) AND EXISTS (
+      SELECT 1 FROM public.class_teachers ct WHERE ct.class_id = p_class_id AND ct.teacher_id = auth.uid()
     )
     ELSE false
   END;

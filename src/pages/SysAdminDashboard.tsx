@@ -20,7 +20,8 @@ import {
 import { SchoolAdminModal, type SchoolAdminInfo } from '@/components/sys-admin/school-admin-modal';
 import type { School as SchoolType } from '@/types/database';
 import { toast } from 'sonner';
-import { Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { IconButton } from '@/components/ui/icon-button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DangerConfirmDialog } from '@/components/ui/danger-confirm-dialog';
@@ -48,6 +49,7 @@ export function SysAdminDashboard() {
   const [schoolName, setSchoolName] = React.useState('');
   const [schoolCode, setSchoolCode] = React.useState('');
   const [errorMsg, setErrorMsg] = React.useState('');
+  const [schoolDialogOpen, setSchoolDialogOpen] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState<SchoolType | null>(null);
   const [deleteAccounts, setDeleteAccounts] = React.useState(true);
   const [impact, setImpact] = React.useState<{ classes: number; students: number; accounts: number } | null>(null);
@@ -102,6 +104,7 @@ export function SysAdminDashboard() {
         setSchoolName('');
         setSchoolCode('');
         toast.success('已建立學校');
+        setSchoolDialogOpen(false);
         await loadData();
       }
     } catch (err: unknown) {
@@ -188,50 +191,21 @@ export function SysAdminDashboard() {
           </TabsList>
 
           <TabsContent value="schools" className="mt-6">
-        <div className="grid gap-10 lg:grid-cols-[20rem_1fr]">
-          {/* 新增學校 */}
-          <section className="space-y-4">
-            <h2 className="font-display text-lg font-bold text-foreground">新增學校</h2>
-            <p className="text-sm text-muted-foreground">
-              學校代碼是學校的唯一識別，建立後主管註冊時會用到。
-            </p>
-            {errorMsg && <InlineAlert>{errorMsg}</InlineAlert>}
-            <form onSubmit={handleCreateSchool} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="sys-school-name">學校全名</Label>
-                <Input
-                  id="sys-school-name"
-                  required
-                  placeholder="例如：示範科技大學"
-                  value={schoolName}
-                  onChange={(e) => setSchoolName(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="sys-school-code">學校代碼</Label>
-                <Input
-                  id="sys-school-code"
-                  required
-                  placeholder="例如：DEMO-TECH"
-                  value={schoolCode}
-                  onChange={(e) => setSchoolCode(e.target.value)}
-                />
-              </div>
-              <Button type="submit" disabled={creatingSchool}>
-                {creatingSchool && <Spinner />}
-                建立學校
-              </Button>
-            </form>
-          </section>
-
+        <div>
           {/* 學校列表 */}
           <section className="space-y-4">
-            <h2 className="font-display text-lg font-bold text-foreground">所有學校（{schools.length}）</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-display text-lg font-bold text-foreground">所有學校（{schools.length}）</h2>
+              <Button type="button" size="sm" onClick={() => setSchoolDialogOpen(true)}>
+                <Plus aria-hidden="true" />
+                新增學校
+              </Button>
+            </div>
 
             {loading ? (
               <ListSkeleton rows={4} />
             ) : schools.length === 0 ? (
-              <EmptyState title="還沒有學校" description="先在左側建立第一所學校。" />
+              <EmptyState title="還沒有學校" description="按右上角的「新增學校」建立第一所學校。" />
             ) : (
               <>
                 {/* 手機：列表 */}
@@ -347,6 +321,44 @@ export function SysAdminDashboard() {
             <span>同時刪除這間學校的所有教師與主管帳號（不勾選的話，帳號會保留但不屬於任何學校）</span>
           </label>
         </DangerConfirmDialog>
+        <Dialog open={schoolDialogOpen} onOpenChange={setSchoolDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>新增學校</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              學校代碼是學校的唯一識別，建立後主管註冊時會用到。
+            </p>
+            {errorMsg && <InlineAlert>{errorMsg}</InlineAlert>}
+            <form onSubmit={handleCreateSchool} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="sys-school-name">學校全名</Label>
+                <Input
+                  id="sys-school-name"
+                  required
+                  placeholder="例如：示範科技大學"
+                  value={schoolName}
+                  onChange={(e) => setSchoolName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sys-school-code">學校代碼</Label>
+                <Input
+                  id="sys-school-code"
+                  required
+                  placeholder="例如：DEMO-TECH"
+                  value={schoolCode}
+                  onChange={(e) => setSchoolCode(e.target.value)}
+                />
+              </div>
+              <Button type="submit" disabled={creatingSchool}>
+                {creatingSchool && <Spinner />}
+                建立學校
+              </Button>
+            </form>
+                    </DialogContent>
+        </Dialog>
+
       </main>
     </div>
   );

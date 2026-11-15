@@ -22,7 +22,7 @@ import { SchoolPeriodsSection } from '@/components/attendance/SchoolPeriodsSecti
 import { IconButton } from '@/components/ui/icon-button';
 import { Spinner } from '@/components/ui/spinner';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Grid3X3, Trash2, UserCheck, UserX } from 'lucide-react';
+import { Grid3X3, Plus, Trash2, UserCheck, UserX } from 'lucide-react';
 import type { SchoolClass, Profile, Student, ClassTeacher } from '@/types/database';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/errors';
@@ -70,6 +70,9 @@ export function SchoolAdminDashboard() {
   const [classGrade, setClassGrade] = React.useState('');
   const [academicYear, setAcademicYear] = React.useState('113');
   const [creatingClass, setCreatingClass] = React.useState(false);
+  const [classDialogOpen, setClassDialogOpen] = React.useState(false);
+  const [teacherDialogOpen, setTeacherDialogOpen] = React.useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = React.useState(false);
   const [classError, setClassError] = React.useState('');
 
   const [teacherName, setTeacherName] = React.useState('');
@@ -180,6 +183,7 @@ export function SchoolAdminDashboard() {
         setClassName('');
         setClassGrade('');
         toast.success('已建立班級');
+        setClassDialogOpen(false);
         await loadData();
       }
     } catch (err: unknown) {
@@ -234,6 +238,7 @@ export function SchoolAdminDashboard() {
         setTeacherEmail('');
         setTeacherPassword('');
         toast.success('已建立教師帳號');
+        setTeacherDialogOpen(false);
         await loadData();
       }
     } catch (err: unknown) {
@@ -267,6 +272,7 @@ export function SchoolAdminDashboard() {
         }
       } else {
         toast.success(`已指派為${assignRole === 'homeroom' ? '導師' : '科任老師'}`);
+        setAssignDialogOpen(false);
         await loadData();
       }
     } catch (err: unknown) {
@@ -441,13 +447,19 @@ export function SchoolAdminDashboard() {
                 {/* 班級 */}
                 <div className="space-y-8">
                   <section className="space-y-4">
-                    <h2 className={sectionHeading}>班級（{classes.length}）</h2>
+                    <div className="flex items-center justify-between gap-3">
+                      <h2 className={sectionHeading}>班級（{classes.length}）</h2>
+                      <Button type="button" size="sm" onClick={() => setClassDialogOpen(true)}>
+                        <Plus aria-hidden="true" />
+                        新增班級
+                      </Button>
+                    </div>
                     {loading ? (
                       <ListSkeleton rows={3} />
                     ) : classes.length === 0 ? (
                       <EmptyState
                         title="還沒有班級"
-                        description="先在下方建立班級，才能指派教師、建立名冊與座位。"
+                        description="先按右上角的「新增班級」建立班級，才能指派教師、建立名冊與座位。"
                       />
                     ) : (
                       <ul className="divide-y divide-border border-y border-border">
@@ -477,63 +489,26 @@ export function SchoolAdminDashboard() {
                     )}
                   </section>
 
-                  <section className="space-y-4">
-                    <h2 className={sectionHeading}>新增班級</h2>
-                    {classError && <InlineAlert>{classError}</InlineAlert>}
-                    <form onSubmit={handleCreateClass} className="space-y-4">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                          <Label htmlFor="school-academic-year">學年度</Label>
-                          <Input
-                            id="school-academic-year"
-                            required
-                            placeholder="例如 113"
-                            value={academicYear}
-                            onChange={(e) => setAcademicYear(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="school-class-grade">年級</Label>
-                          <Input
-                            id="school-class-grade"
-                            required
-                            placeholder="例如 高一"
-                            value={classGrade}
-                            onChange={(e) => setClassGrade(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="school-class-name">班級名稱</Label>
-                        <Input
-                          id="school-class-name"
-                          required
-                          placeholder="例如 資訊一甲"
-                          value={className}
-                          onChange={(e) => setClassName(e.target.value)}
-                        />
-                      </div>
-                      <Button type="submit" disabled={creatingClass}>
-                        {creatingClass && <Spinner />}
-                        建立班級
-                      </Button>
-                    </form>
-                  </section>
-
                   {schoolId && <SchoolPeriodsSection schoolId={schoolId} />}
                 </div>
 
                 {/* 教師 */}
                 <div className="space-y-8">
                   <section className="space-y-4">
-                    <h2 className={sectionHeading}>教師帳號（{teachers.length}）</h2>
+                    <div className="flex items-center justify-between gap-3">
+                      <h2 className={sectionHeading}>教師帳號（{teachers.length}）</h2>
+                      <Button type="button" size="sm" onClick={() => setTeacherDialogOpen(true)}>
+                        <Plus aria-hidden="true" />
+                        新增教師帳號
+                      </Button>
+                    </div>
                     <p className="text-sm text-muted-foreground">
                       教師離職時可停用帳號。歷史點名紀錄會保留，之後也能重新啟用。
                     </p>
                     {loading ? (
                       <ListSkeleton rows={3} />
                     ) : teachers.length === 0 ? (
-                      <EmptyState title="還沒有教師帳號" description="在下方建立第一位教師的帳號。" />
+                      <EmptyState title="還沒有教師帳號" description="按右上角的「新增教師帳號」建立第一位教師。" />
                     ) : (
                       <ScrollArea className="rounded-md border border-border" viewportClassName="max-h-72">
                       <ul className="divide-y divide-border">
@@ -570,105 +545,13 @@ export function SchoolAdminDashboard() {
                   </section>
 
                   <section className="space-y-4">
-                    <h2 className={sectionHeading}>新增教師帳號</h2>
-                    <p className="text-sm text-muted-foreground">
-                      由你設定初始密碼，教師登入後可自行修改。
-                    </p>
-                    {teacherError && <InlineAlert>{teacherError}</InlineAlert>}
-                    <form onSubmit={handleCreateTeacher} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="teacher-real-name">姓名</Label>
-                        <Input
-                          id="teacher-real-name"
-                          required
-                          placeholder="例如 王小明"
-                          value={teacherName}
-                          onChange={(e) => setTeacherName(e.target.value)}
-                        />
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="teacher-email">登入信箱</Label>
-                          <Input
-                            id="teacher-email"
-                            type="email"
-                            required
-                            placeholder="teacher@school.edu.tw"
-                            value={teacherEmail}
-                            onChange={(e) => setTeacherEmail(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="teacher-password">初始密碼</Label>
-                          <PasswordInput
-                            id="teacher-password"
-                            autoComplete="new-password"
-                            required
-                            placeholder="至少 6 個字元"
-                            value={teacherPassword}
-                            onChange={(e) => setTeacherPassword(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <Button type="submit" disabled={creatingTeacher}>
-                        {creatingTeacher && <Spinner />}
-                        建立教師帳號
+                    <div className="flex items-center justify-between gap-3">
+                      <h2 className={sectionHeading}>指派導師與科任老師</h2>
+                      <Button type="button" size="sm" onClick={() => setAssignDialogOpen(true)}>
+                        <Plus aria-hidden="true" />
+                        新增指派
                       </Button>
-                    </form>
-                  </section>
-
-                  <section className="space-y-4">
-                    <h2 className={sectionHeading}>指派導師與科任老師</h2>
-                    <form onSubmit={handleAssignTeacher} className="space-y-4">
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <div className="space-y-2">
-                          <Label htmlFor="assign-class">班級</Label>
-                          <Select value={assignClassId} onValueChange={setAssignClassId}>
-                            <SelectTrigger id="assign-class">
-                              <SelectValue placeholder="選擇班級" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {classes.map((c) => (
-                                <SelectItem key={c.id} value={c.id}>
-                                  {c.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="assign-teacher">教師</Label>
-                          <Select value={assignTeacherId} onValueChange={setAssignTeacherId}>
-                            <SelectTrigger id="assign-teacher">
-                              <SelectValue placeholder="選擇教師" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {activeTeachers.map((t) => (
-                                <SelectItem key={t.id} value={t.id}>
-                                  {t.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="assign-role">職務</Label>
-                          <Select
-                            value={assignRole}
-                            onValueChange={(val) => setAssignRole(val as 'homeroom' | 'subject')}
-                          >
-                            <SelectTrigger id="assign-role">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="homeroom">導師</SelectItem>
-                              <SelectItem value="subject">科任老師</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <Button type="submit">指派</Button>
-                    </form>
+                    </div>
 
                     {classTeachers.length === 0 ? (
                       <p className="text-sm text-muted-foreground">還沒有任何指派。</p>
@@ -791,6 +674,166 @@ export function SchoolAdminDashboard() {
             </TabsContent>
           </Tabs>
         )}
+
+        <Dialog open={classDialogOpen} onOpenChange={setClassDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>新增班級</DialogTitle>
+            </DialogHeader>
+                    {classError && <InlineAlert>{classError}</InlineAlert>}
+                    <form onSubmit={handleCreateClass} className="space-y-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="school-academic-year">學年度</Label>
+                          <Input
+                            id="school-academic-year"
+                            required
+                            placeholder="例如 113"
+                            value={academicYear}
+                            onChange={(e) => setAcademicYear(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="school-class-grade">年級</Label>
+                          <Input
+                            id="school-class-grade"
+                            required
+                            placeholder="例如 高一"
+                            value={classGrade}
+                            onChange={(e) => setClassGrade(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="school-class-name">班級名稱</Label>
+                        <Input
+                          id="school-class-name"
+                          required
+                          placeholder="例如 資訊一甲"
+                          value={className}
+                          onChange={(e) => setClassName(e.target.value)}
+                        />
+                      </div>
+                      <Button type="submit" disabled={creatingClass}>
+                        {creatingClass && <Spinner />}
+                        建立班級
+                      </Button>
+                    </form>
+                  
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={teacherDialogOpen} onOpenChange={setTeacherDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>新增教師帳號</DialogTitle>
+            </DialogHeader>
+                    <p className="text-sm text-muted-foreground">
+                      由你設定初始密碼，教師登入後可自行修改。
+                    </p>
+                    {teacherError && <InlineAlert>{teacherError}</InlineAlert>}
+                    <form onSubmit={handleCreateTeacher} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="teacher-real-name">姓名</Label>
+                        <Input
+                          id="teacher-real-name"
+                          required
+                          placeholder="例如 王小明"
+                          value={teacherName}
+                          onChange={(e) => setTeacherName(e.target.value)}
+                        />
+                      </div>
+                      <div className="grid gap-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="teacher-email">登入信箱</Label>
+                          <Input
+                            id="teacher-email"
+                            type="email"
+                            required
+                            placeholder="teacher@school.edu.tw"
+                            value={teacherEmail}
+                            onChange={(e) => setTeacherEmail(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="teacher-password">初始密碼</Label>
+                          <PasswordInput
+                            id="teacher-password"
+                            autoComplete="new-password"
+                            required
+                            placeholder="至少 6 個字元"
+                            value={teacherPassword}
+                            onChange={(e) => setTeacherPassword(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <Button type="submit" disabled={creatingTeacher}>
+                        {creatingTeacher && <Spinner />}
+                        建立教師帳號
+                      </Button>
+                    </form>
+                  
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>指派導師與科任老師</DialogTitle>
+            </DialogHeader>
+                    <form onSubmit={handleAssignTeacher} className="space-y-4">
+                      <div className="grid gap-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="assign-class">班級</Label>
+                          <Select value={assignClassId} onValueChange={setAssignClassId}>
+                            <SelectTrigger id="assign-class">
+                              <SelectValue placeholder="選擇班級" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {classes.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>
+                                  {c.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="assign-teacher">教師</Label>
+                          <Select value={assignTeacherId} onValueChange={setAssignTeacherId}>
+                            <SelectTrigger id="assign-teacher">
+                              <SelectValue placeholder="選擇教師" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {activeTeachers.map((t) => (
+                                <SelectItem key={t.id} value={t.id}>
+                                  {t.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="assign-role">職務</Label>
+                          <Select
+                            value={assignRole}
+                            onValueChange={(val) => setAssignRole(val as 'homeroom' | 'subject')}
+                          >
+                            <SelectTrigger id="assign-role">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="homeroom">導師</SelectItem>
+                              <SelectItem value="subject">科任老師</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <Button type="submit">指派</Button>
+                    </form>
+
+          </DialogContent>
+        </Dialog>
 
         {/* 新增學生 Modal */}
         <Dialog open={studentModalOpen} onOpenChange={setStudentModalOpen}>

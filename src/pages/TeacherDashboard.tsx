@@ -65,8 +65,7 @@ export function TeacherDashboard() {
   const { request: requestConfirm, dialog: confirmDialog } = useConfirm();
 
   // 班級學生管理 Modal (導師專用)
-  const [studentModalOpen, setStudentModalOpen] = React.useState<boolean>(false);
-  const [studentForm, setStudentForm] = React.useState(EMPTY_STUDENT_FORM);
+  const [studentModalOpen, setStudentModalOpen] = React.useState<boolean>(false);  const [studentForm, setStudentForm] = React.useState(EMPTY_STUDENT_FORM);
 
   // 每分鐘更新目前時間，讓「下一節」自動前進
   React.useEffect(() => {
@@ -100,22 +99,8 @@ export function TeacherDashboard() {
         // Functional update: keep the current selection, only default to the first class
         if (mapped.length > 0) setSelectedClassId((prev) => prev || mapped[0].class.id);
       } else {
-        // No class_teachers rows yet: fall back to every class in the school as subject teacher
-        if (schoolId) {
-          const { data: schoolClasses } = await supabase
-            .from('classes')
-            .select('*')
-            .eq('school_id', schoolId);
-
-          if (schoolClasses && schoolClasses.length > 0) {
-            const mapped: AssignedClassItem[] = schoolClasses.map((c) => ({
-              class: c,
-              role: 'subject',
-            }));
-            setAssignedClasses(mapped);
-            setSelectedClassId((prev) => prev || mapped[0].class.id);
-          }
-        }
+        // Not assigned to any class: show nothing (the empty state tells them to contact the admin)
+        setAssignedClasses([]);
       }
     } catch (err: unknown) {
       console.error('載入教師班級失敗:', err);

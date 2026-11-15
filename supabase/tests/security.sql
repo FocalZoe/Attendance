@@ -10,13 +10,16 @@ DECLARE
     v_class2 UUID := gen_random_uuid();
     v_teacher_a UUID := gen_random_uuid();
     v_teacher_b UUID := gen_random_uuid();
+    v_teacher_c UUID := gen_random_uuid();
     v_student2 UUID := gen_random_uuid();
     v_count INTEGER;
     v_result JSONB;
 BEGIN
     -- Fixtures (the auth.users trigger creates the profiles as unbound teachers)
     INSERT INTO public.schools (id, name, code) VALUES (v_school, 'Test School', 'SECTEST');
-    INSERT INTO public.classes (id, school_id, name) VALUES (v_class1, v_school, 'C1'), (v_class2, v_school, 'C2');
+    INSERT INTO public.classes (id, school_id, name, grade, academic_year) VALUES
+        (v_class1, v_school, 'C1', '1', '2026'),
+        (v_class2, v_school, 'C2', '1', '2026');
     INSERT INTO auth.users (id, email, aud, role) VALUES
         (v_teacher_a, 'sec-a@example.test', 'authenticated', 'authenticated'),
         (v_teacher_b, 'sec-b@example.test', 'authenticated', 'authenticated');
@@ -60,6 +63,19 @@ BEGIN
     EXCEPTION WHEN insufficient_privilege OR check_violation THEN
         NULL; -- expected: blocked by RLS
     END;
+    RESET ROLE;
+
+    -- 5. Teacher C (assigned to no class) cannot delete any student
+    INSERT INTO auth.users (id, email, aud, role) VALUES (v_teacher_c, 'sec-c@example.test', 'authenticated', 'authenticated');
+    UPDATE public.profiles SET school_id = v_school WHERE id = v_teacher_c;
+    PERFORM set_config('request.jwt.claims', json_build_object('sub', v_teacher_c, 'role', 'authenticated')::text, true);
+    PERFORM set_config('request.jwt.claim.sub', v_teacher_c::text, true);
+    SET LOCAL ROLE authenticated;
+    DELETE FROM public.students WHERE id = v_student2;
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    IF v_count <> 0 THEN
+        RAISE EXCEPTION 'FAIL: teacher with no class assignment deleted a student';
+    END IF;
     RESET ROLE;
 END $$;
 
