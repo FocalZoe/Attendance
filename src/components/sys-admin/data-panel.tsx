@@ -14,6 +14,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { DangerConfirmDialog } from '@/components/ui/danger-confirm-dialog';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { m } from 'motion/react';
+import { Stagger, StaggerItem } from '@/components/motion/stagger';
 import type { AttendanceSession, School, SchoolClass, Student } from '@/types/database';
 
 interface DataPanelProps {
@@ -198,16 +200,24 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
         <div className="grid gap-8 lg:grid-cols-2">
           <div className="space-y-3">
             <h3 className="text-base font-bold text-foreground">班級（{classes.length}）</h3>
-            <ul className="divide-y divide-border rounded-lg border border-border">
+            <Stagger as="ul" gap={0.04} className="divide-y divide-border rounded-lg border border-border">
               {classes.map((c) => (
                 // The whole row selects the class; the inner button keeps keyboard access
-                <li
+                <StaggerItem
+                  as="li"
                   key={c.id}
                   onClick={() => setClassId(c.id)}
-                  className={`flex cursor-pointer items-center justify-between gap-3 border-l-2 px-3 py-3 transition-colors hover:bg-secondary/40 ${
-                    c.id === classId ? 'border-primary bg-secondary/60' : 'border-transparent'
+                  className={`relative flex cursor-pointer items-center justify-between gap-3 px-3 py-3 transition-colors hover:bg-secondary/40 ${
+                    c.id === classId ? 'bg-secondary/60' : ''
                   }`}
                 >
+                  {c.id === classId && (
+                    <m.span
+                      layoutId="data-class-bar"
+                      className="absolute inset-y-0 left-0 w-0.5 bg-primary"
+                      aria-hidden="true"
+                    />
+                  )}
                   <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setClassId(c.id)} aria-pressed={c.id === classId}>
                     <span className="block font-medium text-foreground">{c.name}</span>
                     <span className="block text-sm text-muted-foreground">
@@ -224,9 +234,9 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
                   >
                     <Trash2 aria-hidden="true" />
                   </IconButton>
-                </li>
+                </StaggerItem>
               ))}
-            </ul>
+            </Stagger>
           </div>
 
           <div className="space-y-3">

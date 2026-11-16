@@ -1,7 +1,11 @@
 import * as React from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
-import { Navbar } from '@/components/ui/navbar';
+import { AppShell } from '@/components/layout/app-shell';
+import { PageHeader } from '@/components/layout/page-header';
+import { Stagger, StaggerItem } from '@/components/motion/stagger';
+import { m } from 'motion/react';
+import { fade, fadeUp } from '@/lib/motion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -17,7 +21,7 @@ import { Bell, Camera, Grid3X3, PanelRightClose, PanelRightOpen, PlusCircle, Tra
 import type { SchoolClass, Student } from '@/types/database';
 import { SeatMapEditorModal } from '@/components/attendance/SeatMapEditorModal';
 const LiveAttendanceRollcall = React.lazy(() =>
-  import('@/components/attendance/LiveAttendanceRollcall').then((m) => ({ default: m.LiveAttendanceRollcall }))
+  import('@/components/attendance/LiveAttendanceRollcall').then((mod) => ({ default: mod.LiveAttendanceRollcall }))
 );
 import { AttendanceHistoryView } from '@/components/attendance/AttendanceHistoryView';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -27,6 +31,7 @@ import { periodLabel } from '@/lib/periods';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/errors';
+import { StudentFormDialog } from '@/components/students/student-form-dialog';
 import { useProductTour } from '@/hooks/useProductTour';
 import { useCameraPermission } from '@/hooks/useCameraPermission';
 import { CAMERA_BLOCKED_STEPS } from '@/lib/camera-permission';
@@ -35,14 +40,6 @@ interface AssignedClassItem {
   class: SchoolClass;
   role: 'homeroom' | 'subject';
 }
-
-const EMPTY_STUDENT_FORM = {
-  student_number: '',
-  name: '',
-  seat_number: 1,
-  gender: '未填',
-  parent_phone: '',
-};
 
 export function TeacherDashboard() {
   const { profile } = useAuthStore();
@@ -65,7 +62,7 @@ export function TeacherDashboard() {
   const { request: requestConfirm, dialog: confirmDialog } = useConfirm();
 
   // 班級學生管理 Modal (導師專用)
-  const [studentModalOpen, setStudentModalOpen] = React.useState<boolean>(false);  const [studentForm, setStudentForm] = React.useState(EMPTY_STUDENT_FORM);
+  const [studentModalOpen, setStudentModalOpen] = React.useState<boolean>(false);
 
   // 每分鐘更新目前時間，讓「下一節」自動前進
   React.useEffect(() => {
@@ -156,34 +153,7 @@ export function TeacherDashboard() {
     setLiveRollcallOpen(true);
   };
 
-  // 導師新增在籍學生
-  const handleCreateStudent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedClassId || !schoolId) return;
 
-    try {
-      const { error } = await supabase.from('students').insert({
-        school_id: schoolId,
-        class_id: selectedClassId,
-        student_number: studentForm.student_number.trim(),
-        name: studentForm.name.trim(),
-        seat_number: Number(studentForm.seat_number),
-        gender: studentForm.gender,
-        parent_phone: studentForm.parent_phone.trim(),
-      });
-
-      if (error) throw error;
-
-      toast.success('已新增學生');
-      setStudentModalOpen(false);
-      setStudentForm({ ...EMPTY_STUDENT_FORM, seat_number: classStudents.length + 2 });
-      loadStudents(selectedClassId);
-    } catch (err: unknown) {
-      toastError(err, '新增學生失敗。請確認學號沒有重複後再試一次。');
-    }
-  };
-
-  // 導師刪除在籍學生
   const deleteStudent = async (studentId: string) => {
     const previous = classStudents;
     setClassStudents((list) => list.filter((st) => st.id !== studentId));
@@ -243,22 +213,20 @@ export function TeacherDashboard() {
   const dateLabel = `${now.getMonth() + 1} 月 ${now.getDate()} 日　${WEEKDAY_LABELS[weekdayOf(now)]}`;
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Navbar profile={profile} />
-
+    <AppShell profile={profile}>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-8 lg:flex-row lg:gap-10">
         <div className="min-w-0 flex-1 space-y-10 lg:order-first">
         {/* 問候 */}
         <section aria-labelledby="today-heading">
-          <p className="tabular text-sm text-muted-foreground">{dateLabel}</p>
-          <h1 id="today-heading" className="mt-1 text-3xl font-bold text-foreground">
-            {profile?.name || ''} 老師，今天的點名
-          </h1>
+          <PageHeader id="today-heading" eyebrow={dateLabel} title={`${profile?.name || ''} 老師，今天的點名`} />
 
           {(cameraPermission.state === 'prompt' || cameraPermission.state === 'denied') && (
-            <div
+            <m.div
               data-tour="camera-permission"
+              variants={fadeUp}
+              initial="hidden"
+              animate="visible"
               className="mt-5 flex flex-col gap-3 rounded-lg border border-border bg-secondary p-4 sm:flex-row sm:items-center sm:justify-between"
             >
               {cameraPermission.state === 'prompt' ? (
@@ -289,7 +257,7 @@ export function TeacherDashboard() {
                   </Button>
                 </>
               )}
-            </div>
+            </m.div>
           )}
 
         </section>
@@ -311,21 +279,29 @@ export function TeacherDashboard() {
               description="請聯繫學校主管，請他在「班級」頁面把你指派為導師或科任老師。"
             />
           ) : (
-            <ul className="mt-4 divide-y divide-border border-y border-border">
+            <Stagger as="ul" gap={0.05} className="mt-4 divide-y divide-border border-y border-border">
               {assignedClasses.map((item, index) => {
                 const isSelected = item.class.id === selectedClassId;
                 const isHomeroom = item.role === 'homeroom';
 
                 return (
                   // The whole row selects the class; the inner button keeps keyboard access
-                  <li
+                  <StaggerItem
+                    as="li"
                     key={item.class.id}
                     onClick={() => setSelectedClassId(item.class.id)}
                     className={cn(
-                      'flex cursor-pointer flex-col gap-3 border-l-2 py-4 pl-4 transition-colors hover:bg-secondary/30 sm:flex-row sm:items-center sm:justify-between',
-                      isSelected ? 'border-primary bg-secondary/50' : 'border-transparent'
+                      'relative flex cursor-pointer flex-col gap-3 py-4 pl-4 transition-colors hover:bg-secondary/30 sm:flex-row sm:items-center sm:justify-between',
+                      isSelected && 'bg-secondary/50'
                     )}
                   >
+                    {isSelected && (
+                      <m.span
+                        layoutId="teacher-class-bar"
+                        className="absolute inset-y-0 left-0 w-0.5 bg-primary"
+                        aria-hidden="true"
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={() => setSelectedClassId(item.class.id)}
@@ -351,16 +327,22 @@ export function TeacherDashboard() {
                         座位
                       </Button>
                     </div>
-                  </li>
+                  </StaggerItem>
                 );
               })}
-            </ul>
+            </Stagger>
           )}
         </section>
 
         {/* 選定班級：紀錄與名冊 */}
         {currentAssigned && (
-          <section aria-labelledby="class-detail-heading">
+          <m.section
+            key={currentAssigned.class.id}
+            aria-labelledby="class-detail-heading"
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+          >
             <h2 id="class-detail-heading" className="text-xl font-bold text-foreground">
               {currentAssigned.class.name}
             </h2>
@@ -388,10 +370,7 @@ export function TeacherDashboard() {
                     <Button
                       type="button"
                       size="sm"
-                      onClick={() => {
-                        setStudentForm({ ...EMPTY_STUDENT_FORM, seat_number: classStudents.length + 1 });
-                        setStudentModalOpen(true);
-                      }}
+                      onClick={() => setStudentModalOpen(true)}
                     >
                       <PlusCircle aria-hidden="true" />
                       新增學生
@@ -463,7 +442,7 @@ export function TeacherDashboard() {
                 )}
               </TabsContent>
             </Tabs>
-          </section>
+          </m.section>
         )}
 
         {/* 教室座位彈窗 */}
@@ -500,97 +479,31 @@ export function TeacherDashboard() {
 
         {confirmDialog}
 
-        {/* 導師新增學生 Modal */}
-        <Dialog open={studentModalOpen} onOpenChange={setStudentModalOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>新增學生・{currentAssigned?.class.name}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleCreateStudent} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="ts-seat">座號</Label>
-                  <Input
-                    id="ts-seat"
-                    autoFocus
-                    type="number"
-                    required
-                    min={1}
-                    value={studentForm.seat_number}
-                    onChange={(e) =>
-                      setStudentForm((prev) => ({ ...prev, seat_number: parseInt(e.target.value) || 1 }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ts-number">學號</Label>
-                  <Input
-                    id="ts-number"
-                    required
-                    placeholder="S113001"
-                    value={studentForm.student_number}
-                    onChange={(e) => setStudentForm((prev) => ({ ...prev, student_number: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="ts-name">姓名</Label>
-                  <Input
-                    id="ts-name"
-                    required
-                    placeholder="林小明"
-                    value={studentForm.name}
-                    onChange={(e) => setStudentForm((prev) => ({ ...prev, name: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ts-gender">性別</Label>
-                  <Select
-                    value={studentForm.gender}
-                    onValueChange={(val) => setStudentForm((prev) => ({ ...prev, gender: val }))}
-                  >
-                    <SelectTrigger id="ts-gender">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="男">男</SelectItem>
-                      <SelectItem value="女">女</SelectItem>
-                      <SelectItem value="未填">未填</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="ts-phone">家長聯絡電話</Label>
-                <Input
-                  id="ts-phone"
-                  required
-                  type="tel"
-                  placeholder="0912345678"
-                  value={studentForm.parent_phone}
-                  onChange={(e) => setStudentForm((prev) => ({ ...prev, parent_phone: e.target.value }))}
-                />
-                <p className="text-sm text-muted-foreground">電話末四碼會用於家長查勤驗證。</p>
-              </div>
-
-              <DialogFooter className="gap-2 sm:space-x-0">
-                <Button type="submit">新增學生</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <StudentFormDialog
+          open={studentModalOpen}
+          onOpenChange={setStudentModalOpen}
+          schoolId={schoolId}
+          classId={selectedClassId}
+          title={`新增學生・${currentAssigned?.class.name ?? ''}`}
+          nextSeat={classStudents.length + 1}
+          onCreated={() => loadStudents(selectedClassId)}
+        />
         </div>
         {/* 提醒側欄：預設收合，只顯示今天還剩幾節 */}
         <aside
           aria-label="今天的點名提醒"
           data-tour="today"
-          className={cn('order-first shrink-0 lg:order-last', remindersOpen ? 'lg:w-80' : 'lg:w-14')}
+          className={cn(
+            'order-first shrink-0 transition-[width] duration-200 ease-[var(--ease-out)] lg:order-last',
+            remindersOpen ? 'lg:w-80' : 'lg:w-14'
+          )}
         >
           {!remindersOpen ? (
-            <button
+            <m.button
+              key="closed"
+              variants={fade}
+              initial="hidden"
+              animate="visible"
               type="button"
               onClick={() => setRemindersOpen(true)}
               aria-expanded={false}
@@ -609,9 +522,15 @@ export function TeacherDashboard() {
                 </span>
                 <PanelRightOpen aria-hidden="true" className="size-4 lg:mt-1" />
               </span>
-            </button>
+            </m.button>
           ) : (
-            <div className="space-y-5 rounded-lg border border-border bg-secondary/30 p-4 lg:sticky lg:top-6">
+            <m.div
+              key="open"
+              variants={fade}
+              initial="hidden"
+              animate="visible"
+              className="space-y-5 rounded-lg border border-border bg-secondary/30 p-4 lg:sticky lg:top-20"
+            >
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-base font-bold text-foreground">今天的點名</h2>
                 <IconButton label="收合提醒" onClick={() => setRemindersOpen(false)}>
@@ -669,11 +588,11 @@ export function TeacherDashboard() {
                   開啟桌面提醒
                 </Button>
               )}
-            </div>
+            </m.div>
           )}
         </aside>
         </div>
       </main>
-    </div>
+    </AppShell>
   );
 }

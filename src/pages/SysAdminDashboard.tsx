@@ -1,42 +1,37 @@
 import * as React from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
-import { Navbar } from '@/components/ui/navbar';
+import { Outlet, useLocation } from 'react-router-dom';
+import { AppShell, type NavItem } from '@/components/layout/app-shell';
+import { PageTransition } from '@/components/motion/page-transition';
+import { CountUp } from '@/components/motion/count-up';
+import { Building2, GraduationCap, Users } from 'lucide-react';
+import { type AdminRow, type SysAdminContext } from '@/pages/sys-admin/context';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { InlineAlert } from '@/components/ui/inline-alert';
-import { EmptyState } from '@/components/ui/empty-state';
-import { ListSkeleton } from '@/components/ui/skeleton';
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from '@/components/ui/table';
-import { SchoolAdminModal, type SchoolAdminInfo } from '@/components/sys-admin/school-admin-modal';
 import type { School as SchoolType } from '@/types/database';
 import { toast } from 'sonner';
-import { Plus, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { IconButton } from '@/components/ui/icon-button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DangerConfirmDialog } from '@/components/ui/danger-confirm-dialog';
-import { AccountsPanel } from '@/components/sys-admin/accounts-panel';
-import { DataPanel } from '@/components/sys-admin/data-panel';
 import { deleteSchoolEverything } from '@/lib/hard-delete';
 import { toastError } from '@/lib/errors';
 import { friendlyError } from '@/lib/errors';
 
-type AdminRow = SchoolAdminInfo & { school_id: string | null };
+const SYS_ADMIN_NAV: NavItem[] = [
+  { to: '/dashboard/sys-admin', label: '學校組織', icon: Building2, end: true },
+  { to: '/dashboard/sys-admin/accounts', label: '帳號', icon: Users },
+  { to: '/dashboard/sys-admin/data', label: '班級與學生', icon: GraduationCap },
+];
 
-function adminSummary(admins: AdminRow[]): string {
-  const active = admins.filter((a) => a.is_active !== false);
-  return active.length === 0 ? '' : active.map((a) => a.name).join('、');
-}
+// Longest suffix first so "/accounts" is not matched by the index page
+const PAGE_INFO = [
+  { suffix: '/accounts', title: '帳號', description: '依學校查看帳號，需要時可以永久刪除。' },
+  { suffix: '/data', title: '班級與學生', description: '先選學校，再處理班級、學生與點名紀錄。' },
+  { suffix: '/sys-admin', title: '學校組織', description: '開通學校、指派學校主管，查看平台整體狀況。' },
+];
 
 export function SysAdminDashboard() {
   const { profile } = useAuthStore();
@@ -162,141 +157,40 @@ export function SysAdminDashboard() {
     { label: '班級', value: totalClasses },
   ];
 
-  return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Navbar profile={profile} />
+  const location = useLocation();
+  const pageInfo =
+    PAGE_INFO.find((p) => location.pathname.endsWith(p.suffix)) ?? PAGE_INFO[0];
+  const outletContext: SysAdminContext = {
+    schools,
+    allAdmins,
+    loading,
+    reload: loadData,
+    setSchoolDialogOpen,
+    setDeleteTarget,
+  };
 
+  return (
+    <AppShell profile={profile} navItems={SYS_ADMIN_NAV}>
       <main className="mx-auto w-full max-w-7xl flex-1 space-y-8 px-4 py-8 sm:px-6 lg:px-8">
         <section className="flex flex-col gap-6 border-b border-border pb-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">學校組織</h1>
-            <p className="mt-1 text-sm text-muted-foreground">開通學校、指派學校主管，查看平台整體狀況。</p>
+            <h1 className="text-3xl font-bold text-foreground">{pageInfo.title}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{pageInfo.description}</p>
           </div>
 
           <dl className="grid grid-cols-3 divide-x divide-border">
             {stats.map((item) => (
               <div key={item.label} className="px-4 first:pl-0 sm:px-6">
-                <dd className="tabular font-display text-3xl font-bold text-foreground">{item.value}</dd>
+                <dd className="tabular font-display text-3xl font-bold text-foreground"><CountUp value={item.value} /></dd>
                 <dt className="text-sm text-muted-foreground">{item.label}</dt>
               </div>
             ))}
           </dl>
         </section>
 
-        <Tabs defaultValue="schools">
-          <TabsList>
-            <TabsTrigger value="schools">學校組織</TabsTrigger>
-            <TabsTrigger value="accounts">帳號</TabsTrigger>
-            <TabsTrigger value="data">班級與學生</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="schools" className="mt-6">
-        <div>
-          {/* 學校列表 */}
-          <section className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="font-display text-lg font-bold text-foreground">所有學校（{schools.length}）</h2>
-              <Button type="button" size="sm" onClick={() => setSchoolDialogOpen(true)}>
-                <Plus aria-hidden="true" />
-                新增學校
-              </Button>
-            </div>
-
-            {loading ? (
-              <ListSkeleton rows={4} />
-            ) : schools.length === 0 ? (
-              <EmptyState title="還沒有學校" description="按右上角的「新增學校」建立第一所學校。" />
-            ) : (
-              <>
-                {/* 手機：列表 */}
-                <ul className="divide-y divide-border border-y border-border md:hidden">
-                  {schools.map((s) => {
-                    const schoolAdmins = allAdmins.filter((a) => a.school_id === s.id);
-                    const summary = adminSummary(schoolAdmins);
-                    return (
-                      <li key={s.id} className="space-y-2 py-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="font-medium text-foreground">{s.name}</p>
-                            <p className="tabular text-sm text-muted-foreground">{s.code}</p>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-1">
-                            <SchoolAdminModal
-                              school={{ id: s.id, name: s.name, code: s.code }}
-                              admins={schoolAdmins}
-                              onRefresh={loadData}
-                            />
-                            <IconButton label={`永久刪除 ${s.name}`} onClick={() => setDeleteTarget(s)} className="text-absent hover:text-absent">
-                              <Trash2 aria-hidden="true" />
-                            </IconButton>
-                          </div>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          主管：{summary || <span className="font-medium text-late">還沒有主管</span>}
-                        </p>
-                      </li>
-                    );
-                  })}
-                </ul>
-
-                {/* 桌機：表格 */}
-                <div className="hidden overflow-hidden rounded-lg border border-border md:block">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>學校</TableHead>
-                        <TableHead>代碼</TableHead>
-                        <TableHead>主管</TableHead>
-                        <TableHead>開通日</TableHead>
-                        <TableHead className="text-right">操作</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {schools.map((s) => {
-                        const schoolAdmins = allAdmins.filter((a) => a.school_id === s.id);
-                        const summary = adminSummary(schoolAdmins);
-                        return (
-                          <TableRow key={s.id}>
-                            <TableCell className="font-medium text-foreground">{s.name}</TableCell>
-                            <TableCell className="tabular text-muted-foreground">{s.code}</TableCell>
-                            <TableCell>
-                              {summary || <span className="font-medium text-late">還沒有主管</span>}
-                            </TableCell>
-                            <TableCell className="tabular text-muted-foreground">
-                              {new Date(s.created_at).toLocaleDateString()}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <SchoolAdminModal
-                                  school={{ id: s.id, name: s.name, code: s.code }}
-                                  admins={schoolAdmins}
-                                  onRefresh={loadData}
-                                />
-                                <IconButton label={`永久刪除 ${s.name}`} onClick={() => setDeleteTarget(s)} className="text-absent hover:text-absent">
-                                  <Trash2 aria-hidden="true" />
-                                </IconButton>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              </>
-            )}
-          </section>
-        </div>
-          </TabsContent>
-
-          <TabsContent value="accounts" className="mt-6">
-            <AccountsPanel schools={schools} />
-          </TabsContent>
-
-          <TabsContent value="data" className="mt-6">
-            <DataPanel schools={schools} onChanged={loadData} />
-          </TabsContent>
-        </Tabs>
+        <PageTransition key={location.pathname}>
+          <Outlet context={outletContext} />
+        </PageTransition>
 
         <DangerConfirmDialog
           open={!!deleteTarget}
@@ -360,6 +254,6 @@ export function SysAdminDashboard() {
         </Dialog>
 
       </main>
-    </div>
+    </AppShell>
   );
 }

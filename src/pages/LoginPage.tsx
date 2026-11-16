@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { InlineAlert } from '@/components/ui/inline-alert';
+import { Stagger, StaggerItem } from '@/components/motion/stagger';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -76,8 +77,8 @@ export function LoginPage() {
         {infoMsg && <InlineAlert tone="success">{infoMsg}</InlineAlert>}
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-5">
-        <div className="space-y-2">
+      <Stagger as="form" onSubmit={handleSubmit} className="mt-6 space-y-5">
+        <StaggerItem className="space-y-2">
           <Label htmlFor="login-email">電子信箱</Label>
           <Input
             id="login-email"
@@ -89,9 +90,9 @@ export function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-        </div>
+        </StaggerItem>
 
-        <div className="space-y-2">
+        <StaggerItem className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="login-password">密碼</Label>
             <button
@@ -112,13 +113,15 @@ export function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-        </div>
+        </StaggerItem>
 
-        <Button type="submit" size="lg" className="w-full" disabled={loading}>
-          {loading && <Spinner />}
-          登入
-        </Button>
-      </form>
+        <StaggerItem>
+          <Button type="submit" size="lg" className="w-full" disabled={loading}>
+            {loading && <Spinner />}
+            登入
+          </Button>
+        </StaggerItem>
+      </Stagger>
 
       <div className="mt-8 space-y-2 border-t border-border pt-6 text-sm text-muted-foreground">
         <p>

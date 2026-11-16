@@ -1,6 +1,8 @@
 import * as React from 'react';
 import type { AttendanceStatus } from '@/types/database';
 import { ATTENDANCE_STATUS_LABEL } from '@/lib/attendance-status';
+import { m } from 'motion/react';
+import { pop } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 
 /* 出席簿的「蓋章格」：一個字 + 邊框 + 底色。
@@ -27,6 +29,8 @@ interface StatusMarkProps extends React.HTMLAttributes<HTMLSpanElement> {
   /** 在蓋章格右側顯示文字標籤 */
   showLabel?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  /** Pop in on mount and when the status changes. Turn off when a parent already animates it. */
+  animated?: boolean;
 }
 
 const SIZE: Record<NonNullable<StatusMarkProps['size']>, string> = {
@@ -35,13 +39,17 @@ const SIZE: Record<NonNullable<StatusMarkProps['size']>, string> = {
   lg: 'h-11 w-11 text-lg',
 };
 
-export function StatusMark({ status, showLabel = false, size = 'md', className, ...props }: StatusMarkProps) {
+export function StatusMark({ status, showLabel = false, size = 'md', animated = true, className, ...props }: StatusMarkProps) {
   const stamp = STAMP[status];
   const label = ATTENDANCE_STATUS_LABEL[status];
+  const Glyph = animated ? m.span : 'span';
+  const motionProps = animated ? { variants: pop, initial: 'hidden', animate: 'visible' } : {};
 
   return (
     <span className={cn('inline-flex items-center gap-2', className)} {...props}>
-      <span
+      <Glyph
+        key={status}
+        {...motionProps}
         role={showLabel ? undefined : 'img'}
         aria-label={showLabel ? undefined : label}
         aria-hidden={showLabel ? true : undefined}
@@ -53,7 +61,7 @@ export function StatusMark({ status, showLabel = false, size = 'md', className, 
         style={{ fontFamily: 'var(--font-display)' }}
       >
         {stamp.glyph}
-      </span>
+      </Glyph>
       {showLabel && <span className="text-sm font-medium text-foreground">{label}</span>}
     </span>
   );

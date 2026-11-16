@@ -36,6 +36,13 @@
   --ring: #6b4a35;
   --radius: 0.375rem;
 
+  /* 動效 token：所有元件與 src/lib/motion.ts 共用同一組時間與緩動 */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 300ms;
+
   /* 出勤四態：全站唯一語意（強色用於文字與符號，soft 為底色） */
   --present: #3f6b3a;
   --present-soft: #e3ede0;

@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { InlineAlert } from '@/components/ui/inline-alert';
+import { Stagger, StaggerItem } from '@/components/motion/stagger';
 import { validatePassword } from '@/lib/password';
 import { Label } from '@/components/ui/label';
 import { friendlyError } from '@/lib/errors';
@@ -114,8 +115,8 @@ export function RegisterPage() {
 
       {errorMsg && <InlineAlert className="mt-6">{errorMsg}</InlineAlert>}
 
-      <form onSubmit={handleSubmit} className="mt-8 space-y-10">
-        <fieldset className="space-y-4">
+      <Stagger as="form" gap={0.08} onSubmit={handleSubmit} className="mt-8 space-y-10">
+        <StaggerItem as="fieldset" className="space-y-4">
           <legend className="border-b border-border pb-2 font-display text-lg font-bold text-foreground w-full">
             學校資訊
           </legend>
@@ -132,9 +133,9 @@ export function RegisterPage() {
           <p className="text-sm text-muted-foreground">
             學校代碼由英文與數字組成，之後用來辨識學校。如果代碼已被使用，請聯繫系統總管，由總管指派你為主管。
           </p>
-        </fieldset>
+        </StaggerItem>
 
-        <fieldset className="space-y-4">
+        <StaggerItem as="fieldset" className="space-y-4">
           <legend className="border-b border-border pb-2 font-display text-lg font-bold text-foreground w-full">
             學校主管帳號
           </legend>
@@ -169,9 +170,9 @@ export function RegisterPage() {
               />
             </div>
           </div>
-        </fieldset>
+        </StaggerItem>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <StaggerItem className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <Button type="submit" size="lg" disabled={loading}>
             {loading && <Spinner />}
             開通學校
@@ -182,8 +183,8 @@ export function RegisterPage() {
               直接登入
             </Link>
           </p>
-        </div>
-      </form>
+        </StaggerItem>
+      </Stagger>
     </PublicShell>
   );
 }

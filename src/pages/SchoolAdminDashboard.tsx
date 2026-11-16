@@ -1,42 +1,36 @@
 import * as React from 'react';
 import { supabase, createIsolatedClient } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
-import { Navbar } from '@/components/ui/navbar';
-import { Badge } from '@/components/ui/badge';
+import { Outlet, useLocation } from 'react-router-dom';
+import { AppShell, type NavItem } from '@/components/layout/app-shell';
+import { PageTransition } from '@/components/motion/page-transition';
+import { CountUp } from '@/components/motion/count-up';
+import { Clock, School, Users } from 'lucide-react';
+import type { SchoolAdminContext } from '@/pages/school-admin/context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { InlineAlert } from '@/components/ui/inline-alert';
 import { EmptyState } from '@/components/ui/empty-state';
-import { ListSkeleton } from '@/components/ui/skeleton';
 import { validatePassword } from '@/lib/password';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { AttendanceHistoryView } from '@/components/attendance/AttendanceHistoryView';
 import { SeatMapEditorModal } from '@/components/attendance/SeatMapEditorModal';
-import { SchoolPeriodsSection } from '@/components/attendance/SchoolPeriodsSection';
-import { IconButton } from '@/components/ui/icon-button';
 import { Spinner } from '@/components/ui/spinner';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Grid3X3, Plus, Trash2, UserCheck, UserX } from 'lucide-react';
 import type { SchoolClass, Profile, Student, ClassTeacher } from '@/types/database';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/errors';
-import { cn } from '@/lib/utils';
+import { StudentFormDialog } from '@/components/students/student-form-dialog';
 import { friendlyError } from '@/lib/errors';
 import { useProductTour } from '@/hooks/useProductTour';
 
-const EMPTY_STUDENT_FORM = {
-  student_number: '',
-  name: '',
-  seat_number: 1,
-  gender: '未填',
-  parent_phone: '',
-};
+const SCHOOL_ADMIN_NAV: NavItem[] = [
+  { to: '/dashboard/school-admin', label: '班級', icon: School, tour: 'sa-classes', end: true },
+  { to: '/dashboard/school-admin/teachers', label: '教師', icon: Users, tour: 'sa-teachers' },
+  { to: '/dashboard/school-admin/periods', label: '點名時間', icon: Clock, tour: 'sa-schedule' },
+];
 
 export function SchoolAdminDashboard() {
   const { profile } = useAuthStore();
@@ -60,7 +54,6 @@ export function SchoolAdminDashboard() {
   const [selectedClassId, setSelectedClassId] = React.useState<string>('');
   const [classStudents, setClassStudents] = React.useState<Student[]>([]);
   const [studentModalOpen, setStudentModalOpen] = React.useState<boolean>(false);
-  const [studentForm, setStudentForm] = React.useState(EMPTY_STUDENT_FORM);
 
   // 學校主管劃位檢視狀態
   const [seatingEditorOpen, setSeatingEditorOpen] = React.useState<boolean>(false);
@@ -320,35 +313,7 @@ export function SchoolAdminDashboard() {
     }
   };
 
-  // 新增在籍學生
-  const handleCreateStudent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedClassId || !schoolId) return;
 
-    try {
-      const { error } = await supabase.from('students').insert({
-        school_id: schoolId,
-        class_id: selectedClassId,
-        student_number: studentForm.student_number.trim(),
-        name: studentForm.name.trim(),
-        seat_number: Number(studentForm.seat_number),
-        gender: studentForm.gender,
-        parent_phone: studentForm.parent_phone.trim(),
-      });
-
-      if (error) throw error;
-
-      toast.success('已新增學生');
-      setStudentModalOpen(false);
-      setStudentForm({ ...EMPTY_STUDENT_FORM, seat_number: classStudents.length + 2 });
-      loadClassStudents(selectedClassId);
-      loadData();
-    } catch (err: unknown) {
-      toastError(err, '新增學生失敗。請確認學號沒有重複後再試一次。');
-    }
-  };
-
-  // 刪除在籍學生
   const deleteStudent = async (studentId: string) => {
     const previous = classStudents;
     setClassStudents((list) => list.filter((st) => st.id !== studentId));
@@ -417,12 +382,32 @@ export function SchoolAdminDashboard() {
     { label: '在籍學生', value: studentCount },
   ];
 
-  const sectionHeading = 'font-display text-lg font-bold text-foreground';
+  const location = useLocation();
+  const outletContext: SchoolAdminContext = {
+    schoolId,
+    loading,
+    classes,
+    teachers,
+    classTeachers,
+    selectedClassId,
+    setSelectedClassId,
+    selectedClass,
+    selectedClassTeachers,
+    classStudents,
+    setClassDialogOpen,
+    setTeacherDialogOpen,
+    openAssignDialog,
+    handleRemoveClassTeacher,
+    setStudentModalOpen,
+    handleDeleteStudent,
+    setActiveModalClass,
+    setSeatingEditorOpen,
+    setTeacherActive,
+    handleDeactivateTeacher,
+  };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Navbar profile={profile} />
-
+    <AppShell profile={profile} navItems={SCHOOL_ADMIN_NAV}>
       <main className="mx-auto w-full max-w-7xl flex-1 space-y-8 px-4 py-8 sm:px-6 lg:px-8">
         {/* 標題與統計 */}
         <section className="flex flex-col gap-6 border-b border-border pb-6 lg:flex-row lg:items-end lg:justify-between">
@@ -443,7 +428,7 @@ export function SchoolAdminDashboard() {
           <dl className="grid grid-cols-3 divide-x divide-border">
             {stats.map((item) => (
               <div key={item.label} className="px-4 first:pl-0 sm:px-6">
-                <dd className="tabular font-display text-3xl font-bold text-foreground">{item.value}</dd>
+                <dd className="tabular font-display text-3xl font-bold text-foreground"><CountUp value={item.value} /></dd>
                 <dt className="text-sm text-muted-foreground">{item.label}</dt>
               </div>
             ))}
@@ -456,287 +441,9 @@ export function SchoolAdminDashboard() {
             description="請聯繫系統總管，請他把你指派為學校主管。"
           />
         ) : (
-          <Tabs defaultValue="classes">
-            <TabsList>
-              <TabsTrigger value="classes" data-tour="sa-classes">班級</TabsTrigger>
-              <TabsTrigger value="teachers" data-tour="sa-teachers">教師</TabsTrigger>
-              <TabsTrigger value="periods" data-tour="sa-schedule">點名時間</TabsTrigger>
-            </TabsList>
-
-            {/* 班級：上方選班級，下方是該班的老師、名冊、座位與出勤 */}
-            <TabsContent value="classes" className="mt-6 space-y-10">
-              <section className="space-y-4">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className={sectionHeading}>班級（{classes.length}）</h2>
-                  <Button type="button" size="sm" onClick={() => setClassDialogOpen(true)}>
-                    <Plus aria-hidden="true" />
-                    新增班級
-                  </Button>
-                </div>
-                {loading ? (
-                  <ListSkeleton rows={3} />
-                ) : classes.length === 0 ? (
-                  <EmptyState
-                    title="還沒有班級"
-                    description="先按右上角的「新增班級」建立班級，才能指派老師、建立名冊與座位。"
-                  />
-                ) : (
-                  <ul className="divide-y divide-border border-y border-border">
-                    {classes.map((c) => {
-                      const isSelected = c.id === selectedClassId;
-                      const homeroom = classTeachers.find((ct) => ct.class_id === c.id && ct.role === 'homeroom');
-                      return (
-                        // The whole row selects the class; the inner button keeps keyboard access
-                        <li
-                          key={c.id}
-                          onClick={() => setSelectedClassId(c.id)}
-                          className={cn(
-                            'flex cursor-pointer items-center justify-between gap-3 border-l-2 py-3 pl-4 pr-2 transition-colors hover:bg-secondary/30',
-                            isSelected ? 'border-primary bg-secondary/50' : 'border-transparent'
-                          )}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => setSelectedClassId(c.id)}
-                            aria-pressed={isSelected}
-                            className="min-w-0 flex-1 text-left"
-                          >
-                            <span className="block font-display text-lg font-bold text-foreground">{c.name}</span>
-                            <span className="block text-sm text-muted-foreground">
-                              {c.academic_year} 學年　{c.grade}
-                              {homeroom?.teacher?.name ? `　導師 ${homeroom.teacher.name}` : '　還沒有導師'}
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </section>
-
-              {selectedClass && (
-                <section className="space-y-4" data-tour="sa-class-detail">
-                  <h2 className={sectionHeading}>
-                    {selectedClass.name}
-                    <span className="ml-2 text-sm font-normal text-muted-foreground">
-                      {selectedClass.academic_year} 學年　{selectedClass.grade}
-                    </span>
-                  </h2>
-
-                  <Tabs defaultValue="people">
-                    <TabsList>
-                      <TabsTrigger value="people">導師與科任</TabsTrigger>
-                      <TabsTrigger value="roster">學生名冊（{classStudents.length}）</TabsTrigger>
-                      <TabsTrigger value="seats">座位表</TabsTrigger>
-                      <TabsTrigger value="history">出勤紀錄</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="people" className="mt-4 space-y-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm text-muted-foreground">這個班級的導師與科任老師。</p>
-                        <Button type="button" size="sm" onClick={() => openAssignDialog(selectedClass.id, '')}>
-                          <Plus aria-hidden="true" />
-                          指派老師
-                        </Button>
-                      </div>
-                      {selectedClassTeachers.length === 0 ? (
-                        <EmptyState
-                          title="這個班還沒有指派老師"
-                          description="按右上角的「指派老師」，老師才能對這個班點名、排座位。"
-                        />
-                      ) : (
-                        <ul className="divide-y divide-border rounded-md border border-border">
-                          {selectedClassTeachers.map((ct) => (
-                            <li key={ct.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                              <p className="flex min-w-0 items-center gap-2 text-sm text-foreground">
-                                <span className="truncate font-medium">{ct.teacher?.name || '未知教師'}</span>
-                                <Badge variant={ct.role === 'homeroom' ? 'default' : 'outline'}>
-                                  {ct.role === 'homeroom' ? '導師' : '科任'}
-                                </Badge>
-                              </p>
-                              <IconButton label="解除指派" onClick={() => handleRemoveClassTeacher(ct)}>
-                                <Trash2 aria-hidden="true" />
-                              </IconButton>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </TabsContent>
-
-                    <TabsContent value="roster" className="mt-4 space-y-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm text-muted-foreground">電話末四碼會用於家長查勤驗證。</p>
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => {
-                            setStudentForm({ ...EMPTY_STUDENT_FORM, seat_number: classStudents.length + 1 });
-                            setStudentModalOpen(true);
-                          }}
-                        >
-                          <Plus aria-hidden="true" />
-                          新增學生
-                        </Button>
-                      </div>
-
-                      {classStudents.length === 0 ? (
-                        <EmptyState title="這個班級還沒有學生" description="按右上角的「新增學生」建立名冊。" />
-                      ) : (
-                        <>
-                          <ul className="divide-y divide-border border-y border-border md:hidden">
-                            {classStudents.map((st) => (
-                              <li key={st.id} className="flex items-center gap-3 py-3">
-                                <span className="tabular w-8 shrink-0 text-right font-bold text-muted-foreground">
-                                  {st.seat_number}
-                                </span>
-                                <div className="min-w-0 flex-1">
-                                  <p className="font-medium text-foreground">{st.name}</p>
-                                  <p className="tabular text-sm text-muted-foreground">{st.student_number}</p>
-                                </div>
-                                <IconButton label={`移除 ${st.name}`} onClick={() => handleDeleteStudent(st.id, st.name)}>
-                                  <Trash2 aria-hidden="true" />
-                                </IconButton>
-                              </li>
-                            ))}
-                          </ul>
-
-                          <div className="hidden overflow-hidden rounded-lg border border-border md:block">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="w-20">座號</TableHead>
-                                  <TableHead className="w-36">學號</TableHead>
-                                  <TableHead className="w-36">姓名</TableHead>
-                                  <TableHead className="w-24">性別</TableHead>
-                                  <TableHead>家長聯絡電話</TableHead>
-                                  <TableHead className="w-20 text-right">操作</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {classStudents.map((st) => (
-                                  <TableRow key={st.id}>
-                                    <TableCell className="tabular font-bold">{st.seat_number}</TableCell>
-                                    <TableCell className="tabular">{st.student_number}</TableCell>
-                                    <TableCell className="font-medium text-foreground">{st.name}</TableCell>
-                                    <TableCell className="text-muted-foreground">{st.gender || '-'}</TableCell>
-                                    <TableCell className="tabular text-muted-foreground">{st.parent_phone}</TableCell>
-                                    <TableCell className="text-right">
-                                      <IconButton label={`移除 ${st.name}`} onClick={() => handleDeleteStudent(st.id, st.name)}>
-                                        <Trash2 aria-hidden="true" />
-                                      </IconButton>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </div>
-                        </>
-                      )}
-                    </TabsContent>
-
-                    <TabsContent value="seats" className="mt-4 space-y-4">
-                      <p className="text-sm text-muted-foreground">
-                        排好教室的座位並指定每個座位坐誰，點名時鏡頭就知道誰該坐在哪裡。也可以把排好的位置存成佈局，讓其他班級直接套用。
-                      </p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setActiveModalClass({ id: selectedClass.id, name: selectedClass.name });
-                          setSeatingEditorOpen(true);
-                        }}
-                      >
-                        <Grid3X3 aria-hidden="true" />
-                        開啟座位表
-                      </Button>
-                    </TabsContent>
-
-                    <TabsContent value="history" className="mt-4">
-                      <AttendanceHistoryView key={selectedClass.id} classId={selectedClass.id} isEditable={true} />
-                    </TabsContent>
-                  </Tabs>
-                </section>
-              )}
-            </TabsContent>
-
-            {/* 教師：帳號、負責的班級、新增時可直接指派 */}
-            <TabsContent value="teachers" className="mt-6">
-              <section className="space-y-4">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className={sectionHeading}>教師帳號（{teachers.length}）</h2>
-                  <Button type="button" size="sm" onClick={() => setTeacherDialogOpen(true)}>
-                    <Plus aria-hidden="true" />
-                    新增教師帳號
-                  </Button>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  教師離職時可停用帳號。歷史點名紀錄會保留，之後也能重新啟用。
-                </p>
-                {loading ? (
-                  <ListSkeleton rows={3} />
-                ) : teachers.length === 0 ? (
-                  <EmptyState title="還沒有教師帳號" description="按右上角的「新增教師帳號」建立第一位教師。" />
-                ) : (
-                  <ul className="divide-y divide-border rounded-md border border-border">
-                    {teachers.map((t) => {
-                      const mine = classTeachers.filter((ct) => ct.teacher_id === t.id);
-                      return (
-                        <li key={t.id} className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="min-w-0 space-y-1.5">
-                            <p className="flex items-center gap-2 font-medium text-foreground">
-                              <span className="truncate">{t.name}</span>
-                              {t.is_active === false && <Badge variant="destructive">已停用</Badge>}
-                            </p>
-                            <p className="truncate text-sm text-muted-foreground">{t.email}</p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {mine.length === 0 ? (
-                                <span className="text-sm text-muted-foreground">還沒有負責的班級</span>
-                              ) : (
-                                mine.map((ct) => (
-                                  <Badge key={ct.id} variant={ct.role === 'homeroom' ? 'default' : 'outline'}>
-                                    {ct.class?.name || '未知班級'}　{ct.role === 'homeroom' ? '導師' : '科任'}
-                                  </Badge>
-                                ))
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex shrink-0 gap-2">
-                            {t.is_active === false ? (
-                              <Button type="button" variant="outline" size="sm" onClick={() => setTeacherActive(t.id, true)}>
-                                <UserCheck aria-hidden="true" />
-                                啟用
-                              </Button>
-                            ) : (
-                              <>
-                                <Button type="button" variant="outline" size="sm" onClick={() => openAssignDialog('', t.id)}>
-                                  <Plus aria-hidden="true" />
-                                  指派班級
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleDeactivateTeacher(t.id, t.name)}
-                                >
-                                  <UserX aria-hidden="true" />
-                                  停用
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </section>
-            </TabsContent>
-
-            {/* 點名時間 */}
-            <TabsContent value="periods" className="mt-6">
-              {schoolId && <SchoolPeriodsSection schoolId={schoolId} />}
-            </TabsContent>
-          </Tabs>
+          <PageTransition key={location.pathname}>
+            <Outlet context={outletContext} />
+          </PageTransition>
         )}
 
         <Dialog open={classDialogOpen} onOpenChange={setClassDialogOpen}>
@@ -933,88 +640,18 @@ export function SchoolAdminDashboard() {
           </DialogContent>
         </Dialog>
 
-        {/* 新增學生 Modal */}
-        <Dialog open={studentModalOpen} onOpenChange={setStudentModalOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>新增學生</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleCreateStudent} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="sa-seat">座號</Label>
-                  <Input
-                    id="sa-seat"
-                    autoFocus
-                    type="number"
-                    required
-                    min={1}
-                    value={studentForm.seat_number}
-                    onChange={(e) =>
-                      setStudentForm((prev) => ({ ...prev, seat_number: parseInt(e.target.value) || 1 }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sa-number">學號</Label>
-                  <Input
-                    id="sa-number"
-                    required
-                    placeholder="S113001"
-                    value={studentForm.student_number}
-                    onChange={(e) => setStudentForm((prev) => ({ ...prev, student_number: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="sa-name">姓名</Label>
-                  <Input
-                    id="sa-name"
-                    required
-                    placeholder="林小明"
-                    value={studentForm.name}
-                    onChange={(e) => setStudentForm((prev) => ({ ...prev, name: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sa-gender">性別</Label>
-                  <Select
-                    value={studentForm.gender}
-                    onValueChange={(val) => setStudentForm((prev) => ({ ...prev, gender: val }))}
-                  >
-                    <SelectTrigger id="sa-gender">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="男">男</SelectItem>
-                      <SelectItem value="女">女</SelectItem>
-                      <SelectItem value="未填">未填</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="sa-phone">家長聯絡電話</Label>
-                <Input
-                  id="sa-phone"
-                  required
-                  type="tel"
-                  placeholder="0912345678"
-                  value={studentForm.parent_phone}
-                  onChange={(e) => setStudentForm((prev) => ({ ...prev, parent_phone: e.target.value }))}
-                />
-                <p className="text-sm text-muted-foreground">電話末四碼會用於家長查勤驗證。</p>
-              </div>
-
-              <DialogFooter className="gap-2 sm:space-x-0">
-                <Button type="submit">新增學生</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <StudentFormDialog
+          open={studentModalOpen}
+          onOpenChange={setStudentModalOpen}
+          schoolId={schoolId}
+          classId={selectedClassId}
+          title="新增學生"
+          nextSeat={classStudents.length + 1}
+          onCreated={() => {
+            loadClassStudents(selectedClassId);
+            loadData();
+          }}
+        />
 
         {/* 學校主管教室座位彈窗 */}
         {activeModalClass && (
@@ -1029,6 +666,6 @@ export function SchoolAdminDashboard() {
 
         {confirmDialog}
       </main>
-    </div>
+    </AppShell>
   );
 }

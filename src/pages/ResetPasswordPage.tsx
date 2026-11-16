@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
 import { InlineAlert } from '@/components/ui/inline-alert';
+import { Stagger, StaggerItem } from '@/components/motion/stagger';
 import { Skeleton } from '@/components/ui/skeleton';
 import { friendlyError } from '@/lib/errors';
 
@@ -95,8 +96,8 @@ export function ResetPasswordPage() {
         <>
           <p className="mt-2 text-sm text-muted-foreground">輸入新的登入密碼，更新後會直接登入。</p>
           {errorMsg && <InlineAlert className="mt-6">{errorMsg}</InlineAlert>}
-          <form onSubmit={handleSubmit} className="mt-6 space-y-5">
-            <div className="space-y-2">
+          <Stagger as="form" onSubmit={handleSubmit} className="mt-6 space-y-5">
+            <StaggerItem className="space-y-2">
               <Label htmlFor="reset-password">新密碼</Label>
               <PasswordInput
                 id="reset-password"
@@ -105,8 +106,8 @@ export function ResetPasswordPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
               />
-            </div>
-            <div className="space-y-2">
+            </StaggerItem>
+            <StaggerItem className="space-y-2">
               <Label htmlFor="reset-password-confirm">再輸入一次新密碼</Label>
               <PasswordInput
                 id="reset-password-confirm"
@@ -115,12 +116,14 @@ export function ResetPasswordPage() {
                 onChange={(e) => setConfirm(e.target.value)}
                 autoComplete="new-password"
               />
-            </div>
-            <Button type="submit" size="lg" className="w-full" disabled={loading}>
-              {loading && <Spinner />}
-              更新密碼
-            </Button>
-          </form>
+            </StaggerItem>
+            <StaggerItem>
+              <Button type="submit" size="lg" className="w-full" disabled={loading}>
+                {loading && <Spinner />}
+                更新密碼
+              </Button>
+            </StaggerItem>
+          </Stagger>
         </>
       )}
     </PublicShell>

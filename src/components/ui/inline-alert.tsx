@@ -1,5 +1,7 @@
 import * as React from 'react';
 import { AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { m } from 'motion/react';
+import { fadeUp } from '@/lib/motion';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const TONE = {
@@ -21,9 +23,11 @@ interface InlineAlertProps {
 export function InlineAlert({ tone = 'error', children, className }: InlineAlertProps) {
   const { variant, Icon } = TONE[tone];
   return (
-    <Alert variant={variant} className={className}>
-      <Icon aria-hidden="true" />
-      <AlertDescription className="font-medium">{children}</AlertDescription>
-    </Alert>
+    <m.div variants={fadeUp} initial="hidden" animate="visible" className={className}>
+      <Alert variant={variant}>
+        <Icon aria-hidden="true" />
+        <AlertDescription className="font-medium">{children}</AlertDescription>
+      </Alert>
+    </m.div>
   );
 }

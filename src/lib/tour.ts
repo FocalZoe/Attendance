@@ -59,8 +59,8 @@ export const TOUR_STEPS: Record<TourRole, TourStep[]> = {
     {
       selector: '[data-tour="sa-classes"]',
       title: '建立班級',
-      description: '在「班級」建立班級。點一個班級，下方就會出現這個班的老師、學生名冊、座位表與出勤紀錄。',
-      side: 'bottom',
+      description: '在左側「班級」建立班級。點一個班級，下方就會出現這個班的老師、學生名冊、座位表與出勤紀錄。',
+      side: 'right',
     },
     {
       selector: '[data-tour="sa-class-detail"]',
@@ -71,14 +71,14 @@ export const TOUR_STEPS: Record<TourRole, TourStep[]> = {
     {
       selector: '[data-tour="sa-teachers"]',
       title: '新增教師帳號',
-      description: '到「教師」新增帳號，建立時可以直接指派班級，也能看到每位老師負責哪些班。',
-      side: 'bottom',
+      description: '到左側「教師」新增帳號，建立時可以直接指派班級，也能看到每位老師負責哪些班。',
+      side: 'right',
     },
     {
       selector: '[data-tour="sa-schedule"]',
       title: '設定全校點名時間',
-      description: '在「點名時間」設定每一節的上課時間，設定一次，全校所有班級與老師都會套用，時間快到時老師會收到提醒。',
-      side: 'bottom',
+      description: '在左側「點名時間」設定每一節的上課時間，設定一次，全校所有班級與老師都會套用，時間快到時老師會收到提醒。',
+      side: 'right',
     },
     {
       selector: '[data-tour="account"]',

@@ -1,4 +1,6 @@
 import * as React from 'react';
+import { m } from 'motion/react';
+import { fadeUp } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 
 interface EmptyStateProps {
@@ -11,7 +13,10 @@ interface EmptyStateProps {
 
 export function EmptyState({ title, description, action, className }: EmptyStateProps) {
   return (
-    <div
+    <m.div
+      variants={fadeUp}
+      initial="hidden"
+      animate="visible"
       className={cn(
         'flex flex-col items-start gap-2 rounded-lg border border-dashed border-input px-5 py-8',
         className
@@ -20,6 +25,6 @@ export function EmptyState({ title, description, action, className }: EmptyState
       <p className="font-display text-base font-bold text-foreground">{title}</p>
       {description && <p className="max-w-prose text-sm text-muted-foreground">{description}</p>}
       {action && <div className="pt-2">{action}</div>}
-    </div>
+    </m.div>
   );
 }

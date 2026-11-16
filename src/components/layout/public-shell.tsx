@@ -1,6 +1,9 @@
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 import { Camera } from 'lucide-react';
+import { m } from 'motion/react';
+import { PageTransition } from '@/components/motion/page-transition';
+import { transitions } from '@/lib/motion';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { cn } from '@/lib/utils';
 
@@ -16,7 +19,11 @@ interface PublicShellProps {
 export function PublicShell({ children, width = 'narrow', aside }: PublicShellProps) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="border-b border-border">
+      <m.header
+        className="border-b border-border"
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0, transition: transitions.base }}
+      >
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4 sm:px-6">
           <Link to="/" className="flex items-center gap-2" aria-label="回到首頁">
             <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
@@ -31,7 +38,7 @@ export function PublicShell({ children, width = 'narrow', aside }: PublicShellPr
             <ThemeToggle />
           </div>
         </div>
-      </header>
+      </m.header>
 
       <main
         className={cn(
@@ -39,7 +46,7 @@ export function PublicShell({ children, width = 'narrow', aside }: PublicShellPr
           width === 'narrow' ? 'max-w-md' : 'max-w-3xl'
         )}
       >
-        {children}
+        <PageTransition>{children}</PageTransition>
       </main>
     </div>
   );

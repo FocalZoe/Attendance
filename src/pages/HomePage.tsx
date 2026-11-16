@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Navbar } from '@/components/ui/navbar';
 import { Button } from '@/components/ui/button';
+import { Stagger, StaggerItem } from '@/components/motion/stagger';
 import { StatusLegend, StatusMark } from '@/components/ui/status-mark';
 import type { AttendanceStatus } from '@/types/database';
 
@@ -47,17 +48,19 @@ export function HomePage() {
         {/* 首屏 */}
         <section className="border-b border-border">
           <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:px-8 lg:py-20">
-            <div>
+            <Stagger gap={0.07}>
+              <StaggerItem as="div">
               <h1 className="text-4xl font-bold leading-tight text-foreground sm:text-5xl">
                 對著教室拍一下，
                 <br />
                 點名就完成。
               </h1>
-              <p className="mt-5 max-w-xl text-base text-muted-foreground sm:text-lg">
+              </StaggerItem>
+              <StaggerItem as="p" className="mt-5 max-w-xl text-base text-muted-foreground sm:text-lg">
                 老師在鏡頭畫面上標好座位，系統自動看每個座位有沒有人。確認後存檔，出勤紀錄與當下照片都會保留，家長也能自己查詢。
-              </p>
+              </StaggerItem>
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <StaggerItem className="mt-8 flex flex-col gap-3 sm:flex-row">
                 {profile ? (
                   <Button asChild size="lg">
                     <Link to="/dashboard">進入我的控制台</Link>
@@ -70,32 +73,34 @@ export function HomePage() {
                 <Button asChild size="lg" variant="outline">
                   <Link to="/parent-query">家長查勤</Link>
                 </Button>
-              </div>
+              </StaggerItem>
 
               {!profile && (
-                <p className="mt-4 text-sm text-muted-foreground">
+                <StaggerItem as="p" className="mt-4 text-sm text-muted-foreground">
                   學校還沒有帳號？{' '}
                   <Link to="/register" className="font-medium text-primary underline underline-offset-4">
                     開通學校
                   </Link>
-                </p>
+                </StaggerItem>
               )}
-            </div>
+            </Stagger>
 
             {/* 出席簿 */}
             <figure className="rounded-lg border border-border bg-card p-4 sm:p-6" aria-label="座位出席示意圖">
-              <div className="grid grid-cols-6 gap-2 sm:gap-3" aria-hidden="true">
+              <Stagger gap={0.025} className="grid grid-cols-6 gap-2 sm:gap-3" aria-hidden="true">
                 {SAMPLE_ROLL.map((status, i) =>
                   status ? (
-                    <StatusMark key={i} status={status} size="lg" className="justify-center" />
+                    <StaggerItem key={i} className="justify-self-center">
+                      <StatusMark status={status} size="lg" animated={false} className="justify-center" />
+                    </StaggerItem>
                   ) : (
-                    <span
+                    <StaggerItem
                       key={i}
                       className="h-11 w-11 justify-self-center rounded-sm border-[1.5px] border-dashed border-input"
                     />
                   )
                 )}
-              </div>
+              </Stagger>
               <figcaption className="mt-5 border-t border-border pt-4">
                 <StatusLegend />
                 <p className="mt-3 text-xs text-muted-foreground">示意圖：虛線格是沒有人的座位。</p>
@@ -107,15 +112,15 @@ export function HomePage() {
         {/* 流程：這裡的內容確實有先後順序 */}
         <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
           <h2 className="text-2xl font-bold text-foreground sm:text-3xl">一次點名，三個動作</h2>
-          <ol className="mt-8 grid gap-0 divide-y divide-border border-y border-border md:grid-cols-3 md:divide-x md:divide-y-0">
+          <Stagger as="ol" inView gap={0.1} className="mt-8 grid gap-0 divide-y divide-border border-y border-border md:grid-cols-3 md:divide-x md:divide-y-0">
             {STEPS.map((step, index) => (
-              <li key={step.title} className="py-6 md:px-6 md:first:pl-0 md:last:pr-0">
+              <StaggerItem as="li" key={step.title} className="py-6 md:px-6 md:first:pl-0 md:last:pr-0">
                 <p className="text-sm font-medium text-primary">第 {index + 1} 步</p>
                 <h3 className="mt-1 text-lg font-bold text-foreground">{step.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{step.body}</p>
-              </li>
+              </StaggerItem>
             ))}
-          </ol>
+          </Stagger>
         </section>
 
         {/* 角色 */}

@@ -10,6 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
 import { InlineAlert } from '@/components/ui/inline-alert';
+import { Stagger, StaggerItem } from '@/components/motion/stagger';
+import { m } from 'motion/react';
+import { fadeUp } from '@/lib/motion';
 import { EmptyState } from '@/components/ui/empty-state';
 import { StatusLegend, StatusMark } from '@/components/ui/status-mark';
 import type { ParentQueryResult } from '@/types/database';
@@ -69,8 +72,8 @@ export function ParentQueryPage() {
         選擇孩子的學校，輸入學號，以及學校留存的家長電話末四碼，就能看到最近的出勤紀錄。
       </p>
 
-      <form onSubmit={handleQuery} className="mt-6 grid gap-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
-        <div className="space-y-2">
+      <Stagger as="form" onSubmit={handleQuery} className="mt-6 grid gap-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+        <StaggerItem className="space-y-2">
           <Label htmlFor="query-school-code">學校</Label>
           {/* Wrapped so the hidden native select Radix adds inside forms does not get the column spacing */}
           <div>
@@ -87,8 +90,8 @@ export function ParentQueryPage() {
             </SelectContent>
           </Select>
           </div>
-        </div>
-        <div className="space-y-2">
+        </StaggerItem>
+        <StaggerItem className="space-y-2">
           <Label htmlFor="query-student-number">學號</Label>
           <Input
             id="query-student-number"
@@ -98,8 +101,8 @@ export function ParentQueryPage() {
             value={studentNumber}
             onChange={(e) => setStudentNumber(e.target.value)}
           />
-        </div>
-        <div className="space-y-2">
+        </StaggerItem>
+        <StaggerItem className="space-y-2">
           <Label htmlFor="query-phone-last4">家長電話末四碼</Label>
           <Input
             id="query-phone-last4"
@@ -112,17 +115,26 @@ export function ParentQueryPage() {
             value={phoneLast4}
             onChange={(e) => setPhoneLast4(e.target.value.replace(/\D/g, ''))}
           />
-        </div>
-        <Button type="submit" className="w-full sm:w-auto" disabled={loading}>
-          {loading && <Spinner />}
-          查詢
-        </Button>
-      </form>
+        </StaggerItem>
+        <StaggerItem>
+          <Button type="submit" className="w-full sm:w-auto" disabled={loading}>
+            {loading && <Spinner />}
+            查詢
+          </Button>
+        </StaggerItem>
+      </Stagger>
 
       {errorMsg && <InlineAlert className="mt-4">{errorMsg}</InlineAlert>}
 
       {result?.student && (
-        <section className="mt-10" aria-live="polite">
+        <m.section
+          key={result.student.student_number}
+          className="mt-10"
+          aria-live="polite"
+          variants={fadeUp}
+          initial="hidden"
+          animate="visible"
+        >
           <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-border pb-4">
             <div>
               <h2 className="text-2xl font-bold text-foreground">{result.student.name}</h2>
@@ -144,10 +156,10 @@ export function ParentQueryPage() {
               description="老師完成點名後，紀錄會出現在這裡。"
             />
           ) : (
-            <ul className="mt-4 divide-y divide-border border-y border-border">
+            <Stagger as="ul" gap={0.03} className="mt-4 divide-y divide-border border-y border-border">
               {result.records.map((rec) => (
-                <li key={rec.record_id} className="flex items-start gap-4 py-4">
-                  <StatusMark status={rec.status} size="lg" />
+                <StaggerItem as="li" key={rec.record_id} className="flex items-start gap-4 py-4">
+                  <StatusMark status={rec.status} size="lg" animated={false} />
                   <div className="min-w-0 flex-1">
                     <p className="tabular font-medium text-foreground">
                       {rec.date}　{rec.period ? periodLabel(rec.period) : '全日'}
@@ -163,12 +175,12 @@ export function ParentQueryPage() {
                     </p>
                     {rec.note && <p className="mt-1 text-sm text-foreground">備註：{rec.note}</p>}
                   </div>
-                </li>
+                </StaggerItem>
               ))}
-            </ul>
+            </Stagger>
           )}
           <p className="mt-3 text-xs text-muted-foreground">只顯示最近 30 筆紀錄。</p>
-        </section>
+        </m.section>
       )}
     </PublicShell>
   );

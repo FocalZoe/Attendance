@@ -188,7 +188,7 @@ $$;
 DROP FUNCTION IF EXISTS public.query_student_attendance(TEXT, TEXT);
 
 -- 失敗次數紀錄：只有下面的 SECURITY DEFINER 函式能讀寫（啟用 RLS 且不建立任何政策）
--- shortcut: 以「學校代碼 + 學號」計次，攻擊者仍可用大量不存在的學號讓此表變大；有需要時再加定期清理
+-- shortcut: 只替存在的學校計次，但攻擊者仍可對真實學校用大量不存在的學號讓此表變大（學號限 40 字）；有需要時再加定期清理
 CREATE TABLE IF NOT EXISTS public.parent_query_attempts (
     school_code TEXT NOT NULL,
     student_number TEXT NOT NULL,
@@ -197,6 +197,14 @@ CREATE TABLE IF NOT EXISTS public.parent_query_attempts (
     PRIMARY KEY (school_code, student_number)
 );
 ALTER TABLE public.parent_query_attempts ENABLE ROW LEVEL SECURITY;
+
+-- 整間學校的失敗總數：學校代碼是公開的、學號常是連號，只靠「每個學號 5 次」擋不住有人同時猜整所學校的學號
+CREATE TABLE IF NOT EXISTS public.parent_query_school_attempts (
+    school_code TEXT PRIMARY KEY,
+    failures INTEGER NOT NULL DEFAULT 0,
+    window_start TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE public.parent_query_school_attempts ENABLE ROW LEVEL SECURITY;
 
 CREATE OR REPLACE FUNCTION public.query_student_attendance(
     p_school_code TEXT,
@@ -215,14 +223,23 @@ DECLARE
     v_records JSONB;
     v_failures INTEGER;
     v_window TIMESTAMPTZ;
+    v_school_failures INTEGER;
+    v_school_window TIMESTAMPTZ;
+    v_school_exists BOOLEAN;
 BEGIN
     -- 0. 同一學校代碼 + 學號 15 分鐘內失敗 5 次就暫停查詢（在資料庫端計次，無法用重新整理或直接呼叫 API 繞過）
+    --    整間學校 15 分鐘內累計失敗 50 次也暫停，避免有人同時猜整所學校的學號
     SELECT failures, window_start INTO v_failures, v_window
     FROM public.parent_query_attempts
     WHERE school_code = v_code AND student_number = v_number;
 
-    IF v_failures >= 5 AND v_window > NOW() - INTERVAL '15 minutes' THEN
-        RETURN jsonb_build_object('success', false, 'message', '嘗試次數過多，請 15 分鐘後再試');
+    SELECT failures, window_start INTO v_school_failures, v_school_window
+    FROM public.parent_query_school_attempts
+    WHERE school_code = v_code;
+
+    IF (v_failures >= 5 AND v_window > NOW() - INTERVAL '15 minutes')
+       OR (v_school_failures >= 50 AND v_school_window > NOW() - INTERVAL '15 minutes') THEN
+        RETURN jsonb_build_object('success', false, 'message', '嘗試次數過多，請 15 分鐘後再試。如果一直查不到，請聯絡班級導師。');
     END IF;
 
     -- 1. 查找符合學校、學號且家長電話後四碼一致之學生
@@ -233,23 +250,43 @@ BEGIN
     JOIN public.schools sch ON sch.id = s.school_id
     WHERE sch.code = v_code
       AND s.student_number = v_number
-      AND RIGHT(REPLACE(s.parent_phone, '-', ''), 4) = p_parent_phone_last4
+      -- 只比對數字，電話裡的空格、「-」、括號都不影響
+      AND RIGHT(regexp_replace(s.parent_phone, '\D', '', 'g'), 4) = p_parent_phone_last4
     LIMIT 1;
 
     IF v_student.id IS NULL THEN
-        INSERT INTO public.parent_query_attempts (school_code, student_number, failures, window_start)
-        VALUES (v_code, v_number, 1, NOW())
-        ON CONFLICT (school_code, student_number) DO UPDATE SET
-            failures = CASE
-                WHEN public.parent_query_attempts.window_start > NOW() - INTERVAL '15 minutes'
-                    THEN public.parent_query_attempts.failures + 1
-                ELSE 1
-            END,
-            window_start = CASE
-                WHEN public.parent_query_attempts.window_start > NOW() - INTERVAL '15 minutes'
-                    THEN public.parent_query_attempts.window_start
-                ELSE NOW()
-            END;
+        -- 只替真的存在的學校計次，亂打的學校代碼不會讓計數表一直變大
+        SELECT EXISTS (SELECT 1 FROM public.schools WHERE code = v_code) INTO v_school_exists;
+
+        IF v_school_exists THEN
+            INSERT INTO public.parent_query_attempts (school_code, student_number, failures, window_start)
+            VALUES (v_code, LEFT(v_number, 40), 1, NOW())
+            ON CONFLICT (school_code, student_number) DO UPDATE SET
+                failures = CASE
+                    WHEN public.parent_query_attempts.window_start > NOW() - INTERVAL '15 minutes'
+                        THEN public.parent_query_attempts.failures + 1
+                    ELSE 1
+                END,
+                window_start = CASE
+                    WHEN public.parent_query_attempts.window_start > NOW() - INTERVAL '15 minutes'
+                        THEN public.parent_query_attempts.window_start
+                    ELSE NOW()
+                END;
+
+            INSERT INTO public.parent_query_school_attempts (school_code, failures, window_start)
+            VALUES (v_code, 1, NOW())
+            ON CONFLICT (school_code) DO UPDATE SET
+                failures = CASE
+                    WHEN public.parent_query_school_attempts.window_start > NOW() - INTERVAL '15 minutes'
+                        THEN public.parent_query_school_attempts.failures + 1
+                    ELSE 1
+                END,
+                window_start = CASE
+                    WHEN public.parent_query_school_attempts.window_start > NOW() - INTERVAL '15 minutes'
+                        THEN public.parent_query_school_attempts.window_start
+                    ELSE NOW()
+                END;
+        END IF;
         RETURN jsonb_build_object('success', false, 'message', '學校代碼、學號或家長電話後四碼不符合');
     END IF;
 
@@ -542,6 +579,12 @@ CREATE TABLE IF NOT EXISTS public.seating_layouts (
 
 ALTER TABLE public.seating_layouts ENABLE ROW LEVEL SECURITY;
 
+-- Separate from CREATE TABLE so it also applies when the table already exists.
+-- NOT VALID: rows saved before this rule are left alone; every new or changed row is checked.
+ALTER TABLE public.seating_layouts DROP CONSTRAINT IF EXISTS seating_layouts_boxes_check;
+ALTER TABLE public.seating_layouts ADD CONSTRAINT seating_layouts_boxes_check
+    CHECK (jsonb_typeof(boxes) = 'array' AND jsonb_array_length(boxes) BETWEEN 1 AND 200) NOT VALID;
+
 DROP POLICY IF EXISTS "Seating layouts read" ON public.seating_layouts;
 CREATE POLICY "Seating layouts read" ON public.seating_layouts
     FOR SELECT TO authenticated
@@ -609,10 +652,91 @@ CREATE POLICY "Attendance records read" ON public.attendance_records
     );
 
 DROP POLICY IF EXISTS "Attendance records write" ON public.attendance_records;
-CREATE POLICY "Attendance records write" ON public.attendance_records
-    FOR ALL TO authenticated USING (
+DROP POLICY IF EXISTS "Attendance records insert" ON public.attendance_records;
+DROP POLICY IF EXISTS "Attendance records update" ON public.attendance_records;
+DROP POLICY IF EXISTS "Attendance records delete" ON public.attendance_records;
+
+-- 新增紀錄時，學生必須屬於該場次的班級（不能把別班學生塞進自己班的點名）
+CREATE POLICY "Attendance records insert" ON public.attendance_records
+    FOR INSERT TO authenticated WITH CHECK (
+        public.can_write_class((SELECT s.class_id FROM public.attendance_sessions s WHERE s.id = session_id))
+        AND EXISTS (
+            SELECT 1 FROM public.attendance_sessions s
+            JOIN public.students st ON st.class_id = s.class_id
+            WHERE s.id = session_id AND st.id = student_id
+        )
+    );
+
+-- 更正與刪除不比對班級：學生之後轉班，舊紀錄仍要能更正
+CREATE POLICY "Attendance records update" ON public.attendance_records
+    FOR UPDATE TO authenticated USING (
+        public.can_write_class((SELECT s.class_id FROM public.attendance_sessions s WHERE s.id = session_id))
+    ) WITH CHECK (
         public.can_write_class((SELECT s.class_id FROM public.attendance_sessions s WHERE s.id = session_id))
     );
+
+CREATE POLICY "Attendance records delete" ON public.attendance_records
+    FOR DELETE TO authenticated USING (
+        public.can_write_class((SELECT s.class_id FROM public.attendance_sessions s WHERE s.id = session_id))
+    );
+
+-- 同一班、同一天、同一節只能有一次點名（重點要到點名紀錄更正）。
+-- 若資料庫裡已有重複的舊資料，這裡只提醒、不建立，請先整理後再執行一次。
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM public.attendance_sessions
+        GROUP BY class_id, session_date, COALESCE(period, '')
+        HAVING COUNT(*) > 1
+    ) THEN
+        RAISE NOTICE 'attendance_sessions has duplicate class/date/period rows; unique index not created';
+    ELSE
+        CREATE UNIQUE INDEX IF NOT EXISTS attendance_sessions_one_per_period
+            ON public.attendance_sessions (class_id, session_date, COALESCE(period, ''));
+    END IF;
+END $$;
+
+-- 點名存檔：場次與所有學生紀錄在同一個交易裡寫入，失敗就全部不寫入（不會留下沒有明細的空場次）。
+-- 用呼叫者的身分執行，所以仍受上面的 RLS 限制。
+CREATE OR REPLACE FUNCTION public.save_rollcall(
+    p_class_id UUID,
+    p_chart_id UUID,
+    p_session_date DATE,
+    p_period TEXT,
+    p_snapshot_path TEXT,
+    p_detection JSONB,
+    p_records JSONB
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+    v_session_id UUID;
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM public.attendance_sessions
+        WHERE class_id = p_class_id AND session_date = p_session_date
+          AND COALESCE(period, '') = COALESCE(p_period, '')
+    ) THEN
+        RAISE EXCEPTION '這一節已經點過名了。如果結果不對，請到「點名紀錄」更正。' USING ERRCODE = 'P0001';
+    END IF;
+
+    INSERT INTO public.attendance_sessions (class_id, teacher_id, chart_id, session_date, period, snapshot_path, detection_raw_json)
+    VALUES (p_class_id, auth.uid(), p_chart_id, p_session_date, p_period, p_snapshot_path, p_detection)
+    RETURNING id INTO v_session_id;
+
+    INSERT INTO public.attendance_records (session_id, student_id, status, ai_detected_status, is_overridden, note)
+    SELECT v_session_id, r.student_id, r.status, r.ai_detected_status, COALESCE(r.is_overridden, false), r.note
+    FROM jsonb_to_recordset(p_records) AS r(
+        student_id UUID, status TEXT, ai_detected_status TEXT, is_overridden BOOLEAN, note TEXT
+    );
+
+    RETURN v_session_id;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.save_rollcall(UUID, UUID, DATE, TEXT, TEXT, JSONB, JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.save_rollcall(UUID, UUID, DATE, TEXT, TEXT, JSONB, JSONB) TO authenticated;
 
 -- ------------------------------------------------------------------------------
 -- 13. 自動化觸發器：在 auth.users 註冊時同步建立 profiles 記錄

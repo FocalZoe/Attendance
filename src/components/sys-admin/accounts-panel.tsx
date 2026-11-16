@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DangerConfirmDialog } from '@/components/ui/danger-confirm-dialog';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Stagger, StaggerItem } from '@/components/motion/stagger';
 import type { School, UserRole } from '@/types/database';
 
 // shortcut: loads up to this many accounts at once and groups them in the browser; add paging if a platform grows past it
@@ -140,9 +141,9 @@ export function AccountsPanel({ schools }: { schools: School[] }) {
       ) : groups.length === 0 ? (
         <EmptyState title="找不到帳號" description="換個關鍵字或學校再試試。" />
       ) : (
-        <div className="space-y-6">
+        <Stagger gap={0.06} className="space-y-6">
           {groups.map(([key, group]) => (
-            <div key={key} className="space-y-2">
+            <StaggerItem key={key} className="space-y-2">
               <h3 className="text-base font-bold text-foreground">
                 {group.name}
                 <span className="ml-2 text-sm font-normal text-muted-foreground">{group.items.length} 個帳號</span>
@@ -170,9 +171,9 @@ export function AccountsPanel({ schools }: { schools: School[] }) {
                   </li>
                 ))}
               </ul>
-            </div>
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
       )}
 
       <DangerConfirmDialog

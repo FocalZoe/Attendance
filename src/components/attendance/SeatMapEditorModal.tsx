@@ -14,6 +14,10 @@ import { generateGridSeats, NormalizedBox } from '@/services/seatOccupancyServic
 import { Trash2, PlusCircle, Copy, LayoutTemplate } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/errors';
+import { m } from 'motion/react';
+import { Collapse } from '@/components/motion/collapse';
+import { Stagger, StaggerItem } from '@/components/motion/stagger';
+import { transitions } from '@/lib/motion';
 
 interface SeatMapEditorModalProps {
   open: boolean;
@@ -489,23 +493,31 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
                 還沒有儲存的佈局
               </p>
             ) : (
-              <ul className="max-h-60 space-y-1 overflow-y-auto lg:max-h-[22rem]">
+              <Stagger as="ul" gap={0.04} className="max-h-60 space-y-1 overflow-y-auto lg:max-h-[22rem]">
                 {layouts.map((l) => (
-                  <li key={l.id}>
+                  <StaggerItem as="li" key={l.id}>
                     <button
                       type="button"
                       aria-pressed={l.id === selectedLayoutId}
                       onClick={() => setSelectedLayoutId(l.id)}
-                      className={`w-full rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-secondary/60 ${
-                        l.id === selectedLayoutId ? 'border-primary bg-secondary' : 'border-border'
+                      className={`relative w-full rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-secondary/60 ${
+                        l.id === selectedLayoutId ? 'border-primary' : 'border-border'
                       }`}
                     >
-                      <span className="block truncate font-medium text-foreground">{l.name}</span>
-                      <span className="block text-xs text-muted-foreground">{l.boxes.length} 個座位</span>
+                      {l.id === selectedLayoutId && (
+                        <m.span
+                          layoutId="editor-layout-active"
+                          transition={transitions.base}
+                          className="absolute inset-0 rounded-md bg-secondary"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <span className="relative block truncate font-medium text-foreground">{l.name}</span>
+                      <span className="relative block text-xs text-muted-foreground">{l.boxes.length} 個座位</span>
                     </button>
-                  </li>
+                  </StaggerItem>
                 ))}
-              </ul>
+              </Stagger>
             )}
             <div className="flex gap-2">
               <Button
@@ -569,6 +581,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
             「自動排座位」會重排所有座位。排好後，點一個座位就能移動、拉右下角調整大小，並指定學生。
           </p>
 
+          <Collapse open={selectedBoxIndex !== null && !!boxes[selectedBoxIndex]}>
           {selectedBoxIndex !== null && boxes[selectedBoxIndex] && (
             <div className="flex flex-wrap items-end justify-between gap-3 rounded-md border border-border bg-secondary p-3">
               <div className="space-y-2">
@@ -605,6 +618,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
               </div>
             </div>
           )}
+          </Collapse>
         </div>
 
         {/* Seat canvas (16:9) */}
@@ -624,8 +638,11 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
             const assignedStudent = currentStudents.find((s) => s.id === box.student_id);
 
             return (
-              <div
+              <m.div
                 key={box.id || index}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={transitions.base}
                 onMouseDown={(e) => handleMouseDown(e, index)}
                 onClick={(e) => e.stopPropagation()}
                 style={{
@@ -670,7 +687,7 @@ export const SeatMapEditorModal: React.FC<SeatMapEditorModalProps> = ({
                     title="拖曳調整大小"
                   />
                 )}
-              </div>
+              </m.div>
             );
           })}
         </div>

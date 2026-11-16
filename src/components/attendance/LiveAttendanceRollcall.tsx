@@ -35,6 +35,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/errors';
+import { AnimatePresence, m } from 'motion/react';
+import { CountUp } from '@/components/motion/count-up';
+import { transitions } from '@/lib/motion';
 import { useCameraPermission } from '@/hooks/useCameraPermission';
 import { CAMERA_BLOCKED_STEPS, shouldAutoStartCamera } from '@/lib/camera-permission';
 
@@ -553,43 +556,12 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
         }
       }
 
-      // 建立 attendance_sessions 紀錄
-      const { data: sessionData, error: sessionErr } = await supabase
-        .from('attendance_sessions')
-        .insert({
-          class_id: classId,
-          teacher_id: teacherId,
-          chart_id: chartId,
-          session_date: today,
-          period,
-          snapshot_path: snapshotPath,
-          detection_raw_json: {
-            totalSeats: seatingBoxes.length,
-            presentCount,
-            // Save the seat layout so the history view can redraw it exactly as it was
-            seats: seatingBoxes.map((b) => ({
-              student_id: b.student_id,
-              seat_label: b.seat_label,
-              x_ratio: b.x_ratio,
-              y_ratio: b.y_ratio,
-              w_ratio: b.w_ratio,
-              h_ratio: b.h_ratio,
-            })),
-            timestamp: new Date().toISOString(),
-          },
-        })
-        .select()
-        .single();
-
-      if (sessionErr) throw sessionErr;
-
-      // 建立各學生之 attendance_records 紀錄（全班母體收斂、去重並涵蓋未劃位學生）
+      // 場次與全班紀錄在資料庫同一個交易裡寫入：失敗就全部不寫入，不會留下沒有明細的空場次
       const recordsToInsert = compileAttendanceRecords(
         currentStudents,
         seatingBoxes,
         latestOccupancyRef.current
       ).map((rec) => ({
-        session_id: sessionData.id,
         student_id: rec.student_id,
         status: rec.status,
         ai_detected_status: rec.ai_detected_status,
@@ -597,16 +569,33 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
         note: rec.note,
       }));
 
-      if (recordsToInsert.length > 0) {
-        const { error: recErr } = await supabase
-          .from('attendance_records')
-          .insert(recordsToInsert);
+      const { error: saveErr } = await supabase.rpc('save_rollcall', {
+        p_class_id: classId,
+        p_chart_id: chartId,
+        p_session_date: today,
+        p_period: period,
+        p_snapshot_path: snapshotPath,
+        p_detection: {
+          totalSeats: seatingBoxes.length,
+          presentCount,
+          // Save the seat layout so the history view can redraw it exactly as it was
+          seats: seatingBoxes.map((b) => ({
+            student_id: b.student_id,
+            seat_label: b.seat_label,
+            x_ratio: b.x_ratio,
+            y_ratio: b.y_ratio,
+            w_ratio: b.w_ratio,
+            h_ratio: b.h_ratio,
+          })),
+          timestamp: new Date().toISOString(),
+        },
+        p_records: recordsToInsert,
+      });
 
-        if (recErr) {
-          // 若明細寫入失敗，立即清理該場次，防範留下無明細的孤兒 session
-          await supabase.from('attendance_sessions').delete().eq('id', sessionData.id);
-          throw recErr;
-        }
+      if (saveErr) {
+        // Nothing was saved, so the photo uploaded above would be orphaned
+        if (snapshotPath) await supabase.storage.from('attendance-snapshots').remove([snapshotPath]);
+        throw saveErr;
       }
 
       const actualPresent = recordsToInsert.filter((r) => r.status === 'present').length;
@@ -657,12 +646,20 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
                   disabled={isSaving}
                   onClick={() => handleSwitchLayout(item.id)}
                   className={cn(
-                    'w-full rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-secondary/60 disabled:opacity-50',
-                    item.id === activeLayoutId ? 'border-primary bg-secondary' : 'border-border'
+                    'relative w-full rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-secondary/60 disabled:opacity-50',
+                    item.id === activeLayoutId ? 'border-primary' : 'border-border'
                   )}
                 >
-                  <span className="block truncate font-medium text-foreground">{item.name}</span>
-                  <span className="block text-xs text-muted-foreground">{item.count} 個座位</span>
+                  {item.id === activeLayoutId && (
+                    <m.span
+                      layoutId="rollcall-layout-active"
+                      transition={transitions.base}
+                      className="absolute inset-0 rounded-md bg-secondary"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span className="relative block truncate font-medium text-foreground">{item.name}</span>
+                  <span className="relative block text-xs text-muted-foreground">{item.count} 個座位</span>
                 </button>
               </li>
             ))}
@@ -673,28 +670,36 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
             </p>
           ) : (
             <div className="relative aspect-video w-full overflow-hidden rounded-md border border-border bg-neutral-950">
-              {seatingBoxes.map((box) => {
-                const student = currentStudents.find((st) => st.id === box.student_id);
-                const occupied = cameraActive && (occupancies[box.id] || false);
-                return (
-                  <div
-                    key={box.id}
-                    title={`${box.seat_label} 號　${student ? student.name : '空位'}`}
-                    style={{
-                      left: `${box.x_ratio * 100}%`,
-                      top: `${box.y_ratio * 100}%`,
-                      width: `${box.w_ratio * 100}%`,
-                      height: `${box.h_ratio * 100}%`,
-                    }}
-                    className={cn(
-                      'absolute flex items-center justify-center overflow-hidden rounded-[2px] border text-[9px] font-bold text-white',
-                      occupied ? 'border-[#8fba87] bg-[#8fba87]/40' : 'border-white/50 bg-black/40'
-                    )}
-                  >
-                    {box.seat_label}
-                  </div>
-                );
-              })}
+              <AnimatePresence initial={false}>
+                {seatingBoxes.map((box, index) => {
+                  const student = currentStudents.find((st) => st.id === box.student_id);
+                  const occupied = cameraActive && (occupancies[box.id] || false);
+                  return (
+                    // Keyed by position so a layout switch moves each seat instead of redrawing it
+                    <m.div
+                      key={`seat-${index}`}
+                      title={`${box.seat_label} 號　${student ? student.name : '空位'}`}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{
+                        opacity: 1,
+                        scale: 1,
+                        left: `${box.x_ratio * 100}%`,
+                        top: `${box.y_ratio * 100}%`,
+                        width: `${box.w_ratio * 100}%`,
+                        height: `${box.h_ratio * 100}%`,
+                      }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      transition={transitions.base}
+                      className={cn(
+                        'absolute flex items-center justify-center overflow-hidden rounded-[2px] border text-[9px] font-bold text-white transition-colors',
+                        occupied ? 'border-[#8fba87] bg-[#8fba87]/40' : 'border-white/50 bg-black/40'
+                      )}
+                    >
+                      {box.seat_label}
+                    </m.div>
+                  );
+                })}
+              </AnimatePresence>
             </div>
           )}
           <p className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -776,42 +781,49 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
           <video ref={videoRef} playsInline muted className="h-full w-full object-cover" />
           <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
 
-          {cameraActive &&
-            seatingBoxes.map((box) => {
-              const isOccupied = occupancies[box.id] || false;
-              const assignedStudent = currentStudents.find((s) => s.id === box.student_id);
+          <AnimatePresence initial={false}>
+            {cameraActive &&
+              seatingBoxes.map((box, index) => {
+                const isOccupied = occupancies[box.id] || false;
+                const assignedStudent = currentStudents.find((s) => s.id === box.student_id);
 
-              return (
-                <div
-                  key={box.id}
-                  style={{
-                    left: `${box.x_ratio * 100}%`,
-                    top: `${box.y_ratio * 100}%`,
-                    width: `${box.w_ratio * 100}%`,
-                    height: `${box.h_ratio * 100}%`,
-                  }}
-                  className={cn(
-                    'pointer-events-none absolute z-10 flex select-none flex-col justify-between rounded-sm border-2 p-1 transition-colors',
-                    isOccupied ? 'border-[#8fba87] bg-[#8fba87]/25' : 'border-white/60 bg-black/40'
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="tabular text-[11px] font-bold text-white">{box.seat_label}</span>
-                    <span
-                      className={cn(
-                        'rounded-sm px-1 text-[10px] font-bold',
-                        isOccupied ? 'bg-[#3f6b3a] text-white' : 'bg-black/70 text-white'
-                      )}
-                    >
-                      {isOccupied ? '在座' : '無人'}
-                    </span>
-                  </div>
-                  <div className="max-w-full truncate text-xs font-medium text-white">
-                    {assignedStudent ? assignedStudent.name : '空位'}
-                  </div>
-                </div>
-              );
-            })}
+                return (
+                  <m.div
+                    key={`seat-${index}`}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{
+                      opacity: 1,
+                      scale: 1,
+                      left: `${box.x_ratio * 100}%`,
+                      top: `${box.y_ratio * 100}%`,
+                      width: `${box.w_ratio * 100}%`,
+                      height: `${box.h_ratio * 100}%`,
+                    }}
+                    exit={{ opacity: 0 }}
+                    transition={transitions.base}
+                    className={cn(
+                      'pointer-events-none absolute z-10 flex select-none flex-col justify-between rounded-sm border-2 p-1 transition-colors',
+                      isOccupied ? 'border-[#8fba87] bg-[#8fba87]/25' : 'border-white/60 bg-black/40'
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="tabular text-[11px] font-bold text-white">{box.seat_label}</span>
+                      <span
+                        className={cn(
+                          'rounded-sm px-1 text-[10px] font-bold',
+                          isOccupied ? 'bg-[#3f6b3a] text-white' : 'bg-black/70 text-white'
+                        )}
+                      >
+                        {isOccupied ? '在座' : '無人'}
+                      </span>
+                    </div>
+                    <div className="max-w-full truncate text-xs font-medium text-white">
+                      {assignedStudent ? assignedStudent.name : '空位'}
+                    </div>
+                  </m.div>
+                );
+              })}
+          </AnimatePresence>
 
           {!cameraActive && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 overflow-y-auto bg-neutral-950/90 p-4 text-center text-white">
@@ -853,7 +865,7 @@ export const LiveAttendanceRollcall: React.FC<LiveAttendanceRollcallProps> = ({
         <DialogFooter className="mt-auto flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between sm:space-x-0">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <p className="text-sm text-foreground">
-              <span className="tabular font-display text-2xl font-bold text-present">{presentCount}</span>
+              <CountUp value={presentCount} className="tabular font-display text-2xl font-bold text-present" />
               <span className="tabular text-muted-foreground"> / {seatingBoxes.length} 個座位有人</span>
             </p>
           </div>
