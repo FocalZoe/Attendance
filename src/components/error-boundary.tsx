@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { buildIssueUrl } from '@/lib/report-issue';
+import { Button } from '@/components/ui/button';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -37,28 +38,17 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             你剛才的操作沒有遺失。先按「重試」；還是不行的話，請回報問題，我們會盡快處理。
           </p>
           <div className="flex flex-wrap justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => this.setState({ error: null })}
-              className="h-10 rounded-md border border-border px-4 text-sm font-medium hover:bg-secondary"
-            >
+            <Button type="button" variant="outline" onClick={() => this.setState({ error: null })}>
               重試
-            </button>
-            <button
-              type="button"
-              onClick={() => window.location.assign('/')}
-              className="h-10 rounded-md border border-border px-4 text-sm font-medium hover:bg-secondary"
-            >
+            </Button>
+            <Button type="button" variant="outline" onClick={() => window.location.assign('/')}>
               回首頁
-            </button>
-            <a
-              href={reportUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              回報問題
-            </a>
+            </Button>
+            <Button asChild>
+              <a href={reportUrl} target="_blank" rel="noopener noreferrer">
+                回報問題
+              </a>
+            </Button>
           </div>
         </div>
       </div>

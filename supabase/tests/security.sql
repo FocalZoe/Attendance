@@ -63,6 +63,12 @@ BEGIN
     EXCEPTION WHEN insufficient_privilege OR check_violation THEN
         NULL; -- expected: blocked by RLS
     END;
+
+    -- 4b. Teacher A can read their own profile but not a colleague's contact details
+    SELECT COUNT(*) INTO v_count FROM public.profiles WHERE id IN (v_teacher_a, v_teacher_b);
+    IF v_count <> 1 THEN
+        RAISE EXCEPTION 'FAIL: teacher should see only their own profile, saw %', v_count;
+    END IF;
     RESET ROLE;
 
     -- 5. Teacher C (assigned to no class) cannot delete any student
@@ -175,6 +181,62 @@ BEGIN
         RAISE EXCEPTION 'FAIL: anon could not list schools';
     END IF;
     RESET ROLE;
+END $$;
+
+-- Third block: self-service school opening (register_school_admin)
+DO $$
+DECLARE
+    v_school UUID := gen_random_uuid();
+    v_teacher UUID := gen_random_uuid();
+    v_fresh UUID := gen_random_uuid();
+    v_count INTEGER;
+BEGIN
+    INSERT INTO public.schools (id, name, code) VALUES (v_school, 'Test School 4', 'SECT4');
+    INSERT INTO auth.users (id, email, aud, role) VALUES
+        (v_teacher, 'sec-f@example.test', 'authenticated', 'authenticated'),
+        (v_fresh, 'sec-g@example.test', 'authenticated', 'authenticated');
+    UPDATE public.profiles SET school_id = v_school WHERE id = v_teacher;
+
+    -- 1. A teacher cannot promote themselves with their own school's code, nor open another school
+    PERFORM set_config('request.jwt.claims', json_build_object('sub', v_teacher, 'role', 'authenticated')::text, true);
+    PERFORM set_config('request.jwt.claim.sub', v_teacher::text, true);
+    BEGIN
+        PERFORM public.register_school_admin('Test School 4', 'SECT4', 'T');
+        RAISE EXCEPTION 'FAIL: teacher promoted themselves to school admin';
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; -- expected: rejected
+    END;
+    BEGIN
+        PERFORM public.register_school_admin('Brand New', 'SECT5', 'T');
+        RAISE EXCEPTION 'FAIL: bound teacher opened a new school';
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; -- expected: rejected
+    END;
+    IF (SELECT role FROM public.profiles WHERE id = v_teacher) <> 'teacher' THEN
+        RAISE EXCEPTION 'FAIL: teacher role changed';
+    END IF;
+
+    -- 2. A fresh account cannot take over an existing code, can open one school, and only one
+    PERFORM set_config('request.jwt.claims', json_build_object('sub', v_fresh, 'role', 'authenticated')::text, true);
+    PERFORM set_config('request.jwt.claim.sub', v_fresh::text, true);
+    BEGIN
+        PERFORM public.register_school_admin('Test School 4', 'SECT4', 'F');
+        RAISE EXCEPTION 'FAIL: fresh account took over an existing school';
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; -- expected: rejected
+    END;
+    PERFORM public.register_school_admin('Fresh School', 'SECT6', 'F');
+    PERFORM public.register_school_admin('Fresh School', 'SECT6', 'F'); -- a retried submit stays allowed
+    BEGIN
+        PERFORM public.register_school_admin('Second School', 'SECT7', 'F');
+        RAISE EXCEPTION 'FAIL: one account opened a second school';
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; -- expected: rejected
+    END;
+    SELECT COUNT(*) INTO v_count FROM public.schools WHERE code IN ('SECT5', 'SECT6', 'SECT7');
+    IF v_count <> 1 THEN
+        RAISE EXCEPTION 'FAIL: expected exactly one new school, found %', v_count;
+    END IF;
 END $$;
 
 ROLLBACK;

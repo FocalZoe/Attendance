@@ -67,6 +67,7 @@ export function ParentQueryPage() {
         </Link>
       }
     >
+      <title>家長查勤｜班級自動化點名系統</title>
       <h1 className="text-3xl font-bold text-foreground">家長查勤</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
         選擇孩子的學校，輸入學號，以及學校留存的家長電話末四碼，就能看到最近的出勤紀錄。

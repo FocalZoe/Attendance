@@ -108,6 +108,7 @@ export function RegisterPage() {
 
   return (
     <PublicShell width="wide">
+      <title>開通學校｜班級自動化點名系統</title>
       <h1 className="text-3xl font-bold text-foreground">開通學校</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
         建立學校與第一位學校主管。完成後可立即新增班級、教師與學生名冊。

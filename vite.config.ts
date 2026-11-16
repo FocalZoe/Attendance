@@ -15,6 +15,17 @@ export default defineConfig({
     },
   },
   envPrefix: ['VITE_'],
+  build: {
+    rollupOptions: {
+      output: {
+        // Libraries change far less often than app code, so separate files stay cached across releases
+        manualChunks(id) {
+          if (/node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id)) return 'react';
+          if (/node_modules[\\/]@supabase[\\/]/.test(id)) return 'supabase';
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
   },

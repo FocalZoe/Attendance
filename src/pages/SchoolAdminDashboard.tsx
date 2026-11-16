@@ -3,6 +3,7 @@ import { supabase, createIsolatedClient } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AppShell, type NavItem } from '@/components/layout/app-shell';
+import { PageHeader } from '@/components/layout/page-header';
 import { PageTransition } from '@/components/motion/page-transition';
 import { CountUp } from '@/components/motion/count-up';
 import { Clock, School, Users } from 'lucide-react';
@@ -409,31 +410,32 @@ export function SchoolAdminDashboard() {
   return (
     <AppShell profile={profile} navItems={SCHOOL_ADMIN_NAV}>
       <main className="mx-auto w-full max-w-7xl flex-1 space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+        <title>{`${SCHOOL_ADMIN_NAV.findLast((n) => location.pathname.startsWith(n.to))?.label ?? '校務管理'}｜班級自動化點名系統`}</title>
         {/* 標題與統計 */}
-        <section className="flex flex-col gap-6 border-b border-border pb-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">
-              {loading ? '校務管理' : schoolName || '尚未綁定學校'}
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+        <PageHeader
+          className="gap-6 border-b border-border pb-6"
+          title={loading ? '校務管理' : schoolName || '尚未綁定學校'}
+          description={
+            <>
               校務管理
               {schoolCode && (
                 <span className="tabular ml-2 rounded-sm border border-border bg-secondary px-1.5 py-0.5 font-mono text-xs text-foreground">
                   {schoolCode}
                 </span>
               )}
-            </p>
-          </div>
-
-          <dl className="grid grid-cols-3 divide-x divide-border">
-            {stats.map((item) => (
-              <div key={item.label} className="px-4 first:pl-0 sm:px-6">
-                <dd className="tabular font-display text-3xl font-bold text-foreground"><CountUp value={item.value} /></dd>
-                <dt className="text-sm text-muted-foreground">{item.label}</dt>
-              </div>
-            ))}
-          </dl>
-        </section>
+            </>
+          }
+          actions={
+            <dl className="grid grid-cols-3 divide-x divide-border">
+              {stats.map((item) => (
+                <div key={item.label} className="px-4 first:pl-0 sm:px-6">
+                  <dd className="tabular font-display text-3xl font-bold text-foreground"><CountUp value={item.value} /></dd>
+                  <dt className="text-sm text-muted-foreground">{item.label}</dt>
+                </div>
+              ))}
+            </dl>
+          }
+        />
 
         {!schoolId && !loading ? (
           <EmptyState

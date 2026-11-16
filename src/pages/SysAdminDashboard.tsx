@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AppShell, type NavItem } from '@/components/layout/app-shell';
+import { PageHeader } from '@/components/layout/page-header';
 import { PageTransition } from '@/components/motion/page-transition';
 import { CountUp } from '@/components/motion/count-up';
 import { Building2, GraduationCap, Users } from 'lucide-react';
@@ -16,7 +17,7 @@ import type { School as SchoolType } from '@/types/database';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DangerConfirmDialog } from '@/components/ui/danger-confirm-dialog';
-import { deleteSchoolEverything } from '@/lib/hard-delete';
+import { deleteSchoolEverything, PHOTO_LEFTOVER_WARNING } from '@/lib/hard-delete';
 import { toastError } from '@/lib/errors';
 import { friendlyError } from '@/lib/errors';
 
@@ -142,7 +143,7 @@ export function SysAdminDashboard() {
         `已永久刪除「${deleteTarget.name}」：${result.classes} 個班級、${result.students} 位學生、${result.snapshots} 張照片`
       );
       if (result.photosFailed) {
-        toast.warning('資料已刪除，但有些點名照片沒有清除乾淨。請確認已重跑 schema.sql，再到 Supabase Storage 手動清理。');
+        toast.warning(PHOTO_LEFTOVER_WARNING);
       }
       await loadData();
     } catch (err) {
@@ -172,21 +173,22 @@ export function SysAdminDashboard() {
   return (
     <AppShell profile={profile} navItems={SYS_ADMIN_NAV}>
       <main className="mx-auto w-full max-w-7xl flex-1 space-y-8 px-4 py-8 sm:px-6 lg:px-8">
-        <section className="flex flex-col gap-6 border-b border-border pb-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">{pageInfo.title}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{pageInfo.description}</p>
-          </div>
-
-          <dl className="grid grid-cols-3 divide-x divide-border">
-            {stats.map((item) => (
-              <div key={item.label} className="px-4 first:pl-0 sm:px-6">
-                <dd className="tabular font-display text-3xl font-bold text-foreground"><CountUp value={item.value} /></dd>
-                <dt className="text-sm text-muted-foreground">{item.label}</dt>
-              </div>
-            ))}
-          </dl>
-        </section>
+        <title>{`${pageInfo.title}｜班級自動化點名系統`}</title>
+        <PageHeader
+          className="gap-6 border-b border-border pb-6"
+          title={pageInfo.title}
+          description={pageInfo.description}
+          actions={
+            <dl className="grid grid-cols-3 divide-x divide-border">
+              {stats.map((item) => (
+                <div key={item.label} className="px-4 first:pl-0 sm:px-6">
+                  <dd className="tabular font-display text-3xl font-bold text-foreground"><CountUp value={item.value} /></dd>
+                  <dt className="text-sm text-muted-foreground">{item.label}</dt>
+                </div>
+              ))}
+            </dl>
+          }
+        />
 
         <PageTransition key={location.pathname}>
           <Outlet context={outletContext} />

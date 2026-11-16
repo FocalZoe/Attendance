@@ -77,6 +77,7 @@ export function ResetPasswordPage() {
 
   return (
     <PublicShell>
+      <title>重設密碼｜班級自動化點名系統</title>
       <h1 className="text-3xl font-bold text-foreground">重設密碼</h1>
 
       {!checked ? (

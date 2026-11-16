@@ -219,6 +219,7 @@ export function TeacherDashboard() {
         <div className="min-w-0 flex-1 space-y-10 lg:order-first">
         {/* 問候 */}
         <section aria-labelledby="today-heading">
+          <title>今日點名｜班級自動化點名系統</title>
           <PageHeader id="today-heading" eyebrow={dateLabel} title={`${profile?.name || ''} 老師，今天的點名`} />
 
           {(cameraPermission.state === 'prompt' || cameraPermission.state === 'denied') && (
@@ -264,7 +265,7 @@ export function TeacherDashboard() {
 
         {/* 我的班級 */}
         <section aria-labelledby="classes-heading" data-tour="classes">
-          <h2 id="classes-heading" className="text-xl font-bold text-foreground">
+          <h2 id="classes-heading" className="text-lg font-bold text-foreground">
             我的班級（{assignedClasses.length}）
           </h2>
 
@@ -343,7 +344,7 @@ export function TeacherDashboard() {
             initial="hidden"
             animate="visible"
           >
-            <h2 id="class-detail-heading" className="text-xl font-bold text-foreground">
+            <h2 id="class-detail-heading" className="text-lg font-bold text-foreground">
               {currentAssigned.class.name}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">

@@ -5,7 +5,7 @@ interface PageHeaderProps {
   title: string;
   /** 標題上方的小字，例如日期 */
   eyebrow?: string;
-  description?: string;
+  description?: React.ReactNode;
   /** 右側主要動作（通常是按鈕） */
   actions?: React.ReactNode;
   id?: string;

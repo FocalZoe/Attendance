@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { supabase } from '@/lib/supabase';
-import { deleteClassEverything, deleteSessionRecord, deleteStudentRecord } from '@/lib/hard-delete';
+import { deleteClassEverything, deleteSessionRecord, deleteStudentRecord, PHOTO_LEFTOVER_WARNING } from '@/lib/hard-delete';
 import { periodLabel } from '@/lib/periods';
 import { toastError } from '@/lib/errors';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ListSkeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { DangerConfirmDialog } from '@/components/ui/danger-confirm-dialog';
@@ -30,8 +31,6 @@ type Target =
   | { kind: 'session'; item: AttendanceSession };
 
 const SESSION_PAGE = 50;
-const PHOTO_LEFTOVER_WARNING =
-  '資料已刪除，但有些點名照片沒有清除乾淨。請確認已重跑 schema.sql，再到 Supabase Storage 手動清理。';
 
 export function DataPanel({ schools, onChanged }: DataPanelProps) {
   const [schoolId, setSchoolId] = React.useState('');
@@ -310,7 +309,8 @@ export function DataPanel({ schools, onChanged }: DataPanelProps) {
             )}
             {sessions.length < sessionTotal && (
               <Button type="button" variant="outline" disabled={loadingMore} onClick={handleLoadMore}>
-                {loadingMore ? '載入中…' : `載入更早的紀錄（還有 ${sessionTotal - sessions.length} 筆）`}
+                {loadingMore && <Spinner />}
+                載入更早的紀錄（還有 {sessionTotal - sessions.length} 筆）
               </Button>
             )}
           </div>

@@ -5,6 +5,9 @@ const LIST_PAGE = 100;
 const REMOVE_BATCH = 100;
 
 /** Thrown with a step name so callers can tell what failed; the original error is kept as `cause` */
+export const PHOTO_LEFTOVER_WARNING =
+  '資料已刪除，但有些點名照片沒有清除乾淨。請確認已重跑 schema.sql，再到 Supabase Storage 手動清理。';
+
 export class HardDeleteError extends Error {
   constructor(
     public step: string,

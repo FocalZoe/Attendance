@@ -439,11 +439,9 @@ CREATE POLICY "Profiles school_admin read/manage in school" ON public.profiles
         AND school_id = public.current_user_school_id()
     );
 
+-- Removed: teachers could read every colleague's email and phone, and no screen needs it.
+-- The DROP stays so re-running this file cleans up existing databases.
 DROP POLICY IF EXISTS "Profiles read in same school" ON public.profiles;
-CREATE POLICY "Profiles read in same school" ON public.profiles
-    FOR SELECT TO authenticated USING (
-        school_id = public.current_user_school_id()
-    );
 
 -- Classes 權限
 DROP POLICY IF EXISTS "Classes sys_admin full" ON public.classes;
@@ -787,6 +785,8 @@ DECLARE
     v_school_id UUID;
     v_clean_code TEXT;
     v_user_email TEXT;
+    v_own_school_id UUID;
+    v_own_role TEXT;
 BEGIN
     v_user_id := auth.uid();
     IF v_user_id IS NULL THEN
@@ -806,14 +806,16 @@ BEGIN
     -- 檢查學校是否已存在（防止越權竄改非所屬學校）
     SELECT id INTO v_school_id FROM public.schools WHERE code = v_clean_code;
 
-    IF v_school_id IS NOT NULL THEN
-        -- 若學校代碼已存在，僅允許本校既有成員更新，禁止任意帳號直接接管
-        IF NOT EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = v_user_id AND school_id = v_school_id
-        ) THEN
-            RAISE EXCEPTION '此學校代碼已被註冊，如需加入該校主管團隊，請聯繫系統總管指派';
-        END IF;
+    SELECT school_id, role INTO v_own_school_id, v_own_role FROM public.profiles WHERE id = v_user_id;
+
+    IF v_own_role = 'school_admin' AND v_own_school_id = v_school_id THEN
+        -- Already the admin of this school (e.g. a retried submit): only name/phone are refreshed below
+        NULL;
+    ELSIF v_own_school_id IS NOT NULL OR COALESCE(v_own_role, 'teacher') <> 'teacher' THEN
+        -- A bound account must not use this to promote itself, switch school, or open more schools
+        RAISE EXCEPTION '這個帳號已經屬於某間學校，不能再開通學校。如需調整身分，請聯繫系統總管';
+    ELSIF v_school_id IS NOT NULL THEN
+        RAISE EXCEPTION '此學校代碼已被註冊，如需加入該校主管團隊，請聯繫系統總管指派';
     ELSE
         -- 學校不存在，建立新學校
         INSERT INTO public.schools (name, code)
